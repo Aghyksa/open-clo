@@ -540,36 +540,34 @@ export const StudioViewport: React.FC = () => {
       onPointerUp={handlePointerUp}
     >
       {/* 3D Viewport Header Overlay */}
-      <div className="absolute top-3 left-4 z-10 flex items-center gap-2 bg-[#1b1e26]/85 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/60 shadow-lg text-xs text-slate-300">
-        <Sparkles className="w-4 h-4 text-blue-400" />
-        <span className="font-semibold text-slate-100">3D Draping Studio</span>
-        <span className="text-slate-500">|</span>
-        <span className="text-slate-400">{currentMaterial.name}</span>
+      <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-[#1b1e26]/90 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-slate-700/60 shadow-lg text-xs text-slate-300">
+        <Sparkles className="w-3.5 h-3.5 text-blue-400" />
+        <span className="font-semibold text-slate-100">3D Studio</span>
         {modelLoaded && (
-          <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-medium">
-            CLO-Mannequin Active
-          </span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Mannequin Active" />
         )}
+        <span className="text-slate-500 hidden xl:inline">|</span>
+        <span className="text-slate-400 hidden xl:inline">{currentMaterial.name}</span>
       </div>
 
       {/* Top Right Studio Controls */}
-      <div className="absolute top-3 right-4 z-10 flex items-center gap-2 bg-[#1b1e26]/90 backdrop-blur-md p-1.5 rounded-lg border border-slate-700/60 shadow-xl">
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-[#1b1e26]/90 backdrop-blur-md p-1.5 rounded-lg border border-slate-700/60 shadow-xl">
         <button
           onClick={() => setIsSimulating(!isSimulating)}
-          className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+          className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
             isSimulating
-              ? 'bg-blue-600 hover:bg-blue-500 text-white'
-              : 'bg-slate-700/70 hover:bg-slate-700 text-slate-200'
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+              : 'bg-slate-700/80 hover:bg-slate-700 text-slate-200'
           }`}
           title="Toggle Simulation (Space)"
         >
           {isSimulating ? (
             <>
-              <Pause className="w-3.5 h-3.5" /> Simulating
+              <Pause className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Draping</span>
             </>
           ) : (
             <>
-              <Play className="w-3.5 h-3.5" /> Start Drape
+              <Play className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Drape</span>
             </>
           )}
         </button>
@@ -579,7 +577,7 @@ export const StudioViewport: React.FC = () => {
           className="p-1.5 hover:bg-slate-700/60 rounded text-slate-300 hover:text-white transition-colors"
           title="Reset Drape & Position"
         >
-          <RotateCcw className="w-4 h-4" />
+          <RotateCcw className="w-3.5 h-3.5" />
         </button>
 
         <div className="w-[1px] h-4 bg-slate-700" />

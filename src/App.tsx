@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useCloStore } from './store/useCloStore';
 import { TopNav } from './components/UI/TopNav';
 import { ToolSidebar } from './components/UI/ToolSidebar';
@@ -11,10 +11,43 @@ export const App: React.FC = () => {
   const { layout, activeTool, setActiveTool, isSimulating, setIsSimulating, pieces, seams } =
     useCloStore();
 
+  const [splitRatio, setSplitRatio] = useState(0.48); // 48% 2D Pattern, 52% 3D Studio
+  const isDraggingSplitter = useRef(false);
+
+  const handleSplitterMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingSplitter.current = true;
+    document.body.style.cursor = 'col-resize';
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingSplitter.current) return;
+      const containerWidth = window.innerWidth - 56 - 336;
+      if (containerWidth <= 0) return;
+      const newRatio = Math.max(0.2, Math.min(0.8, (e.clientX - 56) / containerWidth));
+      setSplitRatio(newRatio);
+    };
+
+    const handleMouseUp = () => {
+      if (isDraggingSplitter.current) {
+        isDraggingSplitter.current = false;
+        document.body.style.cursor = 'default';
+        window.dispatchEvent(new Event('resize'));
+      }
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
   // Global Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger when user is typing in inputs
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLSelectElement ||
@@ -49,26 +82,41 @@ export const App: React.FC = () => {
         {/* Left CAD Tool Palette */}
         <ToolSidebar />
 
-        {/* Viewport Area */}
+        {/* Viewport Area with Resizable Splitter */}
         <main className="flex-1 flex overflow-hidden relative">
-          {/* 2D Pattern Canvas */}
-          {(layout === 'dual' || layout === 'pattern-only') && (
-            <div
-              className={`h-full relative ${
-                layout === 'dual' ? 'w-1/2 border-r border-slate-800' : 'w-full'
-              }`}
-            >
+          {layout === 'dual' ? (
+            <>
+              {/* 2D Pattern Canvas */}
+              <div
+                style={{ width: `${splitRatio * 100}%` }}
+                className="h-full relative overflow-hidden flex-shrink-0"
+              >
+                <PatternCanvas />
+              </div>
+
+              {/* Interactive Resizable Divider (like CLO3D) */}
+              <div
+                onMouseDown={handleSplitterMouseDown}
+                className="w-1.5 h-full bg-[#1c202a] hover:bg-blue-500 active:bg-blue-600 cursor-col-resize z-30 transition-colors flex items-center justify-center group select-none flex-shrink-0"
+                title="Drag to resize 2D & 3D viewports"
+              >
+                <div className="w-0.5 h-8 bg-slate-600 group-hover:bg-white rounded-full transition-colors" />
+              </div>
+
+              {/* 3D Studio & Simulation Viewport */}
+              <div
+                style={{ width: `${(1 - splitRatio) * 100}%` }}
+                className="h-full relative overflow-hidden flex-1"
+              >
+                <StudioViewport />
+              </div>
+            </>
+          ) : layout === 'pattern-only' ? (
+            <div className="w-full h-full relative overflow-hidden">
               <PatternCanvas />
             </div>
-          )}
-
-          {/* 3D Studio & Simulation Viewport */}
-          {(layout === 'dual' || layout === '3d-only') && (
-            <div
-              className={`h-full relative ${
-                layout === 'dual' ? 'w-1/2' : 'w-full'
-              }`}
-            >
+          ) : (
+            <div className="w-full h-full relative overflow-hidden">
               <StudioViewport />
             </div>
           )}

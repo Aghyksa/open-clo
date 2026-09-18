@@ -275,8 +275,10 @@ export const PatternCanvas: React.FC = () => {
       }
     });
 
-    // 4. Draw Seam Links between pieces
-    seams.forEach((seam) => {
+    // 4. Draw Seam Links and Matching Edge Badges between pieces
+    const SEAM_COLORS = ['#38bdf8', '#f43f5e', '#10b981', '#f59e0b', '#a855f7', '#06b6d4'];
+
+    seams.forEach((seam, sIdx) => {
       const pieceA = pieces.find((p) => p.id === seam.edgeA.pieceId);
       const pieceB = pieces.find((p) => p.id === seam.edgeB.pieceId);
       if (!pieceA || !pieceB) return;
@@ -297,24 +299,52 @@ export const PatternCanvas: React.FC = () => {
         pieceB.position.y + (p1B.y + p2B.y) / 2
       );
 
+      const seamColor = SEAM_COLORS[sIdx % SEAM_COLORS.length];
+
+      // Highlight paired edges with seam color
+      const sp1A = worldToScreen(pieceA.position.x + p1A.x, pieceA.position.y + p1A.y);
+      const sp2A = worldToScreen(pieceA.position.x + p2A.x, pieceA.position.y + p2A.y);
+      const sp1B = worldToScreen(pieceB.position.x + p1B.x, pieceB.position.y + p1B.y);
+      const sp2B = worldToScreen(pieceB.position.x + p2B.x, pieceB.position.y + p2B.y);
+
+      ctx.beginPath();
+      ctx.moveTo(sp1A.x, sp1A.y);
+      ctx.lineTo(sp2A.x, sp2A.y);
+      ctx.strokeStyle = seamColor;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(sp1B.x, sp1B.y);
+      ctx.lineTo(sp2B.x, sp2B.y);
+      ctx.strokeStyle = seamColor;
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
       // Curved seam thread line
       ctx.beginPath();
       ctx.moveTo(midA.x, midA.y);
       const cpX = (midA.x + midB.x) / 2;
-      const cpY = (midA.y + midB.y) / 2 - 40;
+      const cpY = (midA.y + midB.y) / 2 - 35;
       ctx.quadraticCurveTo(cpX, cpY, midB.x, midB.y);
-      ctx.strokeStyle = 'rgba(56, 189, 248, 0.6)';
-      ctx.lineWidth = 2;
-      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = seamColor;
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([5, 5]);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Seam Stitch point badges
-      ctx.fillStyle = '#0ea5e9';
-      ctx.beginPath();
-      ctx.arc(midA.x, midA.y, 4, 0, Math.PI * 2);
-      ctx.arc(midB.x, midB.y, 4, 0, Math.PI * 2);
-      ctx.fill();
+      // Seam Stitch badges with label "S1", "S2"
+      [midA, midB].forEach((m) => {
+        ctx.fillStyle = seamColor;
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#0f172a';
+        ctx.font = 'bold 9px ui-sans-serif, system-ui';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`S${sIdx + 1}`, m.x, m.y);
+      });
     });
   }, [
     pieces,

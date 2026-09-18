@@ -8,7 +8,11 @@ import type {
   ViewportLayout,
   SeamEdge,
 } from '../types/cad';
-import { createTshirtPreset, FABRIC_PRESETS } from '../utils/patternPresets';
+import {
+  createTshirtPreset,
+  FABRIC_PRESETS,
+  GARMENT_TEMPLATES,
+} from '../utils/patternPresets';
 
 interface CloState {
   // Pattern Data
@@ -22,6 +26,7 @@ interface CloState {
   // Material & Fabric
   currentMaterial: FabricMaterial;
   customColor: string;
+  activeTemplateId: string;
 
   // 3D Simulation & Viewport
   isSimulating: boolean;
@@ -70,6 +75,7 @@ export const useCloStore = create<CloState>((set, get) => ({
 
   currentMaterial: FABRIC_PRESETS[0],
   customColor: FABRIC_PRESETS[0].color,
+  activeTemplateId: 'tshirt',
 
   isSimulating: true,
   simulationIteration: 0,
@@ -195,10 +201,23 @@ export const useCloStore = create<CloState>((set, get) => ({
       simulationIteration: state.simulationIteration + 1,
     })),
 
-  loadPreset: (name) => {
-    if (name === 'tshirt') {
-      const p = createTshirtPreset();
-      set({ pieces: p.pieces, seams: p.seams, simulationIteration: get().simulationIteration + 1 });
+  loadPreset: (id: string) => {
+    const template = GARMENT_TEMPLATES.find((t) => t.id === id);
+    if (template) {
+      const p = template.generator();
+      const recFabric =
+        FABRIC_PRESETS.find((f) => f.id === template.recommendedFabric) ||
+        FABRIC_PRESETS[0];
+      set({
+        activeTemplateId: id,
+        pieces: p.pieces,
+        seams: p.seams,
+        currentMaterial: recFabric,
+        customColor: template.recommendedColor,
+        selectedPieceId: null,
+        selectedVertexIndex: null,
+        simulationIteration: get().simulationIteration + 1,
+      });
     }
   },
 }));

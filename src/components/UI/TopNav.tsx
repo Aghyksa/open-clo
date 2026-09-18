@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useCloStore } from '../../store/useCloStore';
-import { exportPatternsToSvg } from '../../utils/patternPresets';
+import { exportPatternsToSvg, GARMENT_TEMPLATES } from '../../utils/patternPresets';
 import {
   Shirt,
   Download,
@@ -9,10 +9,23 @@ import {
   Box,
   Check,
   ChevronDown,
+  Play,
+  Pause,
+  RotateCcw,
 } from 'lucide-react';
 
 export const TopNav: React.FC = () => {
-  const { layout, setLayout, pieces, loadPreset } = useCloStore();
+  const {
+    layout,
+    setLayout,
+    pieces,
+    loadPreset,
+    isSimulating,
+    setIsSimulating,
+    resetSimulation,
+    activeTemplateId,
+  } = useCloStore();
+
   const [exportOpen, setExportOpen] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
 
@@ -51,8 +64,8 @@ export const TopNav: React.FC = () => {
   };
 
   return (
-    <header className="h-14 bg-[#14171f] border-b border-slate-800/80 px-4 flex items-center justify-between z-20 select-none">
-      {/* Brand & Project Name */}
+    <header className="h-14 bg-[#12141a] border-b border-slate-800 px-4 flex items-center justify-between z-20 select-none">
+      {/* Brand & Version Badge */}
       <div className="flex items-center gap-3">
         <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
           <Shirt className="w-5 h-5" />
@@ -60,73 +73,113 @@ export const TopNav: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <span className="font-bold text-sm tracking-wide text-white">OpenCLO</span>
-            <span className="text-[10px] uppercase tracking-wider font-semibold bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded">
-              v1.0-Web
+            <span className="text-[10px] uppercase tracking-wider font-semibold bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/30">
+              Pro CAD
             </span>
           </div>
-          <p className="text-[11px] text-slate-400 hidden sm:block">
-            Open-source 3D Garment CAD & Cloth Simulation
+          <p className="text-[10px] text-slate-400 hidden sm:block">
+            Open-Source 3D Garment CAD & Cloth Simulation
           </p>
         </div>
       </div>
 
-      {/* Center Viewport Layout Switcher */}
-      <div className="flex items-center bg-[#1c202a] p-1 rounded-lg border border-slate-700/60 text-xs">
+      {/* Center Viewport Layout Switcher & Simulation Button */}
+      <div className="flex items-center gap-2">
+        {/* Simulation Play/Pause Button */}
         <button
-          onClick={() => setLayout('dual')}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded transition-colors ${
-            layout === 'dual'
-              ? 'bg-blue-600 text-white font-medium shadow-sm'
-              : 'text-slate-400 hover:text-slate-200'
+          onClick={() => setIsSimulating(!isSimulating)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all ${
+            isSimulating
+              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
+              : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
           }`}
-          title="Dual View (2D Pattern + 3D Studio)"
+          title="Toggle Simulation (Space)"
         >
-          <Columns className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">Dual Studio</span>
+          {isSimulating ? (
+            <>
+              <Pause className="w-3.5 h-3.5" />
+              <span>Simulate: ON</span>
+            </>
+          ) : (
+            <>
+              <Play className="w-3.5 h-3.5" />
+              <span>Simulate: PAUSED</span>
+            </>
+          )}
         </button>
 
         <button
-          onClick={() => setLayout('pattern-only')}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded transition-colors ${
-            layout === 'pattern-only'
-              ? 'bg-blue-600 text-white font-medium shadow-sm'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-          title="2D Pattern Workspace Only"
+          onClick={resetSimulation}
+          className="p-1.5 bg-[#1a1d26] hover:bg-slate-700/60 rounded-lg text-slate-300 hover:text-white transition-colors border border-slate-700/60"
+          title="Reset Drape"
         >
-          <Square className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">2D Pattern</span>
+          <RotateCcw className="w-4 h-4" />
         </button>
 
-        <button
-          onClick={() => setLayout('3d-only')}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded transition-colors ${
-            layout === '3d-only'
-              ? 'bg-blue-600 text-white font-medium shadow-sm'
-              : 'text-slate-400 hover:text-slate-200'
-          }`}
-          title="3D Draping Studio Only"
-        >
-          <Box className="w-3.5 h-3.5" />
-          <span className="hidden md:inline">3D Studio</span>
-        </button>
+        <div className="w-[1px] h-5 bg-slate-800 mx-1 hidden md:block" />
+
+        {/* Viewport Toggles */}
+        <div className="hidden md:flex items-center bg-[#191c24] p-1 rounded-lg border border-slate-700/60 text-xs">
+          <button
+            onClick={() => setLayout('dual')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
+              layout === 'dual'
+                ? 'bg-blue-600 text-white font-medium shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Dual Studio (2D Pattern + 3D Studio)"
+          >
+            <Columns className="w-3.5 h-3.5" />
+            <span>Dual Studio</span>
+          </button>
+
+          <button
+            onClick={() => setLayout('pattern-only')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
+              layout === 'pattern-only'
+                ? 'bg-blue-600 text-white font-medium shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="2D Pattern Workspace"
+          >
+            <Square className="w-3.5 h-3.5" />
+            <span>2D Pattern</span>
+          </button>
+
+          <button
+            onClick={() => setLayout('3d-only')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
+              layout === '3d-only'
+                ? 'bg-blue-600 text-white font-medium shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="3D Draping Studio"
+          >
+            <Box className="w-3.5 h-3.5" />
+            <span>3D Studio</span>
+          </button>
+        </div>
       </div>
 
-      {/* Right Actions: Export & GitHub */}
-      <div className="flex items-center gap-3 relative">
+      {/* Right Actions: Template Quick Selector & Export */}
+      <div className="flex items-center gap-2.5 relative">
         {downloadSuccess && (
           <div className="hidden lg:flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md">
             <Check className="w-3.5 h-3.5" /> {downloadSuccess}
           </div>
         )}
 
-        {/* Template selector */}
+        {/* Garment Template Select */}
         <select
+          value={activeTemplateId}
           onChange={(e) => loadPreset(e.target.value)}
-          defaultValue="tshirt"
-          className="bg-[#1c202a] text-slate-300 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700/60 focus:outline-none focus:border-blue-500"
+          className="bg-[#1a1d26] text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700/80 focus:outline-none focus:border-blue-500 font-medium cursor-pointer"
         >
-          <option value="tshirt">Preset: Classic T-Shirt</option>
+          {GARMENT_TEMPLATES.map((tmpl) => (
+            <option key={tmpl.id} value={tmpl.id}>
+              {tmpl.name} ({tmpl.category})
+            </option>
+          ))}
         </select>
 
         {/* Export Button */}
@@ -141,7 +194,7 @@ export const TopNav: React.FC = () => {
           </button>
 
           {exportOpen && (
-            <div className="absolute right-0 mt-2 w-56 bg-[#1b1e27] border border-slate-700 rounded-xl shadow-2xl py-1.5 z-50 text-xs">
+            <div className="absolute right-0 mt-2 w-56 bg-[#181b24] border border-slate-700 rounded-xl shadow-2xl py-1.5 z-50 text-xs">
               <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
                 Production Export
               </div>
@@ -151,7 +204,7 @@ export const TopNav: React.FC = () => {
               >
                 <span className="font-medium">2D Pattern (.SVG)</span>
                 <span className="text-[10px] text-slate-400">
-                  1:1 Scale Vector for pattern cutter / plotter
+                  1:1 Scale Vector for plotter & pattern cutter
                 </span>
               </button>
 
@@ -161,7 +214,7 @@ export const TopNav: React.FC = () => {
               >
                 <span className="font-medium">Project File (.JSON)</span>
                 <span className="text-[10px] text-slate-400">
-                  Full geometry, seams & material specs
+                  Full CAD specs, seams & textile physics
                 </span>
               </button>
             </div>
