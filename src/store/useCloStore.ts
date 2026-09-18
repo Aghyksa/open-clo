@@ -5,17 +5,116 @@ import type {
   FabricMaterial,
   CadTool,
   AvatarConfig,
+  Avatar2DConfig,
+  StitchSettings,
+  StitchType,
+  CloProject,
   ViewportLayout,
   SeamEdge,
+  GraphicLayer,
 } from '../types/cad';
 import {
-  createTshirtPreset,
   FABRIC_PRESETS,
   GARMENT_TEMPLATES,
+  STITCH_PRESETS,
 } from '../utils/patternPresets';
 
+const STORAGE_KEY_PROJECTS = 'openclo_projects_v1';
+const STORAGE_KEY_ACTIVE = 'openclo_active_project_id';
+
+function createDefaultProject(templateId = 'tshirt', name?: string): CloProject {
+  const tmpl = GARMENT_TEMPLATES.find((t) => t.id === templateId) || GARMENT_TEMPLATES[0];
+  const data = tmpl.generator();
+  const fabric = FABRIC_PRESETS.find((f) => f.id === tmpl.recommendedFabric) || FABRIC_PRESETS[0];
+
+  return {
+    id: `proj-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+    name: name || `${tmpl.name} Studio`,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    templateId: tmpl.id,
+    pieces: data.pieces,
+    seams: data.seams,
+    currentMaterial: fabric,
+    customColor: tmpl.recommendedColor,
+    avatar: {
+      gender: 'female',
+      height: 175,
+      chestCircumference: 92,
+      waistCircumference: 68,
+      hipsCircumference: 96,
+      shoulderWidth: 40,
+      showSkin: true,
+    },
+    avatar2D: {
+      visible: true,
+      view: 'front',
+      opacity: 0.35,
+      showGuides: true,
+      position: { x: 300, y: 260 },
+    },
+    stitchSettings: {
+      defaultType: 'single-needle',
+      defaultColor: '#f8fafc',
+      showStitches: true,
+      seamAllowanceMm: 12,
+    },
+  };
+}
+
+function loadProjectsFromStorage(): { projects: CloProject[]; activeProject: CloProject } {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PROJECTS);
+    const activeId = localStorage.getItem(STORAGE_KEY_ACTIVE);
+
+    if (raw) {
+      const parsed = JSON.parse(raw) as CloProject[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        let active = parsed.find((p) => p.id === activeId);
+        if (!active) active = parsed[0];
+        return { projects: parsed, activeProject: active };
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load projects from localStorage:', e);
+  }
+
+  const def = createDefaultProject('tshirt', 'Classic T-Shirt Studio');
+  try {
+    localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify([def]));
+    localStorage.setItem(STORAGE_KEY_ACTIVE, def.id);
+  } catch {
+    // Ignore storage quota errors
+  }
+  return { projects: [def], activeProject: def };
+}
+
+let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedSaveProjects(projects: CloProject[], activeId: string) {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
+      localStorage.setItem(STORAGE_KEY_ACTIVE, activeId);
+    } catch (e) {
+      console.warn('Auto-save to localStorage failed:', e);
+    }
+  }, 400);
+}
+
+interface HistoryStep {
+  pieces: PatternPiece[];
+  seams: SeamConnection[];
+}
+
 interface CloState {
-  // Pattern Data
+  // Project Management
+  projects: CloProject[];
+  activeProjectId: string;
+  isSaved: boolean;
+  lastSavedAt: number;
+
+  // Pattern Workspace
   pieces: PatternPiece[];
   seams: SeamConnection[];
   selectedPieceId: string | null;
@@ -23,12 +122,17 @@ interface CloState {
   activeTool: CadTool;
   pendingSeamEdge: SeamEdge | null;
 
-  // Material & Fabric
+  // Material & Stitching
   currentMaterial: FabricMaterial;
   customColor: string;
   activeTemplateId: string;
+  stitchSettings: StitchSettings;
 
-  // 3D Simulation & Viewport
+  // Avatar Sizing & 2D Avatar Guide
+  avatar: AvatarConfig;
+  avatar2D: Avatar2DConfig;
+
+  // 3D Viewport Controls
   isSimulating: boolean;
   simulationIteration: number;
   showWireframe: boolean;
@@ -37,74 +141,457 @@ interface CloState {
   layout: ViewportLayout;
   cameraPreset: 'front' | 'back' | 'side' | 'perspective';
 
-  // Avatar Configuration
-  avatar: AvatarConfig;
+  // History (Undo / Redo)
+  undoStack: HistoryStep[];
+  redoStack: HistoryStep[];
 
-  // Actions
+  // Project Actions
+  createNewProject: (name: string, templateId?: string) => void;
+  switchProject: (id: string) => void;
+  saveActiveProject: () => void;
+  saveProjectAs: (name: string) => void;
+  renameProject: (id: string, name: string) => void;
+  deleteProject: (id: string) => void;
+  duplicateProject: (id: string) => void;
+  importProjectData: (project: CloProject) => void;
+
+  // Pattern Editing (Photoshop-like & CLO3D CAD)
   selectPiece: (id: string | null) => void;
   selectVertex: (index: number | null) => void;
-  updatePiecePosition: (id: string, pos: { x: number; y: number }) => void;
-  updatePieceVertex: (pieceId: string, vertexIndex: number, newDelta: { x: number; y: number }) => void;
-  scalePiece: (pieceId: string, factor: number) => void;
   setActiveTool: (tool: CadTool) => void;
+  updatePiecePosition: (id: string, pos: { x: number; y: number }) => void;
+  setPieceRotation: (id: string, radians: number) => void;
+  updatePieceVertex: (pieceId: string, vertexIndex: number, newPoint: { x: number; y: number }) => void;
+  scalePiece: (pieceId: string, factorX: number, factorY?: number) => void;
+  addVertexToEdge: (pieceId: string, edgeIndex: number, newPoint: { x: number; y: number }) => void;
+  deleteVertex: (pieceId: string, vertexIndex: number) => void;
+  curveEdge: (pieceId: string, edgeIndex: number, curvatureAmount: number) => void;
+  duplicatePiece: (pieceId: string, mirrorX?: boolean) => void;
+  deletePiece: (pieceId: string) => void;
+  togglePieceLock: (pieceId: string) => void;
+  togglePieceVisibility: (pieceId: string) => void;
+  renamePiece: (pieceId: string, name: string) => void;
+  addBlankPiece: (type: 'rectangle' | 'pocket') => void;
+
+  // Graphic / Stamp Layers (Photoshop style)
+  addGraphicLayer: (pieceId: string, graphic: Omit<GraphicLayer, 'id'>) => void;
+  updateGraphicLayer: (pieceId: string, graphicId: string, partial: Partial<GraphicLayer>) => void;
+  removeGraphicLayer: (pieceId: string, graphicId: string) => void;
+
+  // Seam & Stitching
   setPendingSeamEdge: (edge: SeamEdge | null) => void;
-  addSeam: (edgeA: SeamEdge, edgeB: SeamEdge) => void;
+  addSeam: (edgeA: SeamEdge, edgeB: SeamEdge, stitchType?: StitchType) => void;
   removeSeam: (id: string) => void;
+  updateSeamStitch: (seamId: string, stitchType: StitchType, threadColor?: string, strength?: number) => void;
+  setDefaultStitchType: (type: StitchType) => void;
+  setDefaultThreadColor: (color: string) => void;
+  toggleShowStitches: () => void;
+
+  // Material & Avatar
   setMaterial: (material: FabricMaterial) => void;
   setCustomColor: (color: string) => void;
+  setAvatarMeasurement: (key: keyof AvatarConfig, val: number | string | boolean) => void;
+  updateAvatar2D: (partial: Partial<Avatar2DConfig>) => void;
+
+  // Viewport & Simulation
   setIsSimulating: (simulating: boolean) => void;
   toggleWireframe: () => void;
   toggleHeatmap: () => void;
   toggleAvatar: () => void;
   setLayout: (layout: ViewportLayout) => void;
   setCameraPreset: (preset: 'front' | 'back' | 'side' | 'perspective') => void;
-  setAvatarMeasurement: (key: keyof AvatarConfig, val: number | string | boolean) => void;
   resetSimulation: () => void;
-  loadPreset: (name: string) => void;
+  loadPreset: (id: string) => void;
+
+  // History Actions
+  undo: () => void;
+  redo: () => void;
+  pushHistory: () => void;
 }
 
-const initialPreset = createTshirtPreset();
+const initial = loadProjectsFromStorage();
+const active = initial.activeProject;
 
-export const useCloStore = create<CloState>((set, get) => ({
-  pieces: initialPreset.pieces,
-  seams: initialPreset.seams,
-  selectedPieceId: null,
-  selectedVertexIndex: null,
-  activeTool: 'select',
-  pendingSeamEdge: null,
+export const useCloStore = create<CloState>((set, get) => {
+  // Helper to commit changes to active project & localStorage
+  const syncToActiveProject = (updatedState: Partial<CloState>) => {
+    const state = get();
+    const currentActiveId = state.activeProjectId;
+    const now = Date.now();
 
-  currentMaterial: FABRIC_PRESETS[0],
-  customColor: '#c8d6e5',
-  activeTemplateId: 'tshirt',
+    const updatedProjects = state.projects.map((p) => {
+      if (p.id !== currentActiveId) return p;
+      return {
+        ...p,
+        pieces: updatedState.pieces ?? state.pieces,
+        seams: updatedState.seams ?? state.seams,
+        currentMaterial: updatedState.currentMaterial ?? state.currentMaterial,
+        customColor: updatedState.customColor ?? state.customColor,
+        activeTemplateId: updatedState.activeTemplateId ?? state.activeTemplateId,
+        avatar: updatedState.avatar ?? state.avatar,
+        avatar2D: updatedState.avatar2D ?? state.avatar2D,
+        stitchSettings: updatedState.stitchSettings ?? state.stitchSettings,
+        updatedAt: now,
+      };
+    });
 
-  isSimulating: true,
-  simulationIteration: 0,
-  showWireframe: false,
-  showHeatmap: false,
-  showAvatar: true,
-  layout: 'dual',
-  cameraPreset: 'perspective',
+    debouncedSaveProjects(updatedProjects, currentActiveId);
+    return {
+      projects: updatedProjects,
+      isSaved: true,
+      lastSavedAt: now,
+    };
+  };
 
-  avatar: {
-    gender: 'female',
-    height: 175,
-    chestCircumference: 92,
-    waistCircumference: 68,
-    hipsCircumference: 96,
-    showSkin: true,
-  },
+  return {
+    // Initial Project State
+    projects: initial.projects,
+    activeProjectId: active.id,
+    isSaved: true,
+    lastSavedAt: active.updatedAt,
 
-  selectPiece: (id) => set({ selectedPieceId: id, selectedVertexIndex: null }),
-  selectVertex: (index) => set({ selectedVertexIndex: index }),
+    pieces: active.pieces || [],
+    seams: active.seams || [],
+    selectedPieceId: null,
+    selectedVertexIndex: null,
+    activeTool: 'select',
+    pendingSeamEdge: null,
 
-  updatePiecePosition: (id, pos) =>
-    set((state) => ({
-      pieces: state.pieces.map((p) => (p.id === id ? { ...p, position: pos } : p)),
-    })),
+    currentMaterial: active.currentMaterial || FABRIC_PRESETS[0],
+    customColor: active.customColor || '#38bdf8',
+    activeTemplateId: active.templateId || 'tshirt',
+    stitchSettings: active.stitchSettings || {
+      defaultType: 'single-needle',
+      defaultColor: '#f8fafc',
+      showStitches: true,
+      seamAllowanceMm: 12,
+    },
 
-  updatePieceVertex: (pieceId, vertexIndex, newPoint) =>
-    set((state) => ({
-      pieces: state.pieces.map((p) => {
+    avatar: active.avatar || {
+      gender: 'female',
+      height: 175,
+      chestCircumference: 92,
+      waistCircumference: 68,
+      hipsCircumference: 96,
+      shoulderWidth: 40,
+      showSkin: true,
+    },
+    avatar2D: active.avatar2D || {
+      visible: true,
+      view: 'front',
+      opacity: 0.35,
+      showGuides: true,
+      position: { x: 300, y: 260 },
+    },
+
+    isSimulating: true,
+    simulationIteration: 0,
+    showWireframe: false,
+    showHeatmap: false,
+    showAvatar: true,
+    layout: 'dual',
+    cameraPreset: 'perspective',
+
+    undoStack: [],
+    redoStack: [],
+
+    // ==========================================
+    // History (Undo / Redo)
+    // ==========================================
+    pushHistory: () => {
+      const { pieces, seams, undoStack } = get();
+      const currentSnapshot: HistoryStep = {
+        pieces: JSON.parse(JSON.stringify(pieces)),
+        seams: JSON.parse(JSON.stringify(seams)),
+      };
+      set({
+        undoStack: [...undoStack.slice(-25), currentSnapshot],
+        redoStack: [],
+      });
+    },
+
+    undo: () => {
+      const { undoStack, redoStack, pieces, seams } = get();
+      if (undoStack.length === 0) return;
+
+      const previous = undoStack[undoStack.length - 1];
+      const newUndo = undoStack.slice(0, -1);
+      const currentSnapshot: HistoryStep = {
+        pieces: JSON.parse(JSON.stringify(pieces)),
+        seams: JSON.parse(JSON.stringify(seams)),
+      };
+
+      set({
+        pieces: previous.pieces,
+        seams: previous.seams,
+        undoStack: newUndo,
+        redoStack: [currentSnapshot, ...redoStack],
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: previous.pieces, seams: previous.seams }),
+      });
+    },
+
+    redo: () => {
+      const { undoStack, redoStack, pieces, seams } = get();
+      if (redoStack.length === 0) return;
+
+      const next = redoStack[0];
+      const newRedo = redoStack.slice(1);
+      const currentSnapshot: HistoryStep = {
+        pieces: JSON.parse(JSON.stringify(pieces)),
+        seams: JSON.parse(JSON.stringify(seams)),
+      };
+
+      set({
+        pieces: next.pieces,
+        seams: next.seams,
+        undoStack: [...undoStack, currentSnapshot],
+        redoStack: newRedo,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: next.pieces, seams: next.seams }),
+      });
+    },
+
+    // ==========================================
+    // Project Management Actions
+    // ==========================================
+    createNewProject: (name, templateId = 'tshirt') => {
+      const newProj = createDefaultProject(templateId, name);
+      const updatedProjects = [newProj, ...get().projects];
+
+      set({
+        projects: updatedProjects,
+        activeProjectId: newProj.id,
+        pieces: newProj.pieces,
+        seams: newProj.seams,
+        currentMaterial: newProj.currentMaterial,
+        customColor: newProj.customColor,
+        activeTemplateId: newProj.templateId,
+        avatar: newProj.avatar,
+        avatar2D: newProj.avatar2D,
+        stitchSettings: newProj.stitchSettings,
+        selectedPieceId: null,
+        selectedVertexIndex: null,
+        undoStack: [],
+        redoStack: [],
+        simulationIteration: get().simulationIteration + 1,
+        isSaved: true,
+        lastSavedAt: newProj.updatedAt,
+      });
+
+      debouncedSaveProjects(updatedProjects, newProj.id);
+    },
+
+    switchProject: (id) => {
+      const proj = get().projects.find((p) => p.id === id);
+      if (!proj) return;
+
+      set({
+        activeProjectId: proj.id,
+        pieces: proj.pieces,
+        seams: proj.seams,
+        currentMaterial: proj.currentMaterial || FABRIC_PRESETS[0],
+        customColor: proj.customColor || '#38bdf8',
+        activeTemplateId: proj.templateId || 'tshirt',
+        avatar: proj.avatar,
+        avatar2D: proj.avatar2D,
+        stitchSettings: proj.stitchSettings,
+        selectedPieceId: null,
+        selectedVertexIndex: null,
+        undoStack: [],
+        redoStack: [],
+        simulationIteration: get().simulationIteration + 1,
+        isSaved: true,
+        lastSavedAt: proj.updatedAt,
+      });
+
+      try {
+        localStorage.setItem(STORAGE_KEY_ACTIVE, proj.id);
+      } catch {}
+    },
+
+    saveActiveProject: () => {
+      const state = get();
+      const now = Date.now();
+      const updatedProjects = state.projects.map((p) => {
+        if (p.id !== state.activeProjectId) return p;
+        return {
+          ...p,
+          pieces: state.pieces,
+          seams: state.seams,
+          currentMaterial: state.currentMaterial,
+          customColor: state.customColor,
+          activeTemplateId: state.activeTemplateId,
+          avatar: state.avatar,
+          avatar2D: state.avatar2D,
+          stitchSettings: state.stitchSettings,
+          updatedAt: now,
+        };
+      });
+
+      try {
+        localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(updatedProjects));
+        localStorage.setItem(STORAGE_KEY_ACTIVE, state.activeProjectId);
+      } catch {}
+
+      set({
+        projects: updatedProjects,
+        isSaved: true,
+        lastSavedAt: now,
+      });
+    },
+
+    saveProjectAs: (name) => {
+      const state = get();
+      const now = Date.now();
+      const cloned: CloProject = {
+        id: `proj-${now}-${Math.random().toString(36).substr(2, 5)}`,
+        name,
+        createdAt: now,
+        updatedAt: now,
+        templateId: state.activeTemplateId,
+        pieces: JSON.parse(JSON.stringify(state.pieces)),
+        seams: JSON.parse(JSON.stringify(state.seams)),
+        currentMaterial: { ...state.currentMaterial },
+        customColor: state.customColor,
+        avatar: { ...state.avatar },
+        avatar2D: { ...state.avatar2D },
+        stitchSettings: { ...state.stitchSettings },
+      };
+
+      const updatedProjects = [cloned, ...state.projects];
+      set({
+        projects: updatedProjects,
+        activeProjectId: cloned.id,
+        isSaved: true,
+        lastSavedAt: now,
+      });
+
+      debouncedSaveProjects(updatedProjects, cloned.id);
+    },
+
+    renameProject: (id, name) => {
+      const updated = get().projects.map((p) => (p.id === id ? { ...p, name, updatedAt: Date.now() } : p));
+      set({ projects: updated });
+      debouncedSaveProjects(updated, get().activeProjectId);
+    },
+
+    deleteProject: (id) => {
+      const { projects, activeProjectId } = get();
+      if (projects.length <= 1) {
+        // If deleting the only project, reset to a new clean one
+        const fallback = createDefaultProject('tshirt', 'New Studio Project');
+        set({
+          projects: [fallback],
+          activeProjectId: fallback.id,
+          pieces: fallback.pieces,
+          seams: fallback.seams,
+          currentMaterial: fallback.currentMaterial,
+          customColor: fallback.customColor,
+          activeTemplateId: fallback.templateId,
+          avatar: fallback.avatar,
+          avatar2D: fallback.avatar2D,
+          stitchSettings: fallback.stitchSettings,
+          simulationIteration: get().simulationIteration + 1,
+        });
+        debouncedSaveProjects([fallback], fallback.id);
+        return;
+      }
+
+      const filtered = projects.filter((p) => p.id !== id);
+      if (activeProjectId === id) {
+        const nextActive = filtered[0];
+        set({
+          projects: filtered,
+          activeProjectId: nextActive.id,
+          pieces: nextActive.pieces,
+          seams: nextActive.seams,
+          currentMaterial: nextActive.currentMaterial,
+          customColor: nextActive.customColor,
+          activeTemplateId: nextActive.templateId,
+          avatar: nextActive.avatar,
+          avatar2D: nextActive.avatar2D,
+          stitchSettings: nextActive.stitchSettings,
+          simulationIteration: get().simulationIteration + 1,
+        });
+        debouncedSaveProjects(filtered, nextActive.id);
+      } else {
+        set({ projects: filtered });
+        debouncedSaveProjects(filtered, activeProjectId);
+      }
+    },
+
+    duplicateProject: (id) => {
+      const target = get().projects.find((p) => p.id === id);
+      if (!target) return;
+      const now = Date.now();
+      const cloned: CloProject = {
+        ...JSON.parse(JSON.stringify(target)),
+        id: `proj-${now}-${Math.random().toString(36).substr(2, 5)}`,
+        name: `${target.name} (Copy)`,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const updated = [cloned, ...get().projects];
+      set({ projects: updated });
+      debouncedSaveProjects(updated, get().activeProjectId);
+    },
+
+    importProjectData: (importedProject) => {
+      const now = Date.now();
+      const normalized: CloProject = {
+        ...importedProject,
+        id: `proj-${now}-${Math.random().toString(36).substr(2, 5)}`,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const updated = [normalized, ...get().projects];
+      set({
+        projects: updated,
+        activeProjectId: normalized.id,
+        pieces: normalized.pieces,
+        seams: normalized.seams,
+        currentMaterial: normalized.currentMaterial || FABRIC_PRESETS[0],
+        customColor: normalized.customColor || '#38bdf8',
+        activeTemplateId: normalized.templateId || 'tshirt',
+        avatar: normalized.avatar,
+        avatar2D: normalized.avatar2D,
+        stitchSettings: normalized.stitchSettings,
+        simulationIteration: get().simulationIteration + 1,
+      });
+
+      debouncedSaveProjects(updated, normalized.id);
+    },
+
+    // ==========================================
+    // 2D Pattern CAD & Photoshop-like Editing
+    // ==========================================
+    selectPiece: (id) => set({ selectedPieceId: id, selectedVertexIndex: null }),
+    selectVertex: (index) => set({ selectedVertexIndex: index }),
+    setActiveTool: (tool) => set({ activeTool: tool, pendingSeamEdge: null }),
+
+    updatePiecePosition: (id, pos) => {
+      const updatedPieces = get().pieces.map((p) => (p.id === id ? { ...p, position: pos } : p));
+      set({
+        pieces: updatedPieces,
+        ...syncToActiveProject({ pieces: updatedPieces }),
+      });
+    },
+
+    setPieceRotation: (id, radians) => {
+      get().pushHistory();
+      const updatedPieces = get().pieces.map((p) => (p.id === id ? { ...p, rotation: radians } : p));
+      set({
+        pieces: updatedPieces,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updatedPieces }),
+      });
+    },
+
+    updatePieceVertex: (pieceId, vertexIndex, newPoint) => {
+      const updatedPieces = get().pieces.map((p) => {
         if (p.id !== pieceId) return p;
         const newPoints = [...p.points];
         if (newPoints[vertexIndex]) {
@@ -115,34 +602,276 @@ export const useCloStore = create<CloState>((set, get) => ({
           };
         }
         return { ...p, points: newPoints };
-      }),
-      // Trigger simulation update
-      simulationIteration: state.simulationIteration + 1,
-    })),
+      });
 
-  scalePiece: (pieceId, factor) =>
-    set((state) => ({
-      pieces: state.pieces.map((p) => {
+      set({
+        pieces: updatedPieces,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updatedPieces }),
+      });
+    },
+
+    scalePiece: (pieceId, factorX, factorY = factorX) => {
+      get().pushHistory();
+      const updatedPieces = get().pieces.map((p) => {
         if (p.id !== pieceId) return p;
         return {
           ...p,
           points: p.points.map((pt) => ({
             ...pt,
-            x: Math.round(pt.x * factor),
-            y: Math.round(pt.y * factor),
+            x: Math.round(pt.x * factorX),
+            y: Math.round(pt.y * factorY),
           })),
         };
-      }),
-      simulationIteration: state.simulationIteration + 1,
-    })),
+      });
 
-  setActiveTool: (tool) => set({ activeTool: tool, pendingSeamEdge: null }),
+      set({
+        pieces: updatedPieces,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updatedPieces }),
+      });
+    },
 
-  setPendingSeamEdge: (edge) => set({ pendingSeamEdge: edge }),
+    addVertexToEdge: (pieceId, edgeIndex, newPoint) => {
+      get().pushHistory();
+      const updatedPieces = get().pieces.map((p) => {
+        if (p.id !== pieceId) return p;
+        const newPts = [...p.points];
+        const newVert = {
+          id: `pt-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          x: Math.round(newPoint.x),
+          y: Math.round(newPoint.y),
+        };
+        newPts.splice(edgeIndex + 1, 0, newVert);
+        return { ...p, points: newPts };
+      });
 
-  addSeam: (edgeA, edgeB) =>
-    set((state) => {
-      // Check if duplicate
+      set({
+        pieces: updatedPieces,
+        selectedVertexIndex: edgeIndex + 1,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updatedPieces }),
+      });
+    },
+
+    deleteVertex: (pieceId, vertexIndex) => {
+      const piece = get().pieces.find((p) => p.id === pieceId);
+      if (!piece || piece.points.length <= 3) return; // Maintain valid polygon
+
+      get().pushHistory();
+      const updatedPieces = get().pieces.map((p) => {
+        if (p.id !== pieceId) return p;
+        const newPts = p.points.filter((_, idx) => idx !== vertexIndex);
+        return { ...p, points: newPts };
+      });
+
+      set({
+        pieces: updatedPieces,
+        selectedVertexIndex: null,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updatedPieces }),
+      });
+    },
+
+    curveEdge: (pieceId, edgeIndex, curvatureAmount) => {
+      get().pushHistory();
+      const piece = get().pieces.find((p) => p.id === pieceId);
+      if (!piece) return;
+
+      const pts = piece.points;
+      const p1 = pts[edgeIndex];
+      const p2 = pts[(edgeIndex + 1) % pts.length];
+
+      // Insert midpoint with perpendicular normal offset
+      const midX = (p1.x + p2.x) / 2;
+      const midY = (p1.y + p2.y) / 2;
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+
+      const curvePt = {
+        id: `cv-${Date.now()}`,
+        x: Math.round(midX + nx * curvatureAmount),
+        y: Math.round(midY + ny * curvatureAmount),
+      };
+
+      const newPts = [...pts];
+      newPts.splice(edgeIndex + 1, 0, curvePt);
+
+      const updatedPieces = get().pieces.map((p) => (p.id === pieceId ? { ...p, points: newPts } : p));
+      set({
+        pieces: updatedPieces,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updatedPieces }),
+      });
+    },
+
+    duplicatePiece: (pieceId, mirrorX = false) => {
+      get().pushHistory();
+      const piece = get().pieces.find((p) => p.id === pieceId);
+      if (!piece) return;
+
+      const newId = `piece-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      const duplicated: PatternPiece = {
+        ...JSON.parse(JSON.stringify(piece)),
+        id: newId,
+        name: `${piece.name} (${mirrorX ? 'Mirrored' : 'Copy'})`,
+        position: { x: piece.position.x + 120, y: piece.position.y + 40 },
+        points: piece.points.map((pt) => ({
+          ...pt,
+          id: `pt-${Math.random().toString(36).substr(2, 6)}`,
+          x: mirrorX ? -pt.x : pt.x,
+        })),
+      };
+
+      const updated = [...get().pieces, duplicated];
+      set({
+        pieces: updated,
+        selectedPieceId: newId,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updated }),
+      });
+    },
+
+    deletePiece: (pieceId) => {
+      if (get().pieces.length <= 1) return;
+      get().pushHistory();
+      const updatedPieces = get().pieces.filter((p) => p.id !== pieceId);
+      const updatedSeams = get().seams.filter((s) => s.edgeA.pieceId !== pieceId && s.edgeB.pieceId !== pieceId);
+
+      set({
+        pieces: updatedPieces,
+        seams: updatedSeams,
+        selectedPieceId: null,
+        selectedVertexIndex: null,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updatedPieces, seams: updatedSeams }),
+      });
+    },
+
+    togglePieceLock: (pieceId) => {
+      const updated = get().pieces.map((p) => (p.id === pieceId ? { ...p, locked: !p.locked } : p));
+      set({ pieces: updated, ...syncToActiveProject({ pieces: updated }) });
+    },
+
+    togglePieceVisibility: (pieceId) => {
+      const updated = get().pieces.map((p) => (p.id === pieceId ? { ...p, visible: p.visible === false ? true : false } : p));
+      set({ pieces: updated, ...syncToActiveProject({ pieces: updated }) });
+    },
+
+    renamePiece: (pieceId, name) => {
+      const updated = get().pieces.map((p) => (p.id === pieceId ? { ...p, name } : p));
+      set({ pieces: updated, ...syncToActiveProject({ pieces: updated }) });
+    },
+
+    addBlankPiece: (type) => {
+      get().pushHistory();
+      const newId = `piece-${Date.now()}`;
+      let pts = [];
+      let name = 'Custom Rect Panel';
+
+      if (type === 'pocket') {
+        name = 'Patch Pocket';
+        pts = [
+          { id: 'pk0', x: -60, y: -60 },
+          { id: 'pk1', x: 60, y: -60 },
+          { id: 'pk2', x: 60, y: 50 },
+          { id: 'pk3', x: 0, y: 75 },
+          { id: 'pk4', x: -60, y: 50 },
+        ];
+      } else {
+        pts = [
+          { id: 'r0', x: -90, y: -90 },
+          { id: 'r1', x: 90, y: -90 },
+          { id: 'r2', x: 90, y: 90 },
+          { id: 'r3', x: -90, y: 90 },
+        ];
+      }
+
+      const newPiece: PatternPiece = {
+        id: newId,
+        name,
+        points: pts,
+        position: { x: 300, y: 250 },
+        rotation: 0,
+        color: '#3b82f6',
+        placement: { origin3D: [0, 0.4, 0.15], rotation3D: [0, 0, 0] },
+      };
+
+      const updated = [...get().pieces, newPiece];
+      set({
+        pieces: updated,
+        selectedPieceId: newId,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updated }),
+      });
+    },
+
+    // ==========================================
+    // Graphic / Stamp Layers
+    // ==========================================
+    addGraphicLayer: (pieceId, graphic) => {
+      get().pushHistory();
+      const newGraphic: GraphicLayer = {
+        ...graphic,
+        id: `g-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      };
+
+      const updated = get().pieces.map((p) => {
+        if (p.id !== pieceId) return p;
+        return {
+          ...p,
+          graphics: [...(p.graphics || []), newGraphic],
+        };
+      });
+
+      set({
+        pieces: updated,
+        ...syncToActiveProject({ pieces: updated }),
+      });
+    },
+
+    updateGraphicLayer: (pieceId, graphicId, partial) => {
+      const updated = get().pieces.map((p) => {
+        if (p.id !== pieceId) return p;
+        return {
+          ...p,
+          graphics: (p.graphics || []).map((g) => (g.id === graphicId ? { ...g, ...partial } : g)),
+        };
+      });
+
+      set({
+        pieces: updated,
+        ...syncToActiveProject({ pieces: updated }),
+      });
+    },
+
+    removeGraphicLayer: (pieceId, graphicId) => {
+      get().pushHistory();
+      const updated = get().pieces.map((p) => {
+        if (p.id !== pieceId) return p;
+        return {
+          ...p,
+          graphics: (p.graphics || []).filter((g) => g.id !== graphicId),
+        };
+      });
+
+      set({
+        pieces: updated,
+        ...syncToActiveProject({ pieces: updated }),
+      });
+    },
+
+    // ==========================================
+    // Seams & Stitching
+    // ==========================================
+    setPendingSeamEdge: (edge) => set({ pendingSeamEdge: edge }),
+
+    addSeam: (edgeA, edgeB, stitchType) => {
+      get().pushHistory();
+      const state = get();
       const exists = state.seams.some(
         (s) =>
           (s.edgeA.pieceId === edgeA.pieceId &&
@@ -154,70 +883,148 @@ export const useCloStore = create<CloState>((set, get) => ({
             s.edgeB.pieceId === edgeA.pieceId &&
             s.edgeB.edgeIndex === edgeA.edgeIndex)
       );
-      if (exists) return { pendingSeamEdge: null };
+      if (exists) return set({ pendingSeamEdge: null });
+
+      const chosenStitch = stitchType || state.stitchSettings.defaultType || 'single-needle';
+      const preset = STITCH_PRESETS.find((sp) => sp.id === chosenStitch);
 
       const newSeam: SeamConnection = {
         id: `seam-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         edgeA,
         edgeB,
-        strength: 1.0,
+        strength: preset?.defaultStrength || 1.0,
+        stitchType: chosenStitch,
+        threadColor: state.stitchSettings.defaultColor,
+        seamAllowanceMm: preset?.seamAllowanceMm || 12,
       };
 
-      return {
-        seams: [...state.seams, newSeam],
+      const updatedSeams = [...state.seams, newSeam];
+      set({
+        seams: updatedSeams,
         pendingSeamEdge: null,
         simulationIteration: state.simulationIteration + 1,
-      };
-    }),
-
-  removeSeam: (id) =>
-    set((state) => ({
-      seams: state.seams.filter((s) => s.id !== id),
-      simulationIteration: state.simulationIteration + 1,
-    })),
-
-  setMaterial: (mat) => set({ currentMaterial: mat, customColor: mat.color }),
-  setCustomColor: (color) =>
-    set((state) => ({
-      customColor: color,
-      currentMaterial: { ...state.currentMaterial, color },
-    })),
-
-  setIsSimulating: (simulating) => set({ isSimulating: simulating }),
-  toggleWireframe: () => set((state) => ({ showWireframe: !state.showWireframe })),
-  toggleHeatmap: () => set((state) => ({ showHeatmap: !state.showHeatmap })),
-  toggleAvatar: () => set((state) => ({ showAvatar: !state.showAvatar })),
-  setLayout: (layout) => set({ layout }),
-  setCameraPreset: (preset) => set({ cameraPreset: preset }),
-
-  setAvatarMeasurement: (key, val) =>
-    set((state) => ({
-      avatar: { ...state.avatar, [key]: val },
-      simulationIteration: state.simulationIteration + 1,
-    })),
-
-  resetSimulation: () =>
-    set((state) => ({
-      simulationIteration: state.simulationIteration + 1,
-    })),
-
-  loadPreset: (id: string) => {
-    const template = GARMENT_TEMPLATES.find((t) => t.id === id);
-    if (template) {
-      const p = template.generator();
-      const recFabric =
-        FABRIC_PRESETS.find((f) => f.id === template.recommendedFabric) ||
-        FABRIC_PRESETS[0];
-      set({
-        activeTemplateId: id,
-        pieces: p.pieces,
-        seams: p.seams,
-        currentMaterial: recFabric,
-        customColor: template.recommendedColor,
-        selectedPieceId: null,
-        selectedVertexIndex: null,
-        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ seams: updatedSeams }),
       });
-    }
-  },
-}));
+    },
+
+    removeSeam: (id) => {
+      get().pushHistory();
+      const updatedSeams = get().seams.filter((s) => s.id !== id);
+      set({
+        seams: updatedSeams,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ seams: updatedSeams }),
+      });
+    },
+
+    updateSeamStitch: (seamId, stitchType, threadColor, strength) => {
+      const updatedSeams = get().seams.map((s) => {
+        if (s.id !== seamId) return s;
+        return {
+          ...s,
+          stitchType,
+          threadColor: threadColor || s.threadColor,
+          strength: strength !== undefined ? strength : s.strength,
+        };
+      });
+
+      set({
+        seams: updatedSeams,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ seams: updatedSeams }),
+      });
+    },
+
+    setDefaultStitchType: (type) => {
+      const updated = { ...get().stitchSettings, defaultType: type };
+      set({ stitchSettings: updated, ...syncToActiveProject({ stitchSettings: updated }) });
+    },
+
+    setDefaultThreadColor: (color) => {
+      const updated = { ...get().stitchSettings, defaultColor: color };
+      set({ stitchSettings: updated, ...syncToActiveProject({ stitchSettings: updated }) });
+    },
+
+    toggleShowStitches: () => {
+      const updated = { ...get().stitchSettings, showStitches: !get().stitchSettings.showStitches };
+      set({ stitchSettings: updated, ...syncToActiveProject({ stitchSettings: updated }) });
+    },
+
+    // ==========================================
+    // Fabric Material & Avatar
+    // ==========================================
+    setMaterial: (mat) => {
+      set({
+        currentMaterial: mat,
+        customColor: mat.color,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ currentMaterial: mat, customColor: mat.color }),
+      });
+    },
+
+    setCustomColor: (color) => {
+      const updatedMat = { ...get().currentMaterial, color };
+      set({
+        customColor: color,
+        currentMaterial: updatedMat,
+        ...syncToActiveProject({ customColor: color, currentMaterial: updatedMat }),
+      });
+    },
+
+    setAvatarMeasurement: (key, val) => {
+      const updatedAvatar = { ...get().avatar, [key]: val };
+      set({
+        avatar: updatedAvatar,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ avatar: updatedAvatar }),
+      });
+    },
+
+    updateAvatar2D: (partial) => {
+      const updated2D = { ...get().avatar2D, ...partial };
+      set({
+        avatar2D: updated2D,
+        ...syncToActiveProject({ avatar2D: updated2D }),
+      });
+    },
+
+    // ==========================================
+    // Viewport & 3D Settings
+    // ==========================================
+    setIsSimulating: (simulating) => set({ isSimulating: simulating }),
+    toggleWireframe: () => set((state) => ({ showWireframe: !state.showWireframe })),
+    toggleHeatmap: () => set((state) => ({ showHeatmap: !state.showHeatmap })),
+    toggleAvatar: () => set((state) => ({ showAvatar: !state.showAvatar })),
+    setLayout: (layout) => set({ layout }),
+    setCameraPreset: (preset) => set({ cameraPreset: preset }),
+
+    resetSimulation: () => set((state) => ({ simulationIteration: state.simulationIteration + 1 })),
+
+    loadPreset: (id: string) => {
+      const template = GARMENT_TEMPLATES.find((t) => t.id === id);
+      if (template) {
+        get().pushHistory();
+        const p = template.generator();
+        const recFabric =
+          FABRIC_PRESETS.find((f) => f.id === template.recommendedFabric) ||
+          FABRIC_PRESETS[0];
+
+        const updatedState = {
+          activeTemplateId: id,
+          pieces: p.pieces,
+          seams: p.seams,
+          currentMaterial: recFabric,
+          customColor: template.recommendedColor,
+          selectedPieceId: null,
+          selectedVertexIndex: null,
+          simulationIteration: get().simulationIteration + 1,
+        };
+
+        set({
+          ...updatedState,
+          ...syncToActiveProject(updatedState),
+        });
+      }
+    },
+  };
+});
