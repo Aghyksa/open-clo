@@ -74,7 +74,7 @@ export const useCloStore = create<CloState>((set, get) => ({
   pendingSeamEdge: null,
 
   currentMaterial: FABRIC_PRESETS[0],
-  customColor: FABRIC_PRESETS[0].color,
+  customColor: '#c8d6e5',
   activeTemplateId: 'tshirt',
 
   isSimulating: true,

@@ -184,11 +184,11 @@ export const StudioViewport: React.FC = () => {
             mesh.castShadow = true;
             mesh.receiveShadow = true;
 
-            // Apply sleek CLO3D alabaster porcelain finish by default
+            // Apply sleek CLO3D matte porcelain finish by default
             const porcelainMat = new THREE.MeshStandardMaterial({
-              color: '#e2e8f0',
-              roughness: 0.38,
-              metalness: 0.05,
+              color: '#b8c2cc',
+              roughness: 0.42,
+              metalness: 0.03,
             });
             // Store original material on userData for toggling
             mesh.userData.origMaterial = mesh.material;
