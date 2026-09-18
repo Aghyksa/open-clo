@@ -65,21 +65,14 @@ const BODY_PROFILE: [number, number, number, number][] = [
 ];
 
 // ─── Garment template definitions ───
-const TSHIRT_TOP_Y = 1.25;    // shoulders
+const TSHIRT_TOP_Y = 1.20;    // shoulder seam (not very top of shoulder)
 const TSHIRT_HEM_Y = 0.72;    // hips
 const DRESS_HEM_Y = 0.37;     // knees
 
-const TUBE_COLS = 32;          // columns around circumference
-const GARMENT_EASE = 1.25;     // 25% larger than body — generous clearance prevents clipping
+const TUBE_COLS = 36;          // columns around circumference (smoother)
+const GARMENT_EASE = 1.05;     // 5% larger than body — snug fit, collision handles the rest
 
-// Extra radial offset at specific body regions to prevent clipping
-// (body cross-sections are elliptical approximations of complex mesh geometry)
-const REGION_EXTRA_OFFSET: [number, number, number][] = [
-  // [yMin, yMax, extraOffset in meters]
-  [0.75, 0.85, 0.025],   // bust region — complex geometry, needs big clearance
-  [0.65, 0.72, 0.020],   // hip region
-  [1.10, 1.26, 0.030],   // shoulder/arm junction — arms extend outward here
-];
+// No extra radial offsets needed — mesh collision resolution handles all body regions
 
 // ─── Procedural wrinkle noise (value noise) ───
 function hashNoise(x: number, y: number): number {
@@ -380,12 +373,12 @@ export class ClothSimulator {
     const isFront = frontAngle < Math.PI / 2;
     const isBack = frontAngle > Math.PI / 2;
 
-    if (depthFromTop < 0.06) {
+    if (depthFromTop < 0.10) {
       // Top row region — cut neckline
       if (isFront) {
-        // Front neckline: wider scoop ~120° arc centered on front
-        const neckWidth = 0.80; // radians from center (about 46°)
-        const neckDepth = 0.06; // how far down
+        // Front neckline: deep crew neck scoop ~100° arc
+        const neckWidth = 0.65; // radians from center (about 37°)
+        const neckDepth = 0.10; // how far down (10cm) — realistic crew neck
         if (frontAngle < neckWidth) {
           const t = frontAngle / neckWidth; // 0 at center, 1 at edge
           const cutDepth = neckDepth * (1 - t * t); // parabolic scoop
@@ -395,8 +388,8 @@ export class ClothSimulator {
       if (isBack) {
         // Back neckline: narrower, shallower
         const backAngle = Math.PI - frontAngle;
-        const neckWidth = 0.55;
-        const neckDepth = 0.03;
+        const neckWidth = 0.45;
+        const neckDepth = 0.04;
         if (backAngle < neckWidth) {
           const t = backAngle / neckWidth;
           const cutDepth = neckDepth * (1 - t * t);
@@ -407,14 +400,14 @@ export class ClothSimulator {
 
     // ── Armholes ──
     // Side regions: angle near π/2 (right side) and 3π/2 (left side)
-    // Must be large enough to clear the mannequin's arms which extend outward
-    const armholeDepthMax = 0.20; // how far down from shoulder the armhole extends (20cm)
+    // Realistic T-shirt armhole — not too wide
+    const armholeDepthMax = 0.12; // how far down from shoulder (12cm)
     if (depthFromTop < armholeDepthMax) {
       // Right side armhole
       const distFromRight = Math.abs(angle - Math.PI / 2);
       // Left side armhole
       const distFromLeft = Math.abs(angle - 3 * Math.PI / 2);
-      const armholeAngularWidth = 0.75; // radians (~43°) — wide enough to clear arms
+      const armholeAngularWidth = 0.50; // radians (~29°) — realistic armhole size
 
       for (const dist of [distFromRight, distFromLeft]) {
         if (dist < armholeAngularWidth) {
@@ -540,20 +533,8 @@ export class ClothSimulator {
         const easeHW = hw + hemFlare;
         const easeHD = hd + hemFlare * 0.6;
 
-        // Add region-specific extra offset to prevent clipping at complex geometry
-        let extraOffset = 0;
-        for (const [yMin, yMax, offset] of REGION_EXTRA_OFFSET) {
-          if (y >= yMin && y <= yMax) {
-            // Smooth blend at region boundaries
-            const regionCenter = (yMin + yMax) / 2;
-            const regionHalf = (yMax - yMin) / 2;
-            const blend = 1.0 - Math.abs(y - regionCenter) / regionHalf;
-            extraOffset = Math.max(extraOffset, offset * blend);
-          }
-        }
-
-        const rawX = (easeHW + extraOffset) * Math.sin(angle);         // left-right
-        const rawZ = -(easeHD + extraOffset) * Math.cos(angle) + cross.zCenter; // front-back
+        const rawX = easeHW * Math.sin(angle);         // left-right
+        const rawZ = -easeHD * Math.cos(angle) + cross.zCenter; // front-back
 
         // Apply procedural wrinkle displacement
         const wrinkle = this.computeWrinkle(angle, y, topY, hemY, c, r);

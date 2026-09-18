@@ -202,7 +202,7 @@ export const StudioViewport: React.FC = () => {
         setModelLoaded(true);
 
         // After model loads, resolve cloth-mannequin collisions using actual mesh
-        simulatorRef.current.resolveCollisionsWithMesh(model, 0.015);
+        simulatorRef.current.resolveCollisionsWithMesh(model, 0.008);
       },
       undefined,
       (error) => {
@@ -334,7 +334,7 @@ export const StudioViewport: React.FC = () => {
     }
     // Resolve collisions with mannequin mesh if loaded
     if (gltfModelRef.current) {
-      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.015);
+      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.008);
     }
   }, [pieces, seams, currentMaterial, simulationIteration]);
 
@@ -387,7 +387,7 @@ export const StudioViewport: React.FC = () => {
     }
     // Resolve collisions with scaled mannequin mesh
     if (gltfModelRef.current) {
-      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.015);
+      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.008);
     }
   }, [avatar.height, avatar.chestCircumference, avatar.waistCircumference, avatar.hipsCircumference]);
 
