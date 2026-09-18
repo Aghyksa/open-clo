@@ -9,6 +9,9 @@ import {
   Ruler,
   PenTool,
   Spline,
+  Slice,
+  Shapes,
+  PlusCircle,
   Undo2,
   Redo2,
 } from 'lucide-react';
@@ -49,6 +52,27 @@ const TOOLS: ToolItem[] = [
     hotkey: 'C',
     icon: Spline,
     description: 'Click and drag an edge to pull it into an anatomical curved line',
+  },
+  {
+    id: 'cut',
+    name: 'Cut / Slice Tool (Potong Pola)',
+    hotkey: 'X',
+    icon: Slice,
+    description: 'Draw a cut line across a pattern piece to slice it into separate pieces with automatic seams',
+  },
+  {
+    id: 'patch',
+    name: 'Tambal Kain & Patch Library',
+    hotkey: 'K',
+    icon: Shapes,
+    description: 'Add pockets, patches, emblems, collar bands, cuffs, or extra fabric pieces',
+  },
+  {
+    id: 'polygon',
+    name: 'Draw Custom Pattern Piece',
+    hotkey: 'N',
+    icon: PlusCircle,
+    description: 'Click on canvas to draw arbitrary polygon pattern pieces from scratch',
   },
   {
     id: 'sew',

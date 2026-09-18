@@ -82,11 +82,25 @@ export interface FabricMaterial {
   description?: string;
 }
 
+export type PatchPresetType =
+  | 'pocket'
+  | 'circle'
+  | 'star'
+  | 'shield'
+  | 'sleeve'
+  | 'collar'
+  | 'waistband'
+  | 'cuff'
+  | 'rect';
+
 export type CadTool =
   | 'select'    // V: Move & Transform (scale, rotate with Photoshop-like bounding box)
   | 'vertex'    // A: Direct Select / Move vertex
   | 'pen'       // P: Add point on edge
   | 'curve'     // C: Curvature tool (bend edge)
+  | 'cut'       // X: Scissor / Slice pattern piece
+  | 'patch'     // K: Tambal Kain / Add Fabric Piece
+  | 'polygon'   // N: Draw custom polygon pattern piece
   | 'sew'       // S: Virtual Sewing tool
   | 'move'      // H: Pan Viewport
   | 'measure'   // M: Measure edge segment

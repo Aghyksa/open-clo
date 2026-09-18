@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useCloStore } from '../../store/useCloStore';
-import type { PatternPiece, SeamEdge, AvatarConfig, Avatar2DConfig } from '../../types/cad';
+import type { PatternPiece, SeamEdge, AvatarConfig, Avatar2DConfig, PatchPresetType } from '../../types/cad';
 import {
   ZoomIn,
   ZoomOut,
@@ -16,6 +16,9 @@ import {
   Trash2,
   Plus,
   Compass,
+  Slice,
+  Shapes,
+  PlusCircle,
 } from 'lucide-react';
 
 export const PatternCanvas: React.FC = () => {
@@ -51,6 +54,10 @@ export const PatternCanvas: React.FC = () => {
     setAvatarMeasurement,
     undo,
     redo,
+    setActiveTool,
+    cutPiece,
+    addFabricPatch,
+    addCustomPiece,
   } = useCloStore();
 
   // Viewport Pan & Zoom state
@@ -63,6 +70,14 @@ export const PatternCanvas: React.FC = () => {
   // Layers panel overlay toggle
   const [showLayersOverlay, setShowLayersOverlay] = useState(false);
   const [showAvatarControls, setShowAvatarControls] = useState(false);
+  const [showPatchModal, setShowPatchModal] = useState(false);
+
+  // Cutting Tool state
+  const [cutLine, setCutLine] = useState<{ start: { x: number; y: number }; end: { x: number; y: number } } | null>(null);
+
+  // Polygon drawing tool state
+  const [drawingPolygonPoints, setDrawingPolygonPoints] = useState<{ x: number; y: number }[]>([]);
+  const [polygonMousePos, setPolygonMousePos] = useState<{ x: number; y: number } | null>(null);
 
   // Mouse hover state for pen/curve preview
   const [hoverInfo, setHoverInfo] = useState<{
@@ -74,7 +89,7 @@ export const PatternCanvas: React.FC = () => {
   // Dragging state
   const isDraggingRef = useRef(false);
   const dragModeRef = useRef<
-    'pan' | 'piece' | 'vertex' | 'scale' | 'rotate' | 'curve' | 'avatar-guide' | null
+    'pan' | 'piece' | 'vertex' | 'scale' | 'rotate' | 'curve' | 'avatar-guide' | 'cut' | null
   >(null);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const draggedPieceIdRef = useRef<string | null>(null);
@@ -766,6 +781,61 @@ export const PatternCanvas: React.FC = () => {
         ctx.fillText(`S${sIdx + 1}`, m.x, m.y);
       });
     });
+
+    // 7. Draw Cut / Slice Line Preview
+    if (cutLine) {
+      const sStart = worldToScreen(cutLine.start.x, cutLine.start.y);
+      const sEnd = worldToScreen(cutLine.end.x, cutLine.end.y);
+      ctx.save();
+      ctx.setLineDash([8, 6]);
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(sStart.x, sStart.y);
+      ctx.lineTo(sEnd.x, sEnd.y);
+      ctx.stroke();
+
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ef4444';
+      ctx.font = 'bold 12px ui-sans-serif, system-ui';
+      const midX = (sStart.x + sEnd.x) / 2;
+      const midY = (sStart.y + sEnd.y) / 2;
+      ctx.fillText('✂️ SLICE CUT', midX + 10, midY - 10);
+      ctx.restore();
+    }
+
+    // 8. Draw Custom Polygon Drafting Preview
+    if (drawingPolygonPoints.length > 0) {
+      ctx.save();
+      ctx.strokeStyle = '#06b6d4';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      const s0 = worldToScreen(drawingPolygonPoints[0].x, drawingPolygonPoints[0].y);
+      ctx.moveTo(s0.x, s0.y);
+      for (let i = 1; i < drawingPolygonPoints.length; i++) {
+        const sp = worldToScreen(drawingPolygonPoints[i].x, drawingPolygonPoints[i].y);
+        ctx.lineTo(sp.x, sp.y);
+      }
+      if (polygonMousePos) {
+        const sm = worldToScreen(polygonMousePos.x, polygonMousePos.y);
+        ctx.setLineDash([4, 4]);
+        ctx.lineTo(sm.x, sm.y);
+      }
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      drawingPolygonPoints.forEach((p, idx) => {
+        const sp = worldToScreen(p.x, p.y);
+        ctx.fillStyle = idx === 0 ? '#10b981' : '#06b6d4';
+        ctx.beginPath();
+        ctx.arc(sp.x, sp.y, 5.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
   }, [
     pieces,
     seams,
@@ -778,6 +848,9 @@ export const PatternCanvas: React.FC = () => {
     stitchSettings,
     viewState,
     hoverInfo,
+    cutLine,
+    drawingPolygonPoints,
+    polygonMousePos,
     worldToScreen,
   ]);
 
@@ -803,6 +876,39 @@ export const PatternCanvas: React.FC = () => {
 
     // Left click
     if (e.button === 0) {
+      // 0a. Cut Tool (Slice Piece): Start dragging cut line
+      if (activeTool === 'cut') {
+        setCutLine({ start: { x: world.x, y: world.y }, end: { x: world.x, y: world.y } });
+        dragModeRef.current = 'cut';
+        return;
+      }
+
+      // 0b. Polygon Draw Tool: Click to add vertices
+      if (activeTool === 'polygon') {
+        if (drawingPolygonPoints.length >= 3) {
+          const p0 = drawingPolygonPoints[0];
+          const dist = Math.hypot(world.x - p0.x, world.y - p0.y);
+          if (dist < 22) {
+            const cx = drawingPolygonPoints.reduce((s, p) => s + p.x, 0) / drawingPolygonPoints.length;
+            const cy = drawingPolygonPoints.reduce((s, p) => s + p.y, 0) / drawingPolygonPoints.length;
+            const localPoints = drawingPolygonPoints.map(p => ({ x: Math.round(p.x - cx), y: Math.round(p.y - cy) }));
+            addCustomPiece('Custom Pattern Piece', localPoints, { x: Math.round(cx), y: Math.round(cy) });
+            setDrawingPolygonPoints([]);
+            setPolygonMousePos(null);
+            setActiveTool('select');
+            return;
+          }
+        }
+        setDrawingPolygonPoints(prev => [...prev, { x: Math.round(world.x), y: Math.round(world.y) }]);
+        return;
+      }
+
+      // 0c. Patch Tool: Open patch library
+      if (activeTool === 'patch') {
+        setShowPatchModal(true);
+        return;
+      }
+
       // 1. Sew Tool: Click edge
       if (activeTool === 'sew') {
         for (const piece of pieces) {
@@ -922,6 +1028,15 @@ export const PatternCanvas: React.FC = () => {
     const sy = e.clientY - rect.top;
     const world = screenToWorld(sx, sy);
 
+    if (activeTool === 'polygon') {
+      setPolygonMousePos({ x: world.x, y: world.y });
+    }
+
+    if (dragModeRef.current === 'cut') {
+      setCutLine((prev) => (prev ? { ...prev, end: { x: world.x, y: world.y } } : null));
+      return;
+    }
+
     // Update hover preview for Pen / Curve tool
     if (!isDraggingRef.current && (activeTool === 'pen' || activeTool === 'curve')) {
       let found: any = null;
@@ -1008,6 +1123,16 @@ export const PatternCanvas: React.FC = () => {
   };
 
   const handleMouseUp = () => {
+    if (dragModeRef.current === 'cut' && cutLine) {
+      const dist = Math.hypot(cutLine.end.x - cutLine.start.x, cutLine.end.y - cutLine.start.y);
+      if (dist > 20) {
+        for (const piece of pieces) {
+          const ok = cutPiece(piece.id, cutLine.start, cutLine.end);
+          if (ok) break;
+        }
+      }
+      setCutLine(null);
+    }
     isDraggingRef.current = false;
     dragModeRef.current = null;
     draggedPieceIdRef.current = null;
@@ -1070,11 +1195,31 @@ export const PatternCanvas: React.FC = () => {
         e.preventDefault();
         redo();
       }
+
+      // Duplicate: Ctrl+D
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        e.preventDefault();
+        if (selectedPieceId) duplicatePiece(selectedPieceId);
+      }
+
+      // Hotkeys for CAD & Cutting tools (when no text input active)
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        const k = e.key.toLowerCase();
+        if (k === 'x') setActiveTool('cut');
+        else if (k === 'k') setShowPatchModal(true);
+        else if (k === 'n') setActiveTool('polygon');
+        else if (k === 'v') setActiveTool('select');
+        else if (k === 'a') setActiveTool('vertex');
+        else if (k === 'p') setActiveTool('pen');
+        else if (k === 'c') setActiveTool('curve');
+        else if (k === 's') setActiveTool('sew');
+        else if (k === 'h') setActiveTool('move');
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedPieceId, selectedVertexIndex, activeTool, deleteVertex, deletePiece, undo, redo]);
+  }, [selectedPieceId, selectedVertexIndex, activeTool, deleteVertex, deletePiece, duplicatePiece, undo, redo, setActiveTool]);
 
   return (
     <div className="relative w-full h-full bg-[#111317] overflow-hidden flex flex-col select-none">
@@ -1380,6 +1525,131 @@ export const PatternCanvas: React.FC = () => {
         </button>
       </div>
 
+      {/* Floating Quick Design & Cutting Bar */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 bg-[#171a23]/95 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-700/80 shadow-2xl text-xs text-slate-300">
+        <button
+          onClick={() => setActiveTool(activeTool === 'cut' ? 'select' : 'cut')}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+            activeTool === 'cut'
+              ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/40'
+              : 'hover:bg-slate-800 text-slate-300 hover:text-white'
+          }`}
+          title="Potong Pola (Cut/Slice Tool - Hotkey X)"
+        >
+          <Slice className="w-3.5 h-3.5" />
+          <span>Potong (X)</span>
+        </button>
+
+        <button
+          onClick={() => setShowPatchModal(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-slate-800 text-slate-300 hover:text-white transition-all"
+          title="Tambal Kain & Patch Library (Hotkey K)"
+        >
+          <Shapes className="w-3.5 h-3.5 text-amber-400" />
+          <span>Tambal Kain (K)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTool(activeTool === 'polygon' ? 'select' : 'polygon')}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+            activeTool === 'polygon'
+              ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/40'
+              : 'hover:bg-slate-800 text-slate-300 hover:text-white'
+          }`}
+          title="Gambar Pola Baru Bebas (Hotkey N)"
+        >
+          <PlusCircle className="w-3.5 h-3.5" />
+          <span>Pola Baru (N)</span>
+        </button>
+
+        <span className="w-px h-4 bg-slate-700 mx-1" />
+
+        <button
+          onClick={() => selectedPieceId && duplicatePiece(selectedPieceId)}
+          disabled={!selectedPieceId}
+          className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-semibold hover:bg-slate-800 text-slate-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          title="Duplikat Pola Terpilih (Ctrl+D)"
+        >
+          <Copy className="w-3.5 h-3.5 text-indigo-400" />
+          <span>Duplikat</span>
+        </button>
+
+        <button
+          onClick={() => {
+            if (selectedPieceId && selectedVertexIndex !== null) {
+              deleteVertex(selectedPieceId, selectedVertexIndex);
+            } else if (selectedPieceId) {
+              deletePiece(selectedPieceId);
+            }
+          }}
+          disabled={!selectedPieceId}
+          className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-semibold hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+          title="Hapus Pola / Titik Terpilih (Del)"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>Hapus</span>
+        </button>
+      </div>
+
+      {/* Tambal Kain & Fabric Patch Library Modal */}
+      {(showPatchModal || activeTool === 'patch') && (
+        <div className="absolute inset-0 z-30 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181b24] border border-slate-700/90 rounded-2xl p-5 max-w-xl w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-white font-bold text-sm">
+                <Shapes className="w-5 h-5 text-blue-400" />
+                <span>Tambal Kain & Fabric Patch Library</span>
+              </div>
+              <button
+                onClick={() => {
+                  setShowPatchModal(false);
+                  if (activeTool === 'patch') setActiveTool('select');
+                }}
+                className="text-slate-400 hover:text-white text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors font-medium"
+              >
+                ✕ Tutup
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Pilih potongan kain, kantong, lengan, atau tambalan untuk ditambahkan langsung ke pola dan otomatis muncul di manekin 3D.
+            </p>
+
+            <div className="grid grid-cols-3 gap-2.5">
+              {[
+                { type: 'pocket', icon: '👝', title: 'Kantong Tempel', desc: 'Patch pocket dada' },
+                { type: 'sleeve', icon: '💪', title: 'Lengan Baju', desc: 'Sepasang lengan pendek' },
+                { type: 'collar', icon: '👔', title: 'Kerah Ribbed', desc: 'Kerah leher baju' },
+                { type: 'star', icon: '⭐', title: 'Emblem Bintang', desc: 'Applique bintang 5 sudut' },
+                { type: 'shield', icon: '🛡️', title: 'Emblem Perisai', desc: 'Badge / lambang dada' },
+                { type: 'circle', icon: '⭕', title: 'Tambalan Bulat', desc: 'Tambalan siku / lutut' },
+                { type: 'waistband', icon: '📏', title: 'Ban Pinggang', desc: 'Ribbed hem bawah' },
+                { type: 'cuff', icon: '🧥', title: 'Manset Lengan', desc: 'Ribbed cuff pergelangan' },
+                { type: 'rect', icon: '📐', title: 'Kain Persegi', desc: 'Panel kain custom' },
+              ].map((item) => (
+                <button
+                  key={item.type}
+                  onClick={() => {
+                    addFabricPatch(item.type as PatchPresetType, { x: 320, y: 240 });
+                    setShowPatchModal(false);
+                    setActiveTool('select');
+                  }}
+                  className="bg-[#13151c] hover:bg-slate-800/90 p-3 rounded-xl border border-slate-800 hover:border-blue-500/70 transition-all text-left flex flex-col gap-1 group cursor-pointer"
+                >
+                  <span className="text-2xl mb-0.5">{item.icon}</span>
+                  <span className="font-semibold text-xs text-slate-200 group-hover:text-blue-400">
+                    {item.title}
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    {item.desc}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <canvas
         ref={canvasRef}
         onMouseDown={handleMouseDown}
@@ -1393,6 +1663,10 @@ export const PatternCanvas: React.FC = () => {
             ? 'cursor-crosshair'
             : activeTool === 'curve'
             ? 'cursor-alias'
+            : activeTool === 'cut'
+            ? 'cursor-crosshair'
+            : activeTool === 'polygon'
+            ? 'cursor-crosshair'
             : activeTool === 'sew'
             ? 'cursor-copy'
             : 'cursor-default'

@@ -1,9 +1,11 @@
 import { create } from 'zustand';
 import type {
   PatternPiece,
+  Point2D,
   SeamConnection,
   FabricMaterial,
   CadTool,
+  PatchPresetType,
   AvatarConfig,
   Avatar2DConfig,
   StitchSettings,
@@ -172,6 +174,9 @@ interface CloState {
   togglePieceVisibility: (pieceId: string) => void;
   renamePiece: (pieceId: string, name: string) => void;
   addBlankPiece: (type: 'rectangle' | 'pocket') => void;
+  cutPiece: (pieceId: string, lineStart: { x: number; y: number }, lineEnd: { x: number; y: number }) => boolean;
+  addFabricPatch: (type: PatchPresetType, position?: { x: number; y: number }) => void;
+  addCustomPiece: (name: string, points: { x: number; y: number }[], position?: { x: number; y: number }) => void;
 
   // Graphic / Stamp Layers (Photoshop style)
   addGraphicLayer: (pieceId: string, graphic: Omit<GraphicLayer, 'id'>) => void;
@@ -800,6 +805,272 @@ export const useCloStore = create<CloState>((set, get) => {
         placement: { origin3D: [0, 0.4, 0.15], rotation3D: [0, 0, 0] },
       };
 
+      const updated = [...get().pieces, newPiece];
+      set({
+        pieces: updated,
+        selectedPieceId: newId,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updated }),
+      });
+    },
+
+    cutPiece: (pieceId, lineStart, lineEnd) => {
+      const piece = get().pieces.find((p) => p.id === pieceId);
+      if (!piece || piece.points.length < 3) return false;
+
+      // Transform world line points into piece local coordinate space
+      const unrotate = (wx: number, wy: number) => {
+        const dx = wx - piece.position.x;
+        const dy = wy - piece.position.y;
+        const cos = Math.cos(-piece.rotation);
+        const sin = Math.sin(-piece.rotation);
+        return { x: dx * cos - dy * sin, y: dx * sin + dy * cos };
+      };
+
+      const p1 = unrotate(lineStart.x, lineStart.y);
+      const p2 = unrotate(lineEnd.x, lineEnd.y);
+
+      // Edge intersection helper
+      const lineIntersect = (
+        ax: number, ay: number, bx: number, by: number,
+        cx: number, cy: number, dx: number, dy: number
+      ) => {
+        const denom = (bx - ax) * (dy - cy) - (by - ay) * (dx - cx);
+        if (Math.abs(denom) < 1e-6) return null;
+        const t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / denom;
+        const u = -((bx - ax) * (ay - cy) - (by - ay) * (ax - cx)) / denom;
+        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+          return { t, x: ax + t * (bx - ax), y: ay + t * (by - ay) };
+        }
+        return null;
+      };
+
+      const pts = piece.points;
+      const n = pts.length;
+      const intersections: { edgeIndex: number; t: number; point: { x: number; y: number } }[] = [];
+
+      for (let i = 0; i < n; i++) {
+        const pa = pts[i];
+        const pb = pts[(i + 1) % n];
+        const hit = lineIntersect(pa.x, pa.y, pb.x, pb.y, p1.x, p1.y, p2.x, p2.y);
+        if (hit) {
+          intersections.push({ edgeIndex: i, t: hit.t, point: { x: Math.round(hit.x), y: Math.round(hit.y) } });
+        }
+      }
+
+      if (intersections.length !== 2) return false;
+
+      get().pushHistory();
+
+      // Sort by edge index
+      intersections.sort((a, b) => a.edgeIndex - b.edgeIndex);
+      const [hitA, hitB] = intersections;
+
+      const ptCutA: Point2D = { id: `cut-${Date.now()}-a`, x: hitA.point.x, y: hitA.point.y };
+      const ptCutB: Point2D = { id: `cut-${Date.now()}-b`, x: hitB.point.x, y: hitB.point.y };
+
+      // Polygon 1: from hitA to hitB along loop
+      const poly1: Point2D[] = [ptCutA];
+      let curr = (hitA.edgeIndex + 1) % n;
+      while (curr !== (hitB.edgeIndex + 1) % n) {
+        poly1.push({ ...pts[curr] });
+        curr = (curr + 1) % n;
+      }
+      poly1.push(ptCutB);
+
+      // Polygon 2: from hitB to hitA along loop
+      const poly2: Point2D[] = [ptCutB];
+      curr = (hitB.edgeIndex + 1) % n;
+      while (curr !== (hitA.edgeIndex + 1) % n) {
+        poly2.push({ ...pts[curr] });
+        curr = (curr + 1) % n;
+      }
+      poly2.push({ ...ptCutA, id: `cut-${Date.now()}-a2` });
+
+      const newIdB = `piece-${Date.now()}-split`;
+      const pieceA: PatternPiece = {
+        ...piece,
+        name: `${piece.name} (Upper/A)`,
+        points: poly1,
+      };
+
+      const pieceB: PatternPiece = {
+        ...piece,
+        id: newIdB,
+        name: `${piece.name} (Lower/B)`,
+        points: poly2,
+        position: { x: piece.position.x + 25, y: piece.position.y + 25 },
+        color: piece.color || '#3b82f6',
+      };
+
+      // Auto seam connecting cut line
+      const newSeam: SeamConnection = {
+        id: `seam-cut-${Date.now()}`,
+        edgeA: { pieceId: piece.id, edgeIndex: poly1.length - 1 },
+        edgeB: { pieceId: newIdB, edgeIndex: poly2.length - 1 },
+        strength: 1.0,
+        stitchType: 'single-needle',
+      };
+
+      const updatedPieces = get().pieces.map((p) => (p.id === piece.id ? pieceA : p)).concat(pieceB);
+      const updatedSeams = [...get().seams, newSeam];
+
+      set({
+        pieces: updatedPieces,
+        seams: updatedSeams,
+        selectedPieceId: newIdB,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updatedPieces, seams: updatedSeams }),
+      });
+      return true;
+    },
+
+    addFabricPatch: (type, position) => {
+      get().pushHistory();
+      const newId = `piece-${Date.now()}`;
+      const defaultPos = position || { x: 320, y: 240 };
+      let pts: Point2D[] = [];
+      let name = 'Patch';
+      let color = '#38bdf8';
+      let origin3D: [number, number, number] = [0, 1.15, 0.16];
+
+      switch (type) {
+        case 'pocket':
+          name = 'Chest Patch Pocket';
+          pts = [
+            { id: 'pk0', x: -35, y: -40 },
+            { id: 'pk1', x: 35, y: -40 },
+            { id: 'pk2', x: 35, y: 30 },
+            { id: 'pk3', x: 0, y: 48 },
+            { id: 'pk4', x: -35, y: 30 },
+          ];
+          color = '#0284c7';
+          origin3D = [-0.07, 1.18, 0.14];
+          break;
+        case 'circle':
+          name = 'Circular Patch';
+          pts = Array.from({ length: 16 }, (_, i) => {
+            const a = (i / 16) * Math.PI * 2;
+            return { id: `c${i}`, x: Math.round(35 * Math.cos(a)), y: Math.round(35 * Math.sin(a)) };
+          });
+          color = '#d97706';
+          origin3D = [0.08, 1.15, 0.14];
+          break;
+        case 'star':
+          name = 'Star Emblem Patch';
+          pts = Array.from({ length: 10 }, (_, i) => {
+            const r = i % 2 === 0 ? 40 : 18;
+            const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+            return { id: `st${i}`, x: Math.round(r * Math.cos(a)), y: Math.round(r * Math.sin(a)) };
+          });
+          color = '#eab308';
+          origin3D = [0, 1.22, 0.15];
+          break;
+        case 'shield':
+          name = 'Shield Crest Patch';
+          pts = [
+            { id: 'sh0', x: -35, y: -40 },
+            { id: 'sh1', x: 35, y: -40 },
+            { id: 'sh2', x: 35, y: 15 },
+            { id: 'sh3', x: 0, y: 50 },
+            { id: 'sh4', x: -35, y: 15 },
+          ];
+          color = '#dc2626';
+          origin3D = [0.07, 1.18, 0.14];
+          break;
+        case 'sleeve':
+          name = 'T-Shirt Short Sleeve';
+          pts = [
+            { id: 'sl0', x: 0, y: -70 },
+            { id: 'sl1', x: 70, y: -50 },
+            { id: 'sl2', x: 130, y: -20 },
+            { id: 'sl3', x: 110, y: 120 },
+            { id: 'sl4', x: -110, y: 120 },
+            { id: 'sl5', x: -130, y: -20 },
+            { id: 'sl6', x: -70, y: -50 },
+          ];
+          color = '#6366f1';
+          origin3D = [0.28, 1.25, 0.04];
+          break;
+        case 'collar':
+          name = 'Ribbed Neck Collar Band';
+          pts = [
+            { id: 'cl0', x: -160, y: -20 },
+            { id: 'cl1', x: 160, y: -20 },
+            { id: 'cl2', x: 150, y: 20 },
+            { id: 'cl3', x: -150, y: 20 },
+          ];
+          color = '#1e293b';
+          origin3D = [0, 1.38, 0.02];
+          break;
+        case 'waistband':
+          name = 'Ribbed Waistband Strip';
+          pts = [
+            { id: 'wb0', x: -180, y: -30 },
+            { id: 'wb1', x: 180, y: -30 },
+            { id: 'wb2', x: 180, y: 30 },
+            { id: 'wb3', x: -180, y: 30 },
+          ];
+          color = '#334155';
+          origin3D = [0, 0.72, 0.04];
+          break;
+        case 'cuff':
+          name = 'Ribbed Sleeve Cuff';
+          pts = [
+            { id: 'cf0', x: -65, y: -22 },
+            { id: 'cf1', x: 65, y: -22 },
+            { id: 'cf2', x: 60, y: 22 },
+            { id: 'cf3', x: -60, y: 22 },
+          ];
+          color = '#475569';
+          origin3D = [0.35, 1.12, 0.04];
+          break;
+        case 'rect':
+        default:
+          name = 'Custom Fabric Strip';
+          pts = [
+            { id: 'rc0', x: -75, y: -50 },
+            { id: 'rc1', x: 75, y: -50 },
+            { id: 'rc2', x: 75, y: 50 },
+            { id: 'rc3', x: -75, y: 50 },
+          ];
+          color = '#10b981';
+          origin3D = [0, 1.0, 0.14];
+          break;
+      }
+
+      const newPiece: PatternPiece = {
+        id: newId,
+        name,
+        points: pts,
+        position: defaultPos,
+        rotation: 0,
+        color,
+        placement: { origin3D, rotation3D: [0, 0, 0] },
+      };
+
+      const updated = [...get().pieces, newPiece];
+      set({
+        pieces: updated,
+        selectedPieceId: newId,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updated }),
+      });
+    },
+
+    addCustomPiece: (name, points, position) => {
+      get().pushHistory();
+      const newId = `piece-${Date.now()}`;
+      const pts = points.map((p, idx) => ({ id: `pt-${idx}`, x: p.x, y: p.y }));
+      const newPiece: PatternPiece = {
+        id: newId,
+        name: name || 'Custom Panel',
+        points: pts,
+        position: position || { x: 300, y: 250 },
+        rotation: 0,
+        color: '#8b5cf6',
+        placement: { origin3D: [0, 1.1, 0.15], rotation3D: [0, 0, 0] },
+      };
       const updated = [...get().pieces, newPiece];
       set({
         pieces: updated,

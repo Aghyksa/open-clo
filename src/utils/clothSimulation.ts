@@ -519,9 +519,27 @@ export class ClothSimulator {
       p.name.toLowerCase().includes('skirt')
     );
 
+    // Adapt 3D garment dimensions dynamically from 2D pattern piece bounds
+    const frontPiece = pieces.find((p) => p.id === 'piece-front' || p.name.toLowerCase().includes('front'));
+    let lengthFactor = 1.0;
+    let widthFactor = 1.0;
+
+    if (frontPiece && frontPiece.points.length >= 4) {
+      const ys = frontPiece.points.map((p) => p.y);
+      const xs = frontPiece.points.map((p) => p.x);
+      const pHeight = Math.max(...ys) - Math.min(...ys);
+      const pWidth = Math.max(...xs) - Math.min(...xs);
+
+      // Reference front bodice: height ~400mm, width ~270mm
+      lengthFactor = THREE.MathUtils.clamp(pHeight / 400, 0.45, 2.5);
+      widthFactor = THREE.MathUtils.clamp(pWidth / 270, 0.65, 2.0);
+    }
+
     const topY = TSHIRT_TOP_Y * sY;
-    const hemY = (isDress ? DRESS_HEM_Y : TSHIRT_HEM_Y) * sY;
-    const garmentLength = topY - hemY;
+    const standardHemY = (isDress ? DRESS_HEM_Y : TSHIRT_HEM_Y) * sY;
+    const standardLength = topY - standardHemY;
+    const garmentLength = standardLength * lengthFactor;
+    const hemY = topY - garmentLength;
 
     // Calculate rows: ~1.5cm per row for good resolution
     const rows = Math.max(12, Math.ceil(garmentLength / (0.015 * sY)));
@@ -544,8 +562,8 @@ export class ClothSimulator {
 
       const unscaledY = y / sY;
       const cross = this.getBodyCrossSection(unscaledY);
-      const hw = (cross.halfWidth * sX) * stiffnessEase + 0.012;
-      const hd = (cross.halfDepth * sZ) * stiffnessEase + 0.012;
+      const hw = ((cross.halfWidth * sX) * stiffnessEase + 0.012) * widthFactor;
+      const hd = ((cross.halfDepth * sZ) * stiffnessEase + 0.012) * widthFactor;
       const zCenter = cross.zCenter * sZ;
 
       // Slight flare at hem for dress
@@ -627,6 +645,200 @@ export class ClothSimulator {
         }
         if (tr !== null && bl !== null && br !== null) {
           this.indices.push(tr, bl, br);
+        }
+      }
+    }
+
+    // ── Build Extra Pieces: Pockets, Patches, Sleeves, Collars, Custom Fabric Panels ──
+    const extraPieces = pieces.filter(
+      (p) => p.visible !== false && p.id !== 'piece-front' && p.id !== 'piece-back'
+    );
+
+    for (const piece of extraPieces) {
+      const lowerName = piece.name.toLowerCase();
+
+      // CASE 1: SLEEVES (Short or Long Sleeve)
+      if (lowerName.includes('sleeve') || lowerName.includes('lengan')) {
+        const armSides = [-1, 1]; // Right (-1) and Left (+1)
+        for (const side of armSides) {
+          const sleeveCols = 16;
+          const sleeveRows = 8;
+          const sleeveBaseIdx = this.particles.length;
+
+          const startX = side * 0.19 * sX;
+          const startY = 1.33 * sY;
+          const startZ = 0.04 * sZ;
+
+          const endX = side * 0.35 * sX;
+          const endY = 1.15 * sY;
+          const endZ = 0.04 * sZ;
+
+          const startR = 0.078 * sX;
+          const endR = 0.065 * sX;
+
+          const armAxis = new THREE.Vector3(endX - startX, endY - startY, endZ - startZ).normalize();
+          const upVec = new THREE.Vector3(0, 0, 1);
+          const perp1 = new THREE.Vector3().crossVectors(armAxis, upVec).normalize();
+          const perp2 = new THREE.Vector3().crossVectors(armAxis, perp1).normalize();
+
+          for (let sr = 0; sr < sleeveRows; sr++) {
+            const st = sr / (sleeveRows - 1);
+            const cx = THREE.MathUtils.lerp(startX, endX, st);
+            const cy = THREE.MathUtils.lerp(startY, endY, st);
+            const cz = THREE.MathUtils.lerp(startZ, endZ, st);
+            const currR = THREE.MathUtils.lerp(startR, endR, st);
+
+            for (let sc = 0; sc < sleeveCols; sc++) {
+              const sAngle = (sc / sleeveCols) * Math.PI * 2;
+              const px = cx + (perp1.x * Math.cos(sAngle) + perp2.x * Math.sin(sAngle)) * currR;
+              const py = cy + (perp1.y * Math.cos(sAngle) + perp2.y * Math.sin(sAngle)) * currR;
+              const pz = cz + (perp1.z * Math.cos(sAngle) + perp2.z * Math.sin(sAngle)) * currR;
+
+              const norm = new THREE.Vector3(
+                perp1.x * Math.cos(sAngle) + perp2.x * Math.sin(sAngle),
+                perp1.y * Math.cos(sAngle) + perp2.y * Math.sin(sAngle),
+                perp1.z * Math.cos(sAngle) + perp2.z * Math.sin(sAngle)
+              ).normalize();
+
+              this.particles.push({
+                pos: new THREE.Vector3(px, py, pz),
+                prevPos: new THREE.Vector3(px, py, pz),
+                originalPos: new THREE.Vector3(px, py, pz),
+                local2D: { x: sc * 10, y: sr * 10 },
+                invMass: 0.6 / Math.max(0.1, material.density / 140),
+                normal: norm,
+                uv: new THREE.Vector2(sc / sleeveCols, 1 - st),
+                pinned: false,
+                pieceId: piece.id,
+              });
+            }
+          }
+
+          for (let sr = 0; sr < sleeveRows - 1; sr++) {
+            for (let sc = 0; sc < sleeveCols; sc++) {
+              const scNext = (sc + 1) % sleeveCols;
+              const tl = sleeveBaseIdx + sr * sleeveCols + sc;
+              const tr = sleeveBaseIdx + sr * sleeveCols + scNext;
+              const bl = sleeveBaseIdx + (sr + 1) * sleeveCols + sc;
+              const br = sleeveBaseIdx + (sr + 1) * sleeveCols + scNext;
+              if (side > 0) {
+                this.indices.push(tl, bl, tr);
+                this.indices.push(tr, bl, br);
+              } else {
+                this.indices.push(tl, tr, bl);
+                this.indices.push(tr, br, bl);
+              }
+            }
+          }
+        }
+        continue;
+      }
+
+      // CASE 2: COLLAR BAND
+      if (lowerName.includes('collar') || lowerName.includes('kerah')) {
+        const collarCols = 24;
+        const collarBaseIdx = this.particles.length;
+        const neckY1 = 1.37 * sY;
+        const neckY2 = 1.40 * sY;
+
+        for (const cy of [neckY1, neckY2]) {
+          const cross = this.getBodyCrossSection(cy / sY);
+          const chw = cross.halfWidth * sX * 1.08 + 0.015;
+          const chd = cross.halfDepth * sZ * 1.08 + 0.015;
+          for (let cc = 0; cc < collarCols; cc++) {
+            const cAng = (cc / collarCols) * Math.PI * 2;
+            const px = chw * Math.sin(cAng);
+            const pz = -chd * Math.cos(cAng) + cross.zCenter * sZ;
+            const norm = new THREE.Vector3(Math.sin(cAng), 0, -Math.cos(cAng));
+
+            this.particles.push({
+              pos: new THREE.Vector3(px, cy, pz),
+              prevPos: new THREE.Vector3(px, cy, pz),
+              originalPos: new THREE.Vector3(px, cy, pz),
+              local2D: { x: cc * 10, y: (cy === neckY1 ? 0 : 20) },
+              invMass: 0.3,
+              normal: norm,
+              uv: new THREE.Vector2(cc / collarCols, cy === neckY1 ? 0 : 1),
+              pinned: true,
+              pieceId: piece.id,
+            });
+          }
+        }
+
+        for (let cc = 0; cc < collarCols; cc++) {
+          const ccNext = (cc + 1) % collarCols;
+          const b0 = collarBaseIdx + cc;
+          const b1 = collarBaseIdx + ccNext;
+          const t0 = collarBaseIdx + collarCols + cc;
+          const t1 = collarBaseIdx + collarCols + ccNext;
+          this.indices.push(b0, t0, b1);
+          this.indices.push(b1, t0, t1);
+        }
+        continue;
+      }
+
+      // CASE 3: PATCH / POCKET / APPLIQUE / CUSTOM FABRIC PANEL
+      if (piece.points && piece.points.length >= 3) {
+        const pts = piece.points;
+        const patchBaseIdx = this.particles.length;
+
+        const cx2d = pts.reduce((sum, p) => sum + p.x, 0) / pts.length;
+        const cy2d = pts.reduce((sum, p) => sum + p.y, 0) / pts.length;
+
+        const frontRef = pieces.find(p => p.id === 'piece-front');
+        const refPos = frontRef ? frontRef.position : { x: 170, y: 260 };
+        const dxFromRef = (piece.position.x - refPos.x) / 300;
+        const dyFromRef = (piece.position.y - refPos.y) / 400;
+
+        const center3DX = dxFromRef * 0.18 * sX;
+        const center3DY = THREE.MathUtils.clamp(1.18 * sY - dyFromRef * 0.35 * sY, 0.75 * sY, 1.34 * sY);
+        const crossAtY = this.getBodyCrossSection(center3DY / sY);
+        const center3DZ = -crossAtY.halfDepth * sZ * 1.08 + crossAtY.zCenter * sZ - 0.018;
+
+        // Centroid particle
+        this.particles.push({
+          pos: new THREE.Vector3(center3DX, center3DY, center3DZ - 0.003),
+          prevPos: new THREE.Vector3(center3DX, center3DY, center3DZ - 0.003),
+          originalPos: new THREE.Vector3(center3DX, center3DY, center3DZ - 0.003),
+          local2D: { x: cx2d, y: cy2d },
+          invMass: 0.5,
+          normal: new THREE.Vector3(0, 0, -1),
+          uv: new THREE.Vector2(0.5, 0.5),
+          pinned: false,
+          pieceId: piece.id,
+        });
+
+        // Perimeter particles
+        for (let pi = 0; pi < pts.length; pi++) {
+          const pt = pts[pi];
+          const px = center3DX + ((pt.x - cx2d) / 1000) * sX;
+          const py = center3DY - ((pt.y - cy2d) / 1000) * sY;
+          const pz = center3DZ;
+
+          this.particles.push({
+            pos: new THREE.Vector3(px, py, pz),
+            prevPos: new THREE.Vector3(px, py, pz),
+            originalPos: new THREE.Vector3(px, py, pz),
+            local2D: { x: pt.x, y: pt.y },
+            invMass: 0.5,
+            normal: new THREE.Vector3(0, 0, -1),
+            uv: new THREE.Vector2(
+              0.5 + (pt.x - cx2d) / 200,
+              0.5 + (pt.y - cy2d) / 200
+            ),
+            pinned: false,
+            pieceId: piece.id,
+          });
+        }
+
+        // Fan triangles around centroid
+        for (let pi = 0; pi < pts.length; pi++) {
+          const piNext = (pi + 1) % pts.length;
+          const v0 = patchBaseIdx;
+          const v1 = patchBaseIdx + 1 + pi;
+          const v2 = patchBaseIdx + 1 + piNext;
+          this.indices.push(v0, v1, v2);
+          this.indices.push(v0, v2, v1);
         }
       }
     }
