@@ -187,7 +187,7 @@ export const StudioViewport: React.FC = () => {
 
             // Apply sleek CLO3D matte porcelain finish by default
             const porcelainMat = new THREE.MeshStandardMaterial({
-              color: '#5c6b7a',
+              color: '#4a5568',
               roughness: 0.55,
               metalness: 0.05,
             });
