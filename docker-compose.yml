@@ -6,7 +6,7 @@ services:
     container_name: open-clo-studio
     restart: unless-stopped
     ports:
-      - "8080:80"
+      - "127.0.0.1:8480:80"
     environment:
       - NODE_ENV=production
     healthcheck:
