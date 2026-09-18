@@ -51,7 +51,7 @@ export const PropertyInspector: React.FC = () => {
   };
 
   return (
-    <aside className="w-84 bg-[#13151c] border-l border-slate-800 flex flex-col h-full z-20 select-none text-xs text-slate-300">
+    <aside className="w-64 bg-[#13151c] border-l border-slate-800 flex flex-col h-full z-20 select-none text-xs text-slate-300">
       {/* 4 Tabs Header */}
       <div className="flex border-b border-slate-800 bg-[#0e1015]">
         <button

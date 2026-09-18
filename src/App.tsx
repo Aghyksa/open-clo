@@ -25,7 +25,7 @@ export const App: React.FC = () => {
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDraggingSplitter.current) return;
-      const containerWidth = window.innerWidth - 56 - 336;
+      const containerWidth = window.innerWidth - 56 - 256; // sidebar(56) + inspector(256)
       if (containerWidth <= 0) return;
       const newRatio = Math.max(0.2, Math.min(0.8, (e.clientX - 56) / containerWidth));
       setSplitRatio(newRatio);

@@ -186,18 +186,17 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
         {/* Projects Button */}
         <button
           onClick={onOpenControlPanel}
-          className="flex items-center gap-1.5 bg-[#1a1d26] hover:bg-slate-700/60 text-slate-300 hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-700/60 transition-colors"
+          className="flex items-center gap-1.5 bg-[#1a1d26] hover:bg-slate-700/60 text-slate-300 hover:text-white text-xs font-medium px-2 py-1.5 rounded-lg border border-slate-700/60 transition-colors"
           title="Manage Projects (Create, Delete, Switch)"
         >
           <FolderKanban className="w-3.5 h-3.5 text-indigo-400" />
-          <span className="hidden xl:inline">Projects</span>
         </button>
 
         {/* Garment Template Select */}
         <select
           value={activeTemplateId}
           onChange={(e) => loadPreset(e.target.value)}
-          className="bg-[#1a1d26] text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700/80 focus:outline-none focus:border-blue-500 font-medium cursor-pointer max-w-[140px]"
+          className="bg-[#1a1d26] text-slate-200 text-xs px-2 py-1.5 rounded-lg border border-slate-700/80 focus:outline-none focus:border-blue-500 font-medium cursor-pointer max-w-[120px]"
           title="Switch Garment Template"
         >
           {GARMENT_TEMPLATES.map((tmpl) => (
@@ -211,11 +210,10 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
         <div className="relative">
           <button
             onClick={() => setFabricOpen(!fabricOpen)}
-            className="flex items-center gap-1.5 bg-[#1a1d26] hover:bg-slate-700/60 text-slate-300 hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-700/60 transition-colors"
+            className="flex items-center gap-1 bg-[#1a1d26] hover:bg-slate-700/60 text-slate-300 hover:text-white text-xs font-medium px-2 py-1.5 rounded-lg border border-slate-700/60 transition-colors"
             title={`Fabric: ${currentMaterial.name}`}
           >
             <Palette className="w-3.5 h-3.5 text-amber-400" />
-            <span className="hidden xl:inline truncate max-w-[80px]">{currentMaterial.name}</span>
             <ChevronDown className="w-3 h-3" />
           </button>
 
@@ -273,7 +271,7 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
         {/* Save Button */}
         <button
           onClick={saveActiveProject}
-          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+          className={`flex items-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg border transition-colors ${
             isSaved
               ? 'bg-[#1a1d26] text-slate-400 border-slate-700/60'
               : 'bg-emerald-600/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-600/30'
@@ -281,7 +279,6 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
           title={isSaved ? 'All changes saved' : 'Save changes (Ctrl+S)'}
         >
           <Save className="w-3.5 h-3.5" />
-          <span className="hidden xl:inline">{isSaved ? 'Saved' : 'Save'}</span>
         </button>
 
         {/* Export Button */}
