@@ -179,6 +179,20 @@ export const StudioViewport: React.FC = () => {
         // Position model on floor
         model.position.set(0, 0, 0);
 
+        // Apply avatar scale to model immediately
+        const refHeight = 169.5;
+        const heightScale = avatar.height / refHeight;
+        const refChest = 88;
+        const refWaist = 62;
+        const refHips = 92;
+        const avgWidthScale = (
+          (avatar.chestCircumference / refChest) +
+          (avatar.waistCircumference / refWaist) +
+          (avatar.hipsCircumference / refHips)
+        ) / 3;
+        model.scale.set(avgWidthScale, heightScale, avgWidthScale);
+        model.updateMatrixWorld(true);
+
         model.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
             const mesh = child as THREE.Mesh;
@@ -201,8 +215,13 @@ export const StudioViewport: React.FC = () => {
         avatarGroup.add(model);
         setModelLoaded(true);
 
-        // After model loads, resolve cloth-mannequin collisions using actual mesh
-        simulatorRef.current.resolveCollisionsWithMesh(model, 0.008);
+        // Build cloth tailored to the scaled mannequin and resolve collisions
+        const currentScale = { scaleX: avgWidthScale, scaleY: heightScale, scaleZ: avgWidthScale };
+        simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial, currentScale);
+        simulatorRef.current.resolveCollisionsWithMesh(model, 0.015);
+        if (clothGeomRef.current) {
+          clothGeomRef.current.setIndex(simulatorRef.current.indices);
+        }
       },
       undefined,
       (error) => {
@@ -232,8 +251,19 @@ export const StudioViewport: React.FC = () => {
     clothMeshRef.current = clothMesh;
     scene.add(clothMesh);
 
-    // Initialize Simulator particles
-    simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial);
+    // Initialize Simulator particles with current avatar scale
+    const initRefHeight = 169.5;
+    const initHeightScale = avatar.height / initRefHeight;
+    const initAvgWidthScale = (
+      (avatar.chestCircumference / 88) +
+      (avatar.waistCircumference / 62) +
+      (avatar.hipsCircumference / 92)
+    ) / 3;
+    simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial, {
+      scaleX: initAvgWidthScale,
+      scaleY: initHeightScale,
+      scaleZ: initAvgWidthScale,
+    });
 
     // Animation Render Loop
     let animationFrameId: number;
@@ -328,13 +358,23 @@ export const StudioViewport: React.FC = () => {
 
   // Rebuild simulation when pieces/seams or materials change
   useEffect(() => {
-    simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial);
+    const refHeight = 169.5;
+    const heightScale = avatar.height / refHeight;
+    const avgWidthScale = (
+      (avatar.chestCircumference / 88) +
+      (avatar.waistCircumference / 62) +
+      (avatar.hipsCircumference / 92)
+    ) / 3;
+    const avatarScale = { scaleX: avgWidthScale, scaleY: heightScale, scaleZ: avgWidthScale };
+
+    simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial, avatarScale);
     if (clothGeomRef.current) {
       clothGeomRef.current.setIndex(simulatorRef.current.indices);
     }
     // Resolve collisions with mannequin mesh if loaded
     if (gltfModelRef.current) {
-      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.008);
+      gltfModelRef.current.updateMatrixWorld(true);
+      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.015);
     }
   }, [pieces, seams, currentMaterial, simulationIteration]);
 
@@ -379,16 +419,16 @@ export const StudioViewport: React.FC = () => {
 
     // Apply non-uniform scale: height on Y, width on X/Z
     model.scale.set(avgWidthScale, heightScale, avgWidthScale);
+    model.updateMatrixWorld(true);
 
-    // Rebuild cloth simulation to match new body proportions
-    simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial);
+    // Rebuild cloth simulation tailored to new body proportions
+    const avatarScale = { scaleX: avgWidthScale, scaleY: heightScale, scaleZ: avgWidthScale };
+    simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial, avatarScale);
     if (clothGeomRef.current) {
       clothGeomRef.current.setIndex(simulatorRef.current.indices);
     }
     // Resolve collisions with scaled mannequin mesh
-    if (gltfModelRef.current) {
-      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.008);
-    }
+    simulatorRef.current.resolveCollisionsWithMesh(model, 0.015);
   }, [avatar.height, avatar.chestCircumference, avatar.waistCircumference, avatar.hipsCircumference]);
 
   // Toggle Avatar Material Style (CLO3D Porcelain vs Realistic Skin)

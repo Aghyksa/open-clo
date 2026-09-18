@@ -34,43 +34,77 @@ export interface AvatarCollider {
   radius: number;
 }
 
-// ─── Mannequin body profile measured from femaleMannequin.glb ───
+// ─── Mannequin body profile accurately measured from femaleMannequin.glb (20,222 vertices) ───
 // [Y-coordinate, half-width-X, half-depth-Z, z-center]
 // Z convention from GLB: Z-min = front, Z-max = back
 const BODY_PROFILE: [number, number, number, number][] = [
-  [0.000, 0.253, 0.121, 0.111],
-  [0.083, 0.237, 0.054, 0.054],
-  [0.168, 0.228, 0.050, 0.040],
-  [0.253, 0.229, 0.052, 0.035],
-  [0.371, 0.236, 0.057, 0.004],
-  [0.490, 0.215, 0.065, 0.015],
-  [0.592, 0.192, 0.065, 0.030],
-  [0.676, 0.196, 0.077, 0.039],
-  [0.710, 0.194, 0.083, 0.035],
-  [0.744, 0.183, 0.085, 0.035],
-  [0.795, 0.194, 0.089, 0.026],
-  [0.846, 0.185, 0.091, 0.030],
-  [0.897, 0.170, 0.106, 0.038],
-  [0.948, 0.159, 0.104, 0.035],
-  [0.981, 0.154, 0.096, 0.038],
-  [1.015, 0.152, 0.090, 0.035],
-  [1.066, 0.155, 0.080, 0.035],
-  [1.134, 0.160, 0.075, 0.035],
-  [1.202, 0.168, 0.104, 0.035],
-  [1.253, 0.175, 0.110, 0.057],
-  [1.303, 0.115, 0.093, 0.057],
-  [1.354, 0.080, 0.080, 0.057],
-  [1.405, 0.055, 0.072, 0.057],
-  [1.473, 0.048, 0.077, 0.058],
+  [0.300, 0.234, 0.053, 0.009],
+  [0.320, 0.237, 0.057, 0.006],
+  [0.340, 0.237, 0.057, 0.006],
+  [0.360, 0.236, 0.058, 0.005],
+  [0.380, 0.233, 0.058, 0.004],
+  [0.400, 0.233, 0.058, 0.003],
+  [0.420, 0.227, 0.061, 0.008],
+  [0.440, 0.221, 0.062, 0.013],
+  [0.460, 0.215, 0.063, 0.022],
+  [0.480, 0.209, 0.063, 0.031],
+  [0.500, 0.206, 0.058, 0.037],
+  [0.520, 0.202, 0.058, 0.041],
+  [0.540, 0.198, 0.057, 0.042],
+  [0.560, 0.193, 0.057, 0.042],
+  [0.580, 0.192, 0.061, 0.044],
+  [0.600, 0.193, 0.065, 0.043],
+  [0.620, 0.194, 0.069, 0.042],
+  [0.640, 0.195, 0.073, 0.041],
+  [0.660, 0.195, 0.077, 0.039],
+  [0.680, 0.195, 0.078, 0.039],
+  [0.700, 0.194, 0.080, 0.037],
+  [0.720, 0.194, 0.082, 0.035],
+  [0.740, 0.193, 0.084, 0.033],
+  [0.760, 0.193, 0.085, 0.032],
+  [0.780, 0.194, 0.086, 0.032],
+  [0.800, 0.194, 0.097, 0.021],
+  [0.820, 0.192, 0.097, 0.021],
+  [0.840, 0.185, 0.091, 0.025],
+  [0.860, 0.180, 0.105, 0.009],
+  [0.880, 0.174, 0.098, 0.016],
+  [0.900, 0.170, 0.107, 0.012],
+  [0.920, 0.164, 0.105, 0.022],
+  [0.940, 0.162, 0.106, 0.021],
+  [0.960, 0.159, 0.100, 0.031],
+  [0.980, 0.154, 0.102, 0.034],
+  [1.000, 0.149, 0.096, 0.041],
+  [1.020, 0.147, 0.089, 0.048],
+  [1.040, 0.141, 0.084, 0.050],
+  [1.060, 0.124, 0.080, 0.054],
+  [1.080, 0.117, 0.079, 0.056],
+  [1.100, 0.112, 0.080, 0.057],
+  [1.120, 0.112, 0.082, 0.057],
+  [1.140, 0.114, 0.083, 0.057],
+  [1.160, 0.118, 0.092, 0.064],
+  [1.180, 0.131, 0.101, 0.071],
+  [1.200, 0.141, 0.104, 0.071],
+  [1.220, 0.141, 0.109, 0.067],
+  [1.240, 0.137, 0.111, 0.063],
+  [1.260, 0.142, 0.109, 0.052],
+  [1.280, 0.179, 0.103, 0.041],
+  [1.300, 0.188, 0.100, 0.035],
+  [1.320, 0.188, 0.094, 0.029],
+  [1.340, 0.187, 0.088, 0.022],
+  [1.360, 0.210, 0.080, 0.017],
+  [1.380, 0.207, 0.072, 0.016],
+  [1.400, 0.184, 0.063, 0.012],
+  [1.420, 0.146, 0.053, 0.011],
+  [1.440, 0.067, 0.055, 0.020],
 ];
 
 // ─── Garment template definitions ───
-const TSHIRT_TOP_Y = 1.20;    // shoulder seam (not very top of shoulder)
-const TSHIRT_HEM_Y = 0.72;    // hips
-const DRESS_HEM_Y = 0.37;     // knees
+const TSHIRT_TOP_Y = 1.385;   // Top of shoulder line (covers entire torso)
+const TSHIRT_HEM_Y = 0.72;    // Hips / upper pelvis
+const DRESS_HEM_Y = 0.38;     // Knees
 
-const TUBE_COLS = 36;          // columns around circumference (smoother)
-const GARMENT_EASE = 1.05;     // 5% larger than body — snug fit, collision handles the rest
+const TUBE_COLS = 36;          // Columns around circumference
+const GARMENT_EASE = 1.08;     // 8% ease + explicit radial clearance prevents clipping
 
 // No extra radial offsets needed — mesh collision resolution handles all body regions
 
@@ -136,13 +170,13 @@ export class ClothSimulator {
    * Builds a radial distance map from mannequin vertices (no raycasting needed),
    * then pushes any cloth vertex that's too close to the body outward.
    */
-  resolveCollisionsWithMesh(mannequinGroup: THREE.Group, skinOffset: number = 0.012) {
+  resolveCollisionsWithMesh(mannequinGroup: THREE.Group, skinOffset: number = 0.015) {
     // Collect all vertex world positions from the mannequin model
     const worldPos = new THREE.Vector3();
-    const heightBands = 50;
+    const heightBands = 55;
     const angleSamples = 48;
     const minY = 0.30;
-    const maxY = 1.35;
+    const maxY = 1.46; // Covers up to top of neck/shoulders
     const bandHeight = (maxY - minY) / (heightBands - 1);
     const angleStep = (Math.PI * 2) / angleSamples;
 
@@ -152,8 +186,10 @@ export class ClothSimulator {
       surfaceDistMap[hb] = new Array(angleSamples).fill(0);
     }
 
+    mannequinGroup.updateMatrixWorld(true);
+
     // Scan all mannequin vertices and bin them into the distance map
-    // IMPORTANT: exclude arm vertices that extend beyond the torso width
+    // Exclude arm vertices extending outward from the torso sides
     mannequinGroup.traverse((child) => {
       if (!(child as THREE.Mesh).isMesh) return;
       const mesh = child as THREE.Mesh;
@@ -174,48 +210,36 @@ export class ClothSimulator {
         const y = worldPos.y;
         if (y < minY || y > maxY) continue;
 
-        // EXCLUDE ARM VERTICES: arms extend sideways starting around Y=1.0
-        // The torso is roughly within |x| < 0.22 at all heights
-        // Arms go from |x|=0.20 out to |x|=0.57 at Y=0.95-1.25
-        // If |x| > torso width at this height, it's probably an arm vertex — skip it
-        const cross = this.getBodyCrossSection(y);
-        const torsoMaxWidth = cross.halfWidth * 1.3; // allow 30% tolerance for torso shape
-        if (Math.abs(worldPos.x) > torsoMaxWidth && y > 0.90) {
-          continue; // skip arm vertices
-        }
+        // Exclude arms outside torso width, but preserve shoulder line (y >= 1.34)
+        const isArm = (y < 1.34 && Math.abs(worldPos.x) > 0.20) || (y >= 1.34 && Math.abs(worldPos.x) > 0.23);
+        if (isArm) continue;
 
-        // Height band
         const bandF = (y - minY) / bandHeight;
         const band = Math.round(bandF);
         if (band < 0 || band >= heightBands) continue;
 
-        // Get body center at this height for angle calculation
+        const cross = this.getBodyCrossSection(y);
         const dx = worldPos.x;
         const dz = -(worldPos.z - cross.zCenter);
         let angle = Math.atan2(dx, dz);
         if (angle < 0) angle += Math.PI * 2;
 
         const ai = Math.round(angle / angleStep) % angleSamples;
-
-        // Distance from Y-axis centerline to this vertex
         const dist = Math.sqrt(dx * dx + (worldPos.z - cross.zCenter) ** 2);
 
-        // Keep max distance at this band/angle (outermost surface)
-        if (dist > surfaceDistMap[band][ai]) {
-          surfaceDistMap[band][ai] = dist;
+        // Fill current bin and adjacent neighbor bins (3x3 kernel) to ensure convex curvature is preserved
+        for (let db = -1; db <= 1; db++) {
+          const bIdx = band + db;
+          if (bIdx < 0 || bIdx >= heightBands) continue;
+          for (let da = -1; da <= 1; da++) {
+            const aIdx = (ai + da + angleSamples) % angleSamples;
+            const weight = (da === 0 && db === 0) ? 1.0 : 0.98;
+            const wDist = dist * weight;
+            if (wDist > surfaceDistMap[bIdx][aIdx]) {
+              surfaceDistMap[bIdx][aIdx] = wDist;
+            }
+          }
         }
-
-        // Also fill neighboring bins for smoother coverage
-        const ai_prev = (ai - 1 + angleSamples) % angleSamples;
-        const ai_next = (ai + 1) % angleSamples;
-        const band_prev = Math.max(0, band - 1);
-        const band_next = Math.min(heightBands - 1, band + 1);
-        // Spread to neighbors at 90% of the distance (conservative fill)
-        const neighborDist = dist * 0.9;
-        if (neighborDist > surfaceDistMap[band][ai_prev]) surfaceDistMap[band][ai_prev] = neighborDist;
-        if (neighborDist > surfaceDistMap[band][ai_next]) surfaceDistMap[band][ai_next] = neighborDist;
-        if (neighborDist > surfaceDistMap[band_prev][ai]) surfaceDistMap[band_prev][ai] = neighborDist;
-        if (neighborDist > surfaceDistMap[band_next][ai]) surfaceDistMap[band_next][ai] = neighborDist;
       }
     });
 
@@ -223,7 +247,6 @@ export class ClothSimulator {
     for (const particle of this.particles) {
       const p = particle.pos;
 
-      // Find height band
       const t = (p.y - minY) / (maxY - minY);
       if (t < 0 || t > 1) continue;
       const bandF = t * (heightBands - 1);
@@ -231,7 +254,6 @@ export class ClothSimulator {
       const band1 = Math.min(band0 + 1, heightBands - 1);
       const bandBlend = bandF - band0;
 
-      // Find angle
       const cross = this.getBodyCrossSection(p.y);
       const dx = p.x;
       const dz = -(p.z - cross.zCenter);
@@ -243,28 +265,28 @@ export class ClothSimulator {
       const ai1 = (ai0 + 1) % angleSamples;
       const angleBlend = angleF - Math.floor(angleF);
 
-      // Bilinear interpolation of surface distance
       const d00 = surfaceDistMap[band0][ai0];
       const d01 = surfaceDistMap[band0][ai1];
       const d10 = surfaceDistMap[band1][ai0];
       const d11 = surfaceDistMap[band1][ai1];
 
-      // If surface distance is 0 (no body at this position), skip
-      if (d00 === 0 && d01 === 0 && d10 === 0 && d11 === 0) continue;
+      // If no mannequin samples detected in region, use cross section distance
+      const fallbackDist = Math.sqrt((cross.halfWidth * Math.sin(angle)) ** 2 + (cross.halfDepth * Math.cos(angle)) ** 2);
+      const v00 = d00 > 0.01 ? d00 : fallbackDist;
+      const v01 = d01 > 0.01 ? d01 : fallbackDist;
+      const v10 = d10 > 0.01 ? d10 : fallbackDist;
+      const v11 = d11 > 0.01 ? d11 : fallbackDist;
 
-      const dBot = d00 + (d01 - d00) * angleBlend;
-      const dTop = d10 + (d11 - d10) * angleBlend;
+      const dBot = v00 + (v01 - v00) * angleBlend;
+      const dTop = v10 + (v11 - v10) * angleBlend;
       const surfaceDist = dBot + (dTop - dBot) * bandBlend;
 
-      if (surfaceDist < 0.01) continue; // no body here
-
-      // Distance from body center to cloth vertex
       const origin_z = cross.zCenter;
       const vdx = p.x;
       const vdz = p.z - origin_z;
       const vertexDist = Math.sqrt(vdx * vdx + vdz * vdz);
 
-      // If vertex is inside or too close to the surface, push outward
+      // Push cloth vertex out if it is inside or closer than skinOffset
       if (vertexDist < surfaceDist + skinOffset) {
         const newDist = surfaceDist + skinOffset;
         if (vertexDist > 0.001) {
@@ -272,7 +294,6 @@ export class ClothSimulator {
           p.x = vdx * scale;
           p.z = origin_z + vdz * scale;
         } else {
-          // Degenerate — push outward in a safe direction
           const safeAngle = angle > 0 ? angle : 0.1;
           p.x = newDist * Math.sin(safeAngle);
           p.z = origin_z - newDist * Math.cos(safeAngle);
@@ -282,7 +303,6 @@ export class ClothSimulator {
       }
     }
 
-    // Recompute wrinkle offsets and stress after collision resolution
     this._recomputeAnimationCache();
     this.computeStaticStress();
   }
@@ -372,34 +392,30 @@ export class ClothSimulator {
    * Angle convention: 0 = front center (-Z), π = back center (+Z).
    * Column wraps 0..TUBE_COLS around the full circle.
    */
-  private isInCutout(angle: number, y: number, topY: number): boolean {
-    // Normalized height from top (0 = shoulders, 1 = hem)
-    const depthFromTop = topY - y;
+  private isInCutout(angle: number, y: number, topY: number, sY: number = 1.0): boolean {
+    const depthFromTop = (topY - y) / sY;
 
     // ── Neckline ──
-    // Front neckline: deeper scoop; Back neckline: shallow
-    // angle near 0 or 2π = front center, angle near π = back center
     const frontAngle = angle <= Math.PI ? angle : 2 * Math.PI - angle; // 0 = front, π = back
     const isFront = frontAngle < Math.PI / 2;
     const isBack = frontAngle > Math.PI / 2;
 
-    if (depthFromTop < 0.10) {
-      // Top row region — cut neckline
+    if (depthFromTop < 0.12) {
       if (isFront) {
-        // Front neckline: deep crew neck scoop ~100° arc
-        const neckWidth = 0.65; // radians from center (about 37°)
-        const neckDepth = 0.10; // how far down (10cm) — realistic crew neck
+        // Front neckline: natural scoop 9.5cm down, 33° arc
+        const neckWidth = 0.58;
+        const neckDepth = 0.095;
         if (frontAngle < neckWidth) {
-          const t = frontAngle / neckWidth; // 0 at center, 1 at edge
-          const cutDepth = neckDepth * (1 - t * t); // parabolic scoop
+          const t = frontAngle / neckWidth;
+          const cutDepth = neckDepth * (1 - t * t);
           if (depthFromTop < cutDepth) return true;
         }
       }
       if (isBack) {
-        // Back neckline: narrower, shallower
+        // Back neckline: shallow scoop 3.5cm down, 27° arc
         const backAngle = Math.PI - frontAngle;
-        const neckWidth = 0.45;
-        const neckDepth = 0.04;
+        const neckWidth = 0.48;
+        const neckDepth = 0.035;
         if (backAngle < neckWidth) {
           const t = backAngle / neckWidth;
           const cutDepth = neckDepth * (1 - t * t);
@@ -409,21 +425,21 @@ export class ClothSimulator {
     }
 
     // ── Armholes ──
-    // Side regions: angle near π/2 (right side) and 3π/2 (left side)
-    // Realistic T-shirt armhole — not too wide
-    const armholeDepthMax = 0.12; // how far down from shoulder (12cm)
-    if (depthFromTop < armholeDepthMax) {
-      // Right side armhole
+    // Starts 2.5cm down from shoulder line, extends down to 20.5cm (armpit level)
+    const armholeStartDepth = 0.025;
+    const armholeMaxDepth = 0.205;
+    if (depthFromTop >= armholeStartDepth && depthFromTop < armholeMaxDepth) {
       const distFromRight = Math.abs(angle - Math.PI / 2);
-      // Left side armhole
       const distFromLeft = Math.abs(angle - 3 * Math.PI / 2);
-      const armholeAngularWidth = 0.50; // radians (~29°) — realistic armhole size
+      const armholeAngularWidth = 0.55; // radians (~31.5°)
+      const totalDepth = armholeMaxDepth - armholeStartDepth;
+      const localDepth = depthFromTop - armholeStartDepth;
 
       for (const dist of [distFromRight, distFromLeft]) {
         if (dist < armholeAngularWidth) {
-          const t = dist / armholeAngularWidth; // 0 = center, 1 = edge
-          const cutDepth = armholeDepthMax * (1 - t * t);
-          if (depthFromTop < cutDepth) return true;
+          const t = dist / armholeAngularWidth;
+          const cutDepth = totalDepth * (1 - t * t);
+          if (localDepth < cutDepth) return true;
         }
       }
     }
@@ -484,7 +500,8 @@ export class ClothSimulator {
   buildFromPieces(
     pieces: PatternPiece[],
     _seams: SeamConnection[],
-    material: FabricMaterial
+    material: FabricMaterial,
+    avatarScale?: { scaleX: number; scaleY: number; scaleZ: number }
   ) {
     this.particles = [];
     this.constraints = [];
@@ -492,18 +509,22 @@ export class ClothSimulator {
     this.indices = [];
     this.simTime = 0;
 
+    const sX = avatarScale?.scaleX ?? 1.0;
+    const sY = avatarScale?.scaleY ?? 1.0;
+    const sZ = avatarScale?.scaleZ ?? 1.0;
+
     // Determine garment type from pieces
     const isDress = pieces.some(p =>
       p.name.toLowerCase().includes('dress') ||
       p.name.toLowerCase().includes('skirt')
     );
 
-    const topY = TSHIRT_TOP_Y;
-    const hemY = isDress ? DRESS_HEM_Y : TSHIRT_HEM_Y;
+    const topY = TSHIRT_TOP_Y * sY;
+    const hemY = (isDress ? DRESS_HEM_Y : TSHIRT_HEM_Y) * sY;
     const garmentLength = topY - hemY;
 
     // Calculate rows: ~1.5cm per row for good resolution
-    const rows = Math.max(12, Math.ceil(garmentLength / 0.015));
+    const rows = Math.max(12, Math.ceil(garmentLength / (0.015 * sY)));
     const cols = TUBE_COLS;
 
     // Ease factor — stiffer fabrics drape closer to body
@@ -521,38 +542,37 @@ export class ClothSimulator {
       const t = r / (rows - 1); // 0=top, 1=hem
       const y = topY - t * garmentLength;
 
-      const cross = this.getBodyCrossSection(y);
-      const hw = cross.halfWidth * stiffnessEase;
-      const hd = cross.halfDepth * stiffnessEase;
+      const unscaledY = y / sY;
+      const cross = this.getBodyCrossSection(unscaledY);
+      const hw = (cross.halfWidth * sX) * stiffnessEase + 0.012;
+      const hd = (cross.halfDepth * sZ) * stiffnessEase + 0.012;
+      const zCenter = cross.zCenter * sZ;
 
       // Slight flare at hem for dress
-      const hemFlare = isDress ? Math.max(0, t - 0.6) * 0.08 : Math.max(0, t - 0.8) * 0.02;
+      const hemFlare = isDress ? Math.max(0, t - 0.6) * 0.08 * sX : Math.max(0, t - 0.8) * 0.02 * sX;
 
       for (let c = 0; c < cols; c++) {
         // Angle: 0 = front center (-Z), goes CW when viewed from top
         const angle = (c / cols) * Math.PI * 2;
 
         // Check for cutouts (neckline, armholes)
-        if (this.isInCutout(angle, y, topY)) {
+        if (this.isInCutout(angle, y, topY, sY)) {
           gridMap[r][c] = null;
           continue;
         }
 
-        // Elliptical cross-section point
-        // angle=0 → front (-Z direction), angle=π → back (+Z)
         const easeHW = hw + hemFlare;
         const easeHD = hd + hemFlare * 0.6;
 
         const rawX = easeHW * Math.sin(angle);         // left-right
-        const rawZ = -easeHD * Math.cos(angle) + cross.zCenter; // front-back
+        const rawZ = -easeHD * Math.cos(angle) + zCenter; // front-back
 
         // Apply procedural wrinkle displacement
         const wrinkle = this.computeWrinkle(angle, y, topY, hemY, c, r);
 
-        // Wrinkle radial pushes outward along the ellipse normal
         const normalAngle = Math.atan2(
           rawX / (easeHW * easeHW),
-          -(rawZ - cross.zCenter) / (easeHD * easeHD)
+          -(rawZ - zCenter) / (easeHD * easeHD)
         );
         const nx = Math.sin(normalAngle);
         const nz = -Math.cos(normalAngle);
@@ -687,8 +707,8 @@ export class ClothSimulator {
       const oy = p.originalPos.y;
       const oz = p.originalPos.z;
 
-      // ── 1. Breathing: radial chest expansion/contraction ──
-      const breathCycle = Math.sin(t * 1.8) * 0.0025 + Math.sin(t * 3.6) * 0.0008;
+      // ── 1. Breathing: ONLY expands outward, never contracts into body ──
+      const breathCycle = (Math.sin(t * 1.8) * 0.5 + 0.5) * 0.0025;
       const breathWeight = this._breathPhases[i];
       // Expand radially outward
       const bx = ox !== 0 ? Math.sign(ox) * breathCycle * breathWeight : 0;
