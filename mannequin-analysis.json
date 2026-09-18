@@ -1,0 +1,999 @@
+{
+  "file": "/home/hermes/open-clo/public/models/femaleMannequin.glb",
+  "units": "meters",
+  "overallBoundingBox": {
+    "min": {
+      "x": -0.74243,
+      "y": -0.0016,
+      "z": -0.0952
+    },
+    "max": {
+      "x": 0.74243,
+      "y": 1.6933,
+      "z": 0.23268
+    },
+    "size": {
+      "x": 1.48486,
+      "y": 1.6949,
+      "z": 0.32788
+    },
+    "center": {
+      "x": 0,
+      "y": 0.84585,
+      "z": 0.06874
+    }
+  },
+  "scale": {
+    "totalHeight_m": 1.6949,
+    "totalHeight_cm": 169.490044,
+    "totalWidth_m": 1.48486,
+    "totalDepth_m": 0.32788
+  },
+  "totalVertices": 20222,
+  "notes": {
+    "coordinate_system": "Y-up, X-right, Z-back. Model centered on X=0",
+    "model_height": "~169.5 cm (standard female mannequin)",
+    "arms": "Arms extend outward starting at y≈1.0 (59% height). Shoulder width includes upper arms.",
+    "z_axis": "Z-min = front of body, Z-max = back of body",
+    "bust_note": "Bust measured at 48% height (below arm attachment) where full torso width represents ribcage/chest"
+  },
+  "bodyLandmarks": {
+    "feet_floor": {
+      "y": -0.0016,
+      "heightPercent": 0,
+      "xMin": -0.25315,
+      "xMax": 0.25315,
+      "zMin": -0.01011,
+      "zMax": 0.23228,
+      "halfWidth_X": 0.25315,
+      "depth_Z": 0.24239,
+      "fullWidth_X": 0.5063,
+      "verticesInSlice": 1433
+    },
+    "knees": {
+      "y": 0.371278,
+      "heightPercent": 22.000014,
+      "xMin": -0.23552,
+      "xMax": 0.23552,
+      "zMin": -0.05322,
+      "zMax": 0.06148,
+      "halfWidth_X": 0.23552,
+      "depth_Z": 0.1147,
+      "fullWidth_X": 0.47104,
+      "verticesInSlice": 38
+    },
+    "hips_pelvis": {
+      "y": 0.67636,
+      "heightPercent": 40.000009,
+      "xMin": -0.19532,
+      "xMax": 0.19532,
+      "zMin": -0.03825,
+      "zMax": 0.11543,
+      "halfWidth_X": 0.19532,
+      "depth_Z": 0.15368,
+      "fullWidth_X": 0.39064,
+      "verticesInSlice": 54
+    },
+    "crotch_inseam": {
+      "y": 0.710258,
+      "heightPercent": 42,
+      "xMin": -0.19423,
+      "xMax": 0.19423,
+      "zMin": -0.04759,
+      "zMax": 0.11722,
+      "halfWidth_X": 0.19423,
+      "depth_Z": 0.16481,
+      "fullWidth_X": 0.38846,
+      "verticesInSlice": 60
+    },
+    "bust_chest": {
+      "y": 0.795003,
+      "heightPercent": 47.000008,
+      "xMin": -0.19397,
+      "xMax": 0.19397,
+      "zMin": -0.06317,
+      "zMax": 0.11515,
+      "halfWidth_X": 0.19397,
+      "depth_Z": 0.17832,
+      "fullWidth_X": 0.38794,
+      "verticesInSlice": 58
+    },
+    "waist": {
+      "y": 0.981442,
+      "heightPercent": 58.000005,
+      "xMin": -0.1542,
+      "xMax": 0.1542,
+      "zMin": -0.05867,
+      "zMax": 0.13519,
+      "halfWidth_X": 0.1542,
+      "depth_Z": 0.19386,
+      "fullWidth_X": 0.3084,
+      "verticesInSlice": 61
+    },
+    "shoulders": {
+      "y": 1.252626,
+      "heightPercent": 74.000001,
+      "xMin": -0.4337,
+      "xMax": 0.4337,
+      "zMin": -0.0535,
+      "zMax": 0.16637,
+      "halfWidth_X": 0.4337,
+      "depth_Z": 0.21987,
+      "fullWidth_X": 0.8674,
+      "verticesInSlice": 160,
+      "note": "full width including upper arms at shoulder joint level"
+    },
+    "neck": {
+      "y": 1.472963,
+      "heightPercent": 86.999997,
+      "xMin": -0.04803,
+      "xMax": 0.04803,
+      "zMin": -0.01952,
+      "zMax": 0.13521,
+      "halfWidth_X": 0.04803,
+      "depth_Z": 0.15473,
+      "fullWidth_X": 0.09606,
+      "verticesInSlice": 131
+    },
+    "head_top": {
+      "y": 1.6933,
+      "heightPercent": 100,
+      "xMin": -0.04019,
+      "xMax": 0.04019,
+      "zMin": 0.00965,
+      "zMax": 0.07669,
+      "halfWidth_X": 0.04019,
+      "depth_Z": 0.06704,
+      "fullWidth_X": 0.08038,
+      "verticesInSlice": 28
+    }
+  },
+  "detectedLandmarkPositions": {
+    "feet_floor": {
+      "percent": 0,
+      "y": -0.0016
+    },
+    "knees": {
+      "percent": 22,
+      "y": 0.371278
+    },
+    "crotch": {
+      "percent": 42,
+      "y": 0.710258
+    },
+    "hips_pelvis": {
+      "percent": 40,
+      "y": 0.67636
+    },
+    "bust_chest": {
+      "percent": 47,
+      "y": 0.795003
+    },
+    "waist": {
+      "percent": 58,
+      "y": 0.981442
+    },
+    "shoulders": {
+      "percent": 74,
+      "y": 1.252626
+    },
+    "neck": {
+      "percent": 87,
+      "y": 1.472963
+    },
+    "head_top": {
+      "percent": 100,
+      "y": 1.6933
+    }
+  },
+  "heightScanEveryPercent": [
+    {
+      "percent": 0,
+      "y": -0.0016,
+      "fullWidth": 0.5052,
+      "depth": 0.238,
+      "torsoWidth": 0.5052,
+      "torsoDepth": 0.238
+    },
+    {
+      "percent": 1,
+      "y": 0.015349,
+      "fullWidth": 0.50698,
+      "depth": 0.24497,
+      "torsoWidth": 0.50698,
+      "torsoDepth": 0.24497
+    },
+    {
+      "percent": 2,
+      "y": 0.032298,
+      "fullWidth": 0.50136,
+      "depth": 0.23018,
+      "torsoWidth": 0.50136,
+      "torsoDepth": 0.23018
+    },
+    {
+      "percent": 3,
+      "y": 0.049247,
+      "fullWidth": 0.47868,
+      "depth": 0.16353,
+      "torsoWidth": 0.47868,
+      "torsoDepth": 0.16353
+    },
+    {
+      "percent": 4,
+      "y": 0.066196,
+      "fullWidth": 0.47342,
+      "depth": 0.13309,
+      "torsoWidth": 0.47342,
+      "torsoDepth": 0.13309
+    },
+    {
+      "percent": 5,
+      "y": 0.083145,
+      "fullWidth": 0.47426,
+      "depth": 0.10798,
+      "torsoWidth": 0.47426,
+      "torsoDepth": 0.10798
+    },
+    {
+      "percent": 6,
+      "y": 0.100094,
+      "fullWidth": 0.46118,
+      "depth": 0.08929,
+      "torsoWidth": 0.46118,
+      "torsoDepth": 0.08929
+    },
+    {
+      "percent": 7,
+      "y": 0.117043,
+      "fullWidth": 0.4579,
+      "depth": 0.08148,
+      "torsoWidth": 0.4579,
+      "torsoDepth": 0.08148
+    },
+    {
+      "percent": 8,
+      "y": 0.133992,
+      "fullWidth": 0.4571,
+      "depth": 0.07217,
+      "torsoWidth": 0.4571,
+      "torsoDepth": 0.07217
+    },
+    {
+      "percent": 9,
+      "y": 0.150941,
+      "fullWidth": 0.45738,
+      "depth": 0.06847,
+      "torsoWidth": 0.45738,
+      "torsoDepth": 0.06847
+    },
+    {
+      "percent": 10,
+      "y": 0.16789,
+      "fullWidth": 0.45838,
+      "depth": 0.06579,
+      "torsoWidth": 0.45838,
+      "torsoDepth": 0.06579
+    },
+    {
+      "percent": 11,
+      "y": 0.184839,
+      "fullWidth": 0.45708,
+      "depth": 0.07192,
+      "torsoWidth": 0.45708,
+      "torsoDepth": 0.07192
+    },
+    {
+      "percent": 12,
+      "y": 0.201788,
+      "fullWidth": 0.46052,
+      "depth": 0.07409,
+      "torsoWidth": 0.46052,
+      "torsoDepth": 0.07409
+    },
+    {
+      "percent": 13,
+      "y": 0.218737,
+      "fullWidth": 0.46146,
+      "depth": 0.07106,
+      "torsoWidth": 0.46146,
+      "torsoDepth": 0.07106
+    },
+    {
+      "percent": 14,
+      "y": 0.235686,
+      "fullWidth": 0.45696,
+      "depth": 0.08354,
+      "torsoWidth": 0.45696,
+      "torsoDepth": 0.08354
+    },
+    {
+      "percent": 15,
+      "y": 0.252635,
+      "fullWidth": 0.46426,
+      "depth": 0.09065,
+      "torsoWidth": 0.46426,
+      "torsoDepth": 0.09065
+    },
+    {
+      "percent": 16,
+      "y": 0.269584,
+      "fullWidth": 0.46578,
+      "depth": 0.05809,
+      "torsoWidth": 0.46578,
+      "torsoDepth": 0.05809
+    },
+    {
+      "percent": 17,
+      "y": 0.286533,
+      "fullWidth": 0.46578,
+      "depth": 0.09957,
+      "torsoWidth": 0.46578,
+      "torsoDepth": 0.09957
+    },
+    {
+      "percent": 18,
+      "y": 0.303482,
+      "fullWidth": 0.46886,
+      "depth": 0.09312,
+      "torsoWidth": 0.46886,
+      "torsoDepth": 0.09312
+    },
+    {
+      "percent": 19,
+      "y": 0.320431,
+      "fullWidth": 0.46028,
+      "depth": 0.11373,
+      "torsoWidth": 0.46028,
+      "torsoDepth": 0.11373
+    },
+    {
+      "percent": 20,
+      "y": 0.33738,
+      "fullWidth": 0.47308,
+      "depth": 0.11215,
+      "torsoWidth": 0.47308,
+      "torsoDepth": 0.11215
+    },
+    {
+      "percent": 21,
+      "y": 0.354329,
+      "fullWidth": 0.47104,
+      "depth": 0.11616,
+      "torsoWidth": 0.47104,
+      "torsoDepth": 0.11616
+    },
+    {
+      "percent": 22,
+      "y": 0.371278,
+      "fullWidth": 0.47104,
+      "depth": 0.1147,
+      "torsoWidth": 0.47104,
+      "torsoDepth": 0.1147
+    },
+    {
+      "percent": 23,
+      "y": 0.388227,
+      "fullWidth": 0.465,
+      "depth": 0.11498,
+      "torsoWidth": 0.465,
+      "torsoDepth": 0.11498
+    },
+    {
+      "percent": 24,
+      "y": 0.405176,
+      "fullWidth": 0.45396,
+      "depth": 0.11582,
+      "torsoWidth": 0.45396,
+      "torsoDepth": 0.11582
+    },
+    {
+      "percent": 25,
+      "y": 0.422125,
+      "fullWidth": 0.45396,
+      "depth": 0.11707,
+      "torsoWidth": 0.45396,
+      "torsoDepth": 0.11707
+    },
+    {
+      "percent": 26,
+      "y": 0.439074,
+      "fullWidth": 0.4427,
+      "depth": 0.12032,
+      "torsoWidth": 0.4427,
+      "torsoDepth": 0.12032
+    },
+    {
+      "percent": 27,
+      "y": 0.456023,
+      "fullWidth": 0.42978,
+      "depth": 0.12192,
+      "torsoWidth": 0.42978,
+      "torsoDepth": 0.12192
+    },
+    {
+      "percent": 28,
+      "y": 0.472972,
+      "fullWidth": 0.41864,
+      "depth": 0.12195,
+      "torsoWidth": 0.41864,
+      "torsoDepth": 0.12195
+    },
+    {
+      "percent": 29,
+      "y": 0.489921,
+      "fullWidth": 0.41144,
+      "depth": 0.12491,
+      "torsoWidth": 0.41144,
+      "torsoDepth": 0.12491
+    },
+    {
+      "percent": 30,
+      "y": 0.50687,
+      "fullWidth": 0.40492,
+      "depth": 0.11669,
+      "torsoWidth": 0.40492,
+      "torsoDepth": 0.11669
+    },
+    {
+      "percent": 31,
+      "y": 0.523819,
+      "fullWidth": 0.40028,
+      "depth": 0.11665,
+      "torsoWidth": 0.40028,
+      "torsoDepth": 0.11665
+    },
+    {
+      "percent": 32,
+      "y": 0.540768,
+      "fullWidth": 0.39642,
+      "depth": 0.11272,
+      "torsoWidth": 0.39642,
+      "torsoDepth": 0.11272
+    },
+    {
+      "percent": 33,
+      "y": 0.557717,
+      "fullWidth": 0.38618,
+      "depth": 0.11466,
+      "torsoWidth": 0.38618,
+      "torsoDepth": 0.11466
+    },
+    {
+      "percent": 34,
+      "y": 0.574666,
+      "fullWidth": 0.38426,
+      "depth": 0.12206,
+      "torsoWidth": 0.38426,
+      "torsoDepth": 0.12206
+    },
+    {
+      "percent": 35,
+      "y": 0.591615,
+      "fullWidth": 0.38426,
+      "depth": 0.12856,
+      "torsoWidth": 0.38426,
+      "torsoDepth": 0.12856
+    },
+    {
+      "percent": 36,
+      "y": 0.608564,
+      "fullWidth": 0.38538,
+      "depth": 0.13058,
+      "torsoWidth": 0.38538,
+      "torsoDepth": 0.13058
+    },
+    {
+      "percent": 37,
+      "y": 0.625513,
+      "fullWidth": 0.38748,
+      "depth": 0.13804,
+      "torsoWidth": 0.38748,
+      "torsoDepth": 0.13804
+    },
+    {
+      "percent": 38,
+      "y": 0.642462,
+      "fullWidth": 0.38708,
+      "depth": 0.14512,
+      "torsoWidth": 0.38708,
+      "torsoDepth": 0.14512
+    },
+    {
+      "percent": 39,
+      "y": 0.659411,
+      "fullWidth": 0.3893,
+      "depth": 0.13172,
+      "torsoWidth": 0.3893,
+      "torsoDepth": 0.13172
+    },
+    {
+      "percent": 40,
+      "y": 0.67636,
+      "fullWidth": 0.39064,
+      "depth": 0.15368,
+      "torsoWidth": 0.39064,
+      "torsoDepth": 0.15368
+    },
+    {
+      "percent": 41,
+      "y": 0.693309,
+      "fullWidth": 0.38132,
+      "depth": 0.16048,
+      "torsoWidth": 0.38132,
+      "torsoDepth": 0.16048
+    },
+    {
+      "percent": 42,
+      "y": 0.710258,
+      "fullWidth": 0.38846,
+      "depth": 0.14972,
+      "torsoWidth": 0.38846,
+      "torsoDepth": 0.14972
+    },
+    {
+      "percent": 43,
+      "y": 0.727207,
+      "fullWidth": 0.38502,
+      "depth": 0.16481,
+      "torsoWidth": 0.38502,
+      "torsoDepth": 0.16481
+    },
+    {
+      "percent": 44,
+      "y": 0.744156,
+      "fullWidth": 0.36472,
+      "depth": 0.16858,
+      "torsoWidth": 0.36472,
+      "torsoDepth": 0.16858
+    },
+    {
+      "percent": 45,
+      "y": 0.761105,
+      "fullWidth": 0.38618,
+      "depth": 0.1613,
+      "torsoWidth": 0.38618,
+      "torsoDepth": 0.1613
+    },
+    {
+      "percent": 46,
+      "y": 0.778054,
+      "fullWidth": 0.38794,
+      "depth": 0.1724,
+      "torsoWidth": 0.38794,
+      "torsoDepth": 0.1724
+    },
+    {
+      "percent": 47,
+      "y": 0.795003,
+      "fullWidth": 0.38794,
+      "depth": 0.17077,
+      "torsoWidth": 0.38794,
+      "torsoDepth": 0.17077
+    },
+    {
+      "percent": 48,
+      "y": 0.811952,
+      "fullWidth": 0.38374,
+      "depth": 0.1939,
+      "torsoWidth": 0.38374,
+      "torsoDepth": 0.1939
+    },
+    {
+      "percent": 49,
+      "y": 0.828901,
+      "fullWidth": 0.37068,
+      "depth": 0.18252,
+      "torsoWidth": 0.37068,
+      "torsoDepth": 0.18252
+    },
+    {
+      "percent": 50,
+      "y": 0.84585,
+      "fullWidth": 0.36936,
+      "depth": 0.18226,
+      "torsoWidth": 0.36936,
+      "torsoDepth": 0.18226
+    },
+    {
+      "percent": 51,
+      "y": 0.862799,
+      "fullWidth": 0.36086,
+      "depth": 0.20934,
+      "torsoWidth": 0.36086,
+      "torsoDepth": 0.20934
+    },
+    {
+      "percent": 52,
+      "y": 0.879748,
+      "fullWidth": 0.34716,
+      "depth": 0.17199,
+      "torsoWidth": 0.34716,
+      "torsoDepth": 0.17199
+    },
+    {
+      "percent": 53,
+      "y": 0.896697,
+      "fullWidth": 0.33984,
+      "depth": 0.21167,
+      "torsoWidth": 0.33984,
+      "torsoDepth": 0.21167
+    },
+    {
+      "percent": 54,
+      "y": 0.913646,
+      "fullWidth": 0.32824,
+      "depth": 0.21344,
+      "torsoWidth": 0.32824,
+      "torsoDepth": 0.21344
+    },
+    {
+      "percent": 55,
+      "y": 0.930595,
+      "fullWidth": 0.32334,
+      "depth": 0.21164,
+      "torsoWidth": 0.32334,
+      "torsoDepth": 0.21164
+    },
+    {
+      "percent": 56,
+      "y": 0.947544,
+      "fullWidth": 0.3182,
+      "depth": 0.20781,
+      "torsoWidth": 0.3182,
+      "torsoDepth": 0.20781
+    },
+    {
+      "percent": 57,
+      "y": 0.964493,
+      "fullWidth": 0.3132,
+      "depth": 0.19897,
+      "torsoWidth": 0.3132,
+      "torsoDepth": 0.19897
+    },
+    {
+      "percent": 58,
+      "y": 0.981442,
+      "fullWidth": 0.3084,
+      "depth": 0.19078,
+      "torsoWidth": 0.3084,
+      "torsoDepth": 0.19078
+    },
+    {
+      "percent": 59,
+      "y": 0.998391,
+      "fullWidth": 1.48486,
+      "depth": 0.18683,
+      "torsoWidth": 0.2983,
+      "torsoDepth": 0.18683
+    },
+    {
+      "percent": 60,
+      "y": 1.01534,
+      "fullWidth": 1.48486,
+      "depth": 0.17863,
+      "torsoWidth": 0.29496,
+      "torsoDepth": 0.17863
+    },
+    {
+      "percent": 61,
+      "y": 1.032289,
+      "fullWidth": 1.45,
+      "depth": 0.169,
+      "torsoWidth": 0.2828,
+      "torsoDepth": 0.169
+    },
+    {
+      "percent": 62,
+      "y": 1.049238,
+      "fullWidth": 1.41172,
+      "depth": 0.16287,
+      "torsoWidth": 0.26604,
+      "torsoDepth": 0.16287
+    },
+    {
+      "percent": 63,
+      "y": 1.066187,
+      "fullWidth": 1.35708,
+      "depth": 0.15925,
+      "torsoWidth": 0.24054,
+      "torsoDepth": 0.15925
+    },
+    {
+      "percent": 64,
+      "y": 1.083136,
+      "fullWidth": 1.3286,
+      "depth": 0.15759,
+      "torsoWidth": 0.22578,
+      "torsoDepth": 0.15759
+    },
+    {
+      "percent": 65,
+      "y": 1.100085,
+      "fullWidth": 1.27862,
+      "depth": 0.14978,
+      "torsoWidth": 0.21942,
+      "torsoDepth": 0.14978
+    },
+    {
+      "percent": 66,
+      "y": 1.117034,
+      "fullWidth": 1.23876,
+      "depth": 0.16484,
+      "torsoWidth": 0.22152,
+      "torsoDepth": 0.16484
+    },
+    {
+      "percent": 67,
+      "y": 1.133983,
+      "fullWidth": 1.20552,
+      "depth": 0.14877,
+      "torsoWidth": 0.22756,
+      "torsoDepth": 0.14877
+    },
+    {
+      "percent": 68,
+      "y": 1.150932,
+      "fullWidth": 1.141,
+      "depth": 0.16809,
+      "torsoWidth": 0.23586,
+      "torsoDepth": 0.16809
+    },
+    {
+      "percent": 69,
+      "y": 1.167881,
+      "fullWidth": 1.09054,
+      "depth": 0.18354,
+      "torsoWidth": 0.23468,
+      "torsoDepth": 0.18354
+    },
+    {
+      "percent": 70,
+      "y": 1.18483,
+      "fullWidth": 1.0444,
+      "depth": 0.20265,
+      "torsoWidth": 0.26284,
+      "torsoDepth": 0.20265
+    },
+    {
+      "percent": 71,
+      "y": 1.201779,
+      "fullWidth": 0.98262,
+      "depth": 0.20773,
+      "torsoWidth": 0.28106,
+      "torsoDepth": 0.20773
+    },
+    {
+      "percent": 72,
+      "y": 1.218728,
+      "fullWidth": 0.9487,
+      "depth": 0.21672,
+      "torsoWidth": 0.28106,
+      "torsoDepth": 0.21672
+    },
+    {
+      "percent": 73,
+      "y": 1.235677,
+      "fullWidth": 0.91124,
+      "depth": 0.22137,
+      "torsoWidth": 0.27372,
+      "torsoDepth": 0.22137
+    },
+    {
+      "percent": 74,
+      "y": 1.252626,
+      "fullWidth": 0.82116,
+      "depth": 0.21987,
+      "torsoWidth": 0.39716,
+      "torsoDepth": 0.21987
+    },
+    {
+      "percent": 75,
+      "y": 1.269575,
+      "fullWidth": 0.729,
+      "depth": 0.21021,
+      "torsoWidth": 0.39716,
+      "torsoDepth": 0.21021
+    },
+    {
+      "percent": 76,
+      "y": 1.286524,
+      "fullWidth": 0.63834,
+      "depth": 0.19959,
+      "torsoWidth": 0.39168,
+      "torsoDepth": 0.19959
+    },
+    {
+      "percent": 77,
+      "y": 1.303473,
+      "fullWidth": 0.6017,
+      "depth": 0.18609,
+      "torsoWidth": 0.38082,
+      "torsoDepth": 0.18609
+    },
+    {
+      "percent": 78,
+      "y": 1.320422,
+      "fullWidth": 0.55412,
+      "depth": 0.18386,
+      "torsoWidth": 0.3832,
+      "torsoDepth": 0.18386
+    },
+    {
+      "percent": 79,
+      "y": 1.337371,
+      "fullWidth": 0.5138,
+      "depth": 0.1738,
+      "torsoWidth": 0.38696,
+      "torsoDepth": 0.1738
+    },
+    {
+      "percent": 80,
+      "y": 1.35432,
+      "fullWidth": 0.45758,
+      "depth": 0.15995,
+      "torsoWidth": 0.3945,
+      "torsoDepth": 0.15995
+    },
+    {
+      "percent": 81,
+      "y": 1.371269,
+      "fullWidth": 0.42194,
+      "depth": 0.14574,
+      "torsoWidth": 0.39378,
+      "torsoDepth": 0.14574
+    },
+    {
+      "percent": 82,
+      "y": 1.388218,
+      "fullWidth": 0.39378,
+      "depth": 0.1346,
+      "torsoWidth": 0.39378,
+      "torsoDepth": 0.1346
+    },
+    {
+      "percent": 83,
+      "y": 1.405167,
+      "fullWidth": 0.34452,
+      "depth": 0.11209,
+      "torsoWidth": 0.34452,
+      "torsoDepth": 0.11209
+    },
+    {
+      "percent": 84,
+      "y": 1.422116,
+      "fullWidth": 0.19812,
+      "depth": 0.10457,
+      "torsoWidth": 0.19812,
+      "torsoDepth": 0.10457
+    },
+    {
+      "percent": 85,
+      "y": 1.439065,
+      "fullWidth": 0.1192,
+      "depth": 0.09874,
+      "torsoWidth": 0.1192,
+      "torsoDepth": 0.09874
+    },
+    {
+      "percent": 86,
+      "y": 1.456014,
+      "fullWidth": 0.10184,
+      "depth": 0.10902,
+      "torsoWidth": 0.10184,
+      "torsoDepth": 0.10902
+    },
+    {
+      "percent": 87,
+      "y": 1.472963,
+      "fullWidth": 0.09606,
+      "depth": 0.15054,
+      "torsoWidth": 0.09606,
+      "torsoDepth": 0.15054
+    },
+    {
+      "percent": 88,
+      "y": 1.489912,
+      "fullWidth": 0.09608,
+      "depth": 0.15886,
+      "torsoWidth": 0.09608,
+      "torsoDepth": 0.15886
+    },
+    {
+      "percent": 89,
+      "y": 1.506861,
+      "fullWidth": 0.1111,
+      "depth": 0.15986,
+      "torsoWidth": 0.1111,
+      "torsoDepth": 0.15986
+    },
+    {
+      "percent": 90,
+      "y": 1.52381,
+      "fullWidth": 0.1196,
+      "depth": 0.16056,
+      "torsoWidth": 0.1196,
+      "torsoDepth": 0.16056
+    },
+    {
+      "percent": 91,
+      "y": 1.540759,
+      "fullWidth": 0.15438,
+      "depth": 0.17906,
+      "torsoWidth": 0.15438,
+      "torsoDepth": 0.17906
+    },
+    {
+      "percent": 92,
+      "y": 1.557708,
+      "fullWidth": 0.16838,
+      "depth": 0.19509,
+      "torsoWidth": 0.16838,
+      "torsoDepth": 0.19509
+    },
+    {
+      "percent": 93,
+      "y": 1.574657,
+      "fullWidth": 0.16954,
+      "depth": 0.18875,
+      "torsoWidth": 0.16954,
+      "torsoDepth": 0.18875
+    },
+    {
+      "percent": 94,
+      "y": 1.591606,
+      "fullWidth": 0.16498,
+      "depth": 0.19254,
+      "torsoWidth": 0.16498,
+      "torsoDepth": 0.19254
+    },
+    {
+      "percent": 95,
+      "y": 1.608555,
+      "fullWidth": 0.14464,
+      "depth": 0.1955,
+      "torsoWidth": 0.14464,
+      "torsoDepth": 0.1955
+    },
+    {
+      "percent": 96,
+      "y": 1.625504,
+      "fullWidth": 0.14464,
+      "depth": 0.18974,
+      "torsoWidth": 0.14464,
+      "torsoDepth": 0.18974
+    },
+    {
+      "percent": 97,
+      "y": 1.642453,
+      "fullWidth": 0.14286,
+      "depth": 0.18827,
+      "torsoWidth": 0.14286,
+      "torsoDepth": 0.18827
+    },
+    {
+      "percent": 98,
+      "y": 1.659402,
+      "fullWidth": 0.12994,
+      "depth": 0.16599,
+      "torsoWidth": 0.12994,
+      "torsoDepth": 0.16599
+    },
+    {
+      "percent": 99,
+      "y": 1.676351,
+      "fullWidth": 0.10314,
+      "depth": 0.12727,
+      "torsoWidth": 0.10314,
+      "torsoDepth": 0.12727
+    },
+    {
+      "percent": 100,
+      "y": 1.6933,
+      "fullWidth": 0.05554,
+      "depth": 0.06704,
+      "torsoWidth": 0.05554,
+      "torsoDepth": 0.06704
+    }
+  ]
+}
