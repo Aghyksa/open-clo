@@ -138,6 +138,165 @@ export class ClothSimulator {
   private _swayPhases: Float32Array = new Float32Array(0);
   private _hemWeights: Float32Array = new Float32Array(0);
 
+  /**
+   * Resolve cloth-body penetrations by sampling mannequin vertex positions directly.
+   * Builds a radial distance map from mannequin vertices (no raycasting needed),
+   * then pushes any cloth vertex that's too close to the body outward.
+   */
+  resolveCollisionsWithMesh(mannequinGroup: THREE.Group, skinOffset: number = 0.012) {
+    // Collect all vertex world positions from the mannequin model
+    const worldPos = new THREE.Vector3();
+    const heightBands = 50;
+    const angleSamples = 48;
+    const minY = 0.30;
+    const maxY = 1.35;
+    const bandHeight = (maxY - minY) / (heightBands - 1);
+    const angleStep = (Math.PI * 2) / angleSamples;
+
+    // surfaceDistMap[band][angle] = max distance from Y-axis center to surface
+    const surfaceDistMap: number[][] = [];
+    for (let hb = 0; hb < heightBands; hb++) {
+      surfaceDistMap[hb] = new Array(angleSamples).fill(0);
+    }
+
+    // Scan all mannequin vertices and bin them into the distance map
+    mannequinGroup.traverse((child) => {
+      if (!(child as THREE.Mesh).isMesh) return;
+      const mesh = child as THREE.Mesh;
+      const geom = mesh.geometry;
+      const posAttr = geom.getAttribute('position');
+      if (!posAttr) return;
+
+      mesh.updateMatrixWorld(true);
+
+      for (let vi = 0; vi < posAttr.count; vi++) {
+        worldPos.set(
+          posAttr.getX(vi),
+          posAttr.getY(vi),
+          posAttr.getZ(vi)
+        );
+        worldPos.applyMatrix4(mesh.matrixWorld);
+
+        const y = worldPos.y;
+        if (y < minY || y > maxY) continue;
+
+        // Height band
+        const bandF = (y - minY) / bandHeight;
+        const band = Math.round(bandF);
+        if (band < 0 || band >= heightBands) continue;
+
+        // Get body center at this height for angle calculation
+        const cross = this.getBodyCrossSection(y);
+        const dx = worldPos.x;
+        const dz = -(worldPos.z - cross.zCenter);
+        let angle = Math.atan2(dx, dz);
+        if (angle < 0) angle += Math.PI * 2;
+
+        const ai = Math.round(angle / angleStep) % angleSamples;
+
+        // Distance from Y-axis centerline to this vertex
+        const dist = Math.sqrt(dx * dx + (worldPos.z - cross.zCenter) ** 2);
+
+        // Keep max distance at this band/angle (outermost surface)
+        if (dist > surfaceDistMap[band][ai]) {
+          surfaceDistMap[band][ai] = dist;
+        }
+
+        // Also fill neighboring bins for smoother coverage
+        const ai_prev = (ai - 1 + angleSamples) % angleSamples;
+        const ai_next = (ai + 1) % angleSamples;
+        const band_prev = Math.max(0, band - 1);
+        const band_next = Math.min(heightBands - 1, band + 1);
+        // Spread to neighbors at 90% of the distance (conservative fill)
+        const neighborDist = dist * 0.9;
+        if (neighborDist > surfaceDistMap[band][ai_prev]) surfaceDistMap[band][ai_prev] = neighborDist;
+        if (neighborDist > surfaceDistMap[band][ai_next]) surfaceDistMap[band][ai_next] = neighborDist;
+        if (neighborDist > surfaceDistMap[band_prev][ai]) surfaceDistMap[band_prev][ai] = neighborDist;
+        if (neighborDist > surfaceDistMap[band_next][ai]) surfaceDistMap[band_next][ai] = neighborDist;
+      }
+    });
+
+    // Now check each cloth particle against the interpolated surface distance
+    for (const particle of this.particles) {
+      const p = particle.pos;
+
+      // Find height band
+      const t = (p.y - minY) / (maxY - minY);
+      if (t < 0 || t > 1) continue;
+      const bandF = t * (heightBands - 1);
+      const band0 = Math.floor(bandF);
+      const band1 = Math.min(band0 + 1, heightBands - 1);
+      const bandBlend = bandF - band0;
+
+      // Find angle
+      const cross = this.getBodyCrossSection(p.y);
+      const dx = p.x;
+      const dz = -(p.z - cross.zCenter);
+      let angle = Math.atan2(dx, dz);
+      if (angle < 0) angle += Math.PI * 2;
+
+      const angleF = (angle / angleStep);
+      const ai0 = Math.floor(angleF) % angleSamples;
+      const ai1 = (ai0 + 1) % angleSamples;
+      const angleBlend = angleF - Math.floor(angleF);
+
+      // Bilinear interpolation of surface distance
+      const d00 = surfaceDistMap[band0][ai0];
+      const d01 = surfaceDistMap[band0][ai1];
+      const d10 = surfaceDistMap[band1][ai0];
+      const d11 = surfaceDistMap[band1][ai1];
+
+      // If surface distance is 0 (no body at this position), skip
+      if (d00 === 0 && d01 === 0 && d10 === 0 && d11 === 0) continue;
+
+      const dBot = d00 + (d01 - d00) * angleBlend;
+      const dTop = d10 + (d11 - d10) * angleBlend;
+      const surfaceDist = dBot + (dTop - dBot) * bandBlend;
+
+      if (surfaceDist < 0.01) continue; // no body here
+
+      // Distance from body center to cloth vertex
+      const origin_z = cross.zCenter;
+      const vdx = p.x;
+      const vdz = p.z - origin_z;
+      const vertexDist = Math.sqrt(vdx * vdx + vdz * vdz);
+
+      // If vertex is inside or too close to the surface, push outward
+      if (vertexDist < surfaceDist + skinOffset) {
+        const newDist = surfaceDist + skinOffset;
+        if (vertexDist > 0.001) {
+          const scale = newDist / vertexDist;
+          p.x = vdx * scale;
+          p.z = origin_z + vdz * scale;
+        } else {
+          // Degenerate — push outward in a safe direction
+          const safeAngle = angle > 0 ? angle : 0.1;
+          p.x = newDist * Math.sin(safeAngle);
+          p.z = origin_z - newDist * Math.cos(safeAngle);
+        }
+        particle.originalPos.x = p.x;
+        particle.originalPos.z = p.z;
+      }
+    }
+
+    // Recompute wrinkle offsets and stress after collision resolution
+    this._recomputeAnimationCache();
+    this.computeStaticStress();
+  }
+
+  /**
+   * Recompute animation cache after collision resolution has moved vertices.
+   */
+  private _recomputeAnimationCache() {
+    const n = this.particles.length;
+    for (let i = 0; i < n; i++) {
+      const p = this.particles[i];
+      this._wrinkleOffsets[i * 3] = p.pos.x - p.originalPos.x;
+      this._wrinkleOffsets[i * 3 + 1] = p.pos.y - p.originalPos.y;
+      this._wrinkleOffsets[i * 3 + 2] = p.pos.z - p.originalPos.z;
+    }
+  }
+
   constructor() {
     this.setupAvatarColliders();
   }

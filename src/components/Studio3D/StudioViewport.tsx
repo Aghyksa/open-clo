@@ -200,6 +200,9 @@ export const StudioViewport: React.FC = () => {
 
         avatarGroup.add(model);
         setModelLoaded(true);
+
+        // After model loads, resolve cloth-mannequin collisions using actual mesh
+        simulatorRef.current.resolveCollisionsWithMesh(model, 0.015);
       },
       undefined,
       (error) => {
@@ -329,6 +332,10 @@ export const StudioViewport: React.FC = () => {
     if (clothGeomRef.current) {
       clothGeomRef.current.setIndex(simulatorRef.current.indices);
     }
+    // Resolve collisions with mannequin mesh if loaded
+    if (gltfModelRef.current) {
+      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.015);
+    }
   }, [pieces, seams, currentMaterial, simulationIteration]);
 
   // Update Cloth Material / Visual settings
@@ -377,6 +384,10 @@ export const StudioViewport: React.FC = () => {
     simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial);
     if (clothGeomRef.current) {
       clothGeomRef.current.setIndex(simulatorRef.current.indices);
+    }
+    // Resolve collisions with scaled mannequin mesh
+    if (gltfModelRef.current) {
+      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.015);
     }
   }, [avatar.height, avatar.chestCircumference, avatar.waistCircumference, avatar.hipsCircumference]);
 
