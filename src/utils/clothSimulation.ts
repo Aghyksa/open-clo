@@ -153,6 +153,7 @@ export class ClothSimulator {
     }
 
     // Scan all mannequin vertices and bin them into the distance map
+    // IMPORTANT: exclude arm vertices that extend beyond the torso width
     mannequinGroup.traverse((child) => {
       if (!(child as THREE.Mesh).isMesh) return;
       const mesh = child as THREE.Mesh;
@@ -173,13 +174,22 @@ export class ClothSimulator {
         const y = worldPos.y;
         if (y < minY || y > maxY) continue;
 
+        // EXCLUDE ARM VERTICES: arms extend sideways starting around Y=1.0
+        // The torso is roughly within |x| < 0.22 at all heights
+        // Arms go from |x|=0.20 out to |x|=0.57 at Y=0.95-1.25
+        // If |x| > torso width at this height, it's probably an arm vertex — skip it
+        const cross = this.getBodyCrossSection(y);
+        const torsoMaxWidth = cross.halfWidth * 1.3; // allow 30% tolerance for torso shape
+        if (Math.abs(worldPos.x) > torsoMaxWidth && y > 0.90) {
+          continue; // skip arm vertices
+        }
+
         // Height band
         const bandF = (y - minY) / bandHeight;
         const band = Math.round(bandF);
         if (band < 0 || band >= heightBands) continue;
 
         // Get body center at this height for angle calculation
-        const cross = this.getBodyCrossSection(y);
         const dx = worldPos.x;
         const dz = -(worldPos.z - cross.zCenter);
         let angle = Math.atan2(dx, dz);
