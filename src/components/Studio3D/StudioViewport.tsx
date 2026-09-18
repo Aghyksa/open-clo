@@ -1,6 +1,7 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { useCloStore } from '../../store/useCloStore';
 import { ClothSimulator } from '../../utils/clothSimulation';
 import {
@@ -12,6 +13,7 @@ import {
   Layers,
   Thermometer,
   Sparkles,
+  UserCheck,
 } from 'lucide-react';
 
 export const StudioViewport: React.FC = () => {
@@ -36,10 +38,14 @@ export const StudioViewport: React.FC = () => {
     setCameraPreset,
   } = useCloStore();
 
+  const [avatarMode, setAvatarMode] = useState<'mannequin' | 'realistic'>('mannequin');
+  const [modelLoaded, setModelLoaded] = useState(false);
+
   const simulatorRef = useRef<ClothSimulator>(new ClothSimulator());
   const clothMeshRef = useRef<THREE.Mesh | null>(null);
   const clothGeomRef = useRef<THREE.BufferGeometry | null>(null);
   const avatarGroupRef = useRef<THREE.Group | null>(null);
+  const gltfModelRef = useRef<THREE.Group | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
 
@@ -57,21 +63,21 @@ export const StudioViewport: React.FC = () => {
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    // 1. Scene
+    // 1. Scene with subtle studio vignette background
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#0d0f13');
+    scene.background = new THREE.Color('#0c0e12');
 
-    // 2. Camera
-    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 1.2, 3.2);
+    // 2. Camera with fashion studio framing
+    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+    camera.position.set(0, 1.25, 2.7);
     cameraRef.current = camera;
 
-    // 3. Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    // 3. Renderer with ACES Tone Mapping & Soft Shadows
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.1;
+    renderer.toneMappingExposure = 1.15;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
@@ -79,53 +85,129 @@ export const StudioViewport: React.FC = () => {
     // 4. OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
-    controls.target.set(0, 1.0, 0);
-    controls.maxPolarAngle = Math.PI / 2 + 0.05; // Don't clip through floor
-    controls.minDistance = 0.8;
-    controls.maxDistance = 8.0;
+    controls.dampingFactor = 0.06;
+    controls.target.set(0, 1.15, 0);
+    controls.maxPolarAngle = Math.PI / 2 + 0.02; // Prevent camera dipping below floor
+    controls.minDistance = 0.7;
+    controls.maxDistance = 6.0;
     controlsRef.current = controls;
 
-    // 5. Studio Lighting
-    const ambientLight = new THREE.AmbientLight('#ffffff', 0.6);
+    // 5. Fashion Studio 3-Point Lighting
+    const ambientLight = new THREE.AmbientLight('#ffffff', 0.65);
     scene.add(ambientLight);
 
-    const keyLight = new THREE.DirectionalLight('#ffffff', 1.4);
-    keyLight.position.set(2.5, 4, 3);
+    // Key Light (warm soft highlight)
+    const keyLight = new THREE.DirectionalLight('#fffaf0', 1.6);
+    keyLight.position.set(2.0, 3.8, 2.8);
     keyLight.castShadow = true;
-    keyLight.shadow.mapSize.width = 1024;
-    keyLight.shadow.mapSize.height = 1024;
+    keyLight.shadow.mapSize.width = 2048;
+    keyLight.shadow.mapSize.height = 2048;
+    keyLight.shadow.bias = -0.0001;
+    keyLight.shadow.camera.near = 0.5;
+    keyLight.shadow.camera.far = 8;
+    keyLight.shadow.camera.left = -1.2;
+    keyLight.shadow.camera.right = 1.2;
+    keyLight.shadow.camera.top = 2.2;
+    keyLight.shadow.camera.bottom = -0.2;
     scene.add(keyLight);
 
-    const fillLight = new THREE.DirectionalLight('#93c5fd', 0.5);
-    fillLight.position.set(-3, 2, -2);
+    // Fill Light (cool soft fill)
+    const fillLight = new THREE.DirectionalLight('#93c5fd', 0.7);
+    fillLight.position.set(-2.5, 2.2, 1.8);
     scene.add(fillLight);
 
-    const rimLight = new THREE.DirectionalLight('#fbcfe8', 0.4);
-    rimLight.position.set(0, 3, -3);
+    // Rim Light (back contour highlight on mannequin & drape silhouette)
+    const rimLight = new THREE.DirectionalLight('#fbcfe8', 0.85);
+    rimLight.position.set(0, 3.0, -2.8);
     scene.add(rimLight);
 
-    // 6. Ground Studio Floor & Grid
-    const floorGeo = new THREE.PlaneGeometry(10, 10);
+    // 6. Studio Floor & Contact Shadow
+    const floorGeo = new THREE.PlaneGeometry(12, 12);
     const floorMat = new THREE.MeshStandardMaterial({
-      color: '#0a0c10',
-      roughness: 0.9,
-      metalness: 0.1,
+      color: '#080a0d',
+      roughness: 0.85,
+      metalness: 0.15,
     });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
 
-    const grid = new THREE.GridHelper(6, 30, '#2d3340', '#181b22');
-    grid.position.y = 0.005;
+    // Subtle studio circle platform
+    const platformGeo = new THREE.CylinderGeometry(0.75, 0.78, 0.015, 64);
+    const platformMat = new THREE.MeshStandardMaterial({
+      color: '#13161c',
+      roughness: 0.6,
+      metalness: 0.2,
+    });
+    const platform = new THREE.Mesh(platformGeo, platformMat);
+    platform.position.y = 0.0075;
+    platform.receiveShadow = true;
+    scene.add(platform);
+
+    const grid = new THREE.GridHelper(5, 20, '#222733', '#141720');
+    grid.position.y = 0.016;
     scene.add(grid);
 
-    // 7. Parametric Mannequin Avatar
+    // 7. Avatar Group
     const avatarGroup = new THREE.Group();
     avatarGroupRef.current = avatarGroup;
     scene.add(avatarGroup);
-    buildMannequinAvatar(avatarGroup);
+
+    // Stand base & pole
+    const standGroup = new THREE.Group();
+    const standMat = new THREE.MeshStandardMaterial({
+      color: '#1e293b',
+      metalness: 0.85,
+      roughness: 0.2,
+    });
+    const standBase = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.02, 32), standMat);
+    standBase.position.y = 0.01;
+    standBase.receiveShadow = true;
+    standGroup.add(standBase);
+    avatarGroup.add(standGroup);
+
+    // Load High-Quality GLTF Female Mannequin
+    const loader = new GLTFLoader();
+    loader.load(
+      '/models/femaleMannequin.glb',
+      (gltf) => {
+        const model = gltf.scene;
+        gltfModelRef.current = model;
+
+        // Position model on floor
+        model.position.set(0, 0, 0);
+
+        model.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+
+            // Apply sleek CLO3D alabaster porcelain finish by default
+            const porcelainMat = new THREE.MeshStandardMaterial({
+              color: '#e2e8f0',
+              roughness: 0.38,
+              metalness: 0.05,
+            });
+            // Store original material on userData for toggling
+            mesh.userData.origMaterial = mesh.material;
+            mesh.userData.porcelainMaterial = porcelainMat;
+            mesh.material = porcelainMat;
+          }
+        });
+
+        avatarGroup.add(model);
+        setModelLoaded(true);
+      },
+      undefined,
+      (error) => {
+        console.warn('GLTF avatar fallback active:', error);
+        // Build anatomical fallback
+        buildSculptedMannequin(avatarGroup);
+        setModelLoaded(true);
+      }
+    );
 
     // 8. Cloth Mesh Container
     const clothGeom = new THREE.BufferGeometry();
@@ -136,7 +218,8 @@ export const StudioViewport: React.FC = () => {
       roughness: currentMaterial.roughness,
       metalness: currentMaterial.metalness,
       side: THREE.DoubleSide,
-      vertexColors: false,
+      shadowSide: THREE.DoubleSide,
+      flatShading: false,
     });
 
     const clothMesh = new THREE.Mesh(clothGeom, clothMat);
@@ -148,7 +231,7 @@ export const StudioViewport: React.FC = () => {
     // Initialize Simulator particles
     simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial);
 
-    // Render / Animation Loop
+    // Animation Render Loop
     let animationFrameId: number;
     let lastTime = performance.now();
 
@@ -156,13 +239,11 @@ export const StudioViewport: React.FC = () => {
       animationFrameId = requestAnimationFrame(animate);
 
       const now = performance.now();
-      const dt = Math.min((now - lastTime) / 1000, 0.05);
+      const dt = Math.min((now - lastTime) / 1000, 0.04);
       lastTime = now;
 
-      // Update Controls
       controls.update();
 
-      // Step physics if simulating
       const sim = simulatorRef.current;
       if (useCloStore.getState().isSimulating) {
         sim.step(dt);
@@ -183,10 +264,10 @@ export const StudioViewport: React.FC = () => {
           positions[i * 3 + 2] = p.pos.z;
 
           if (isHeatmap) {
-            // Strain color mapping: 0% = Cyan/Blue, 5% = Green, 15%+ = Red
+            // Strain heatmap: 0% = SkyBlue, 5% = Green, 15%+ = Red
             const strain = sim.stressMap[i] || 0;
-            const hue = Math.max(0, (1.0 - Math.min(strain * 6.0, 1.0)) * 0.4);
-            const color = new THREE.Color().setHSL(hue, 0.9, 0.5);
+            const hue = Math.max(0, (1.0 - Math.min(strain * 7.0, 1.0)) * 0.4);
+            const color = new THREE.Color().setHSL(hue, 0.95, 0.5);
             colors[i * 3] = color.r;
             colors[i * 3 + 1] = color.g;
             colors[i * 3 + 2] = color.b;
@@ -221,7 +302,6 @@ export const StudioViewport: React.FC = () => {
 
     animate();
 
-    // Handle Resize
     const handleResize = () => {
       if (!container) return;
       const w = container.clientWidth;
@@ -269,107 +349,115 @@ export const StudioViewport: React.FC = () => {
     }
   }, [showAvatar]);
 
-  // Handle Camera Presets
+  // Toggle Avatar Material Style (CLO3D Porcelain vs Realistic Skin)
+  const toggleAvatarStyle = () => {
+    const nextMode = avatarMode === 'mannequin' ? 'realistic' : 'mannequin';
+    setAvatarMode(nextMode);
+
+    if (gltfModelRef.current) {
+      gltfModelRef.current.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          if (nextMode === 'mannequin' && mesh.userData.porcelainMaterial) {
+            mesh.material = mesh.userData.porcelainMaterial;
+          } else if (nextMode === 'realistic' && mesh.userData.origMaterial) {
+            mesh.material = mesh.userData.origMaterial;
+          }
+        }
+      });
+    }
+  };
+
+  // Camera Presets
   useEffect(() => {
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (!camera || !controls) return;
 
     if (cameraPreset === 'front') {
-      camera.position.set(0, 1.1, 2.8);
-      controls.target.set(0, 1.0, 0);
+      camera.position.set(0, 1.2, 2.5);
+      controls.target.set(0, 1.15, 0);
     } else if (cameraPreset === 'back') {
-      camera.position.set(0, 1.1, -2.8);
-      controls.target.set(0, 1.0, 0);
+      camera.position.set(0, 1.2, -2.5);
+      controls.target.set(0, 1.15, 0);
     } else if (cameraPreset === 'side') {
-      camera.position.set(2.8, 1.1, 0);
-      controls.target.set(0, 1.0, 0);
+      camera.position.set(2.5, 1.2, 0);
+      controls.target.set(0, 1.15, 0);
     } else if (cameraPreset === 'perspective') {
-      camera.position.set(1.8, 1.4, 2.4);
-      controls.target.set(0, 1.0, 0);
+      camera.position.set(1.4, 1.45, 2.1);
+      controls.target.set(0, 1.15, 0);
     }
     controls.update();
   }, [cameraPreset]);
 
-  // Helper: Build Mannequin Model
-  const buildMannequinAvatar = (group: THREE.Group) => {
-    while (group.children.length > 0) {
-      group.remove(group.children[0]);
-    }
-
+  // Sculpted Mannequin Fallback
+  const buildSculptedMannequin = (group: THREE.Group) => {
     const mat = new THREE.MeshStandardMaterial({
-      color: '#334155',
-      roughness: 0.65,
-      metalness: 0.1,
+      color: '#e2e8f0',
+      roughness: 0.38,
+      metalness: 0.05,
     });
 
-    // Torso / Chest
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.16, 0.5, 24), mat);
-    torso.position.set(0, 1.2, 0);
+    // Torso with natural female waist & bust curvature
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.45, 32), mat);
+    torso.position.set(0, 1.22, 0);
     torso.castShadow = true;
     group.add(torso);
 
-    // Pelvis / Hips
-    const pelvis = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.19, 0.3, 24), mat);
-    pelvis.position.set(0, 0.8, 0);
+    const bustL = new THREE.Mesh(new THREE.SphereGeometry(0.065, 24, 24), mat);
+    bustL.position.set(-0.065, 1.25, 0.08);
+    bustL.scale.set(1.0, 1.1, 0.9);
+    group.add(bustL);
+
+    const bustR = new THREE.Mesh(new THREE.SphereGeometry(0.065, 24, 24), mat);
+    bustR.position.set(0.065, 1.25, 0.08);
+    bustR.scale.set(1.0, 1.1, 0.9);
+    group.add(bustR);
+
+    const pelvis = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.175, 0.35, 32), mat);
+    pelvis.position.set(0, 0.88, 0);
     pelvis.castShadow = true;
     group.add(pelvis);
 
-    // Neck & Head
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 0.14, 16), mat);
-    neck.position.set(0, 1.52, 0);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.07, 0.15, 24), mat);
+    neck.position.set(0, 1.48, 0);
     group.add(neck);
 
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 24, 24), mat);
-    head.position.set(0, 1.66, 0);
-    head.scale.set(0.9, 1.15, 1.0);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.10, 32, 32), mat);
+    head.position.set(0, 1.63, 0.01);
+    head.scale.set(0.9, 1.18, 1.0);
     head.castShadow = true;
     group.add(head);
 
-    // Shoulders
-    const shoulderL = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), mat);
-    shoulderL.position.set(-0.24, 1.38, 0);
+    // Sculpted Shoulders & Arms
+    const shoulderL = new THREE.Mesh(new THREE.SphereGeometry(0.065, 20, 20), mat);
+    shoulderL.position.set(-0.20, 1.36, 0);
     group.add(shoulderL);
 
-    const shoulderR = new THREE.Mesh(new THREE.SphereGeometry(0.08, 16, 16), mat);
-    shoulderR.position.set(0.24, 1.38, 0);
+    const shoulderR = new THREE.Mesh(new THREE.SphereGeometry(0.065, 20, 20), mat);
+    shoulderR.position.set(0.20, 1.36, 0);
     group.add(shoulderR);
 
-    // Upper Arms
-    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.4, 16), mat);
-    armL.position.set(-0.32, 1.15, 0);
-    armL.rotation.z = 0.25;
+    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.42, 20), mat);
+    armL.position.set(-0.28, 1.16, 0);
+    armL.rotation.z = 0.28;
     group.add(armL);
 
-    const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.05, 0.4, 16), mat);
-    armR.position.set(0.32, 1.15, 0);
-    armR.rotation.z = -0.25;
+    const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.42, 20), mat);
+    armR.position.set(0.28, 1.16, 0);
+    armR.rotation.z = -0.28;
     group.add(armR);
 
-    // Legs
-    const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.05, 0.65, 16), mat);
-    legL.position.set(-0.11, 0.35, 0);
+    // Sculpted Legs
+    const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.045, 0.72, 24), mat);
+    legL.position.set(-0.095, 0.38, 0);
     legL.castShadow = true;
     group.add(legL);
 
-    const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.05, 0.65, 16), mat);
-    legR.position.set(0.11, 0.35, 0);
+    const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.045, 0.72, 24), mat);
+    legR.position.set(0.095, 0.38, 0);
     legR.castShadow = true;
     group.add(legR);
-
-    // Mannequin Stand Pole & Base
-    const standMat = new THREE.MeshStandardMaterial({
-      color: '#0f172a',
-      metalness: 0.8,
-      roughness: 0.2,
-    });
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 16), standMat);
-    pole.position.set(0, 0.4, 0);
-    group.add(pole);
-
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.3, 0.04, 32), standMat);
-    base.position.set(0, 0.02, 0);
-    group.add(base);
   };
 
   // 3D Cloth Tug / Mouse Interaction
@@ -386,7 +474,6 @@ export const StudioViewport: React.FC = () => {
     if (intersects.length > 0) {
       const hit = intersects[0];
       if (hit.point) {
-        // Find closest particle
         const sim = simulatorRef.current;
         let closestIdx = -1;
         let minDist = Infinity;
@@ -398,11 +485,10 @@ export const StudioViewport: React.FC = () => {
           }
         }
 
-        if (closestIdx !== -1 && minDist < 0.15) {
+        if (closestIdx !== -1 && minDist < 0.18) {
           selectedParticleIdxRef.current = closestIdx;
           sim.particles[closestIdx].pinned = true;
 
-          // Align drag plane with camera view
           const camDir = new THREE.Vector3();
           cameraRef.current.getWorldDirection(camDir);
           dragPlaneRef.current.setFromNormalAndCoplanarPoint(
@@ -448,17 +534,22 @@ export const StudioViewport: React.FC = () => {
 
   return (
     <div
-      className="relative w-full h-full bg-[#0d0f13] overflow-hidden flex flex-col select-none"
+      className="relative w-full h-full bg-[#0c0e12] overflow-hidden flex flex-col select-none"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
       {/* 3D Viewport Header Overlay */}
-      <div className="absolute top-3 left-4 z-10 flex items-center gap-2 bg-[#1b1e26]/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/60 shadow-lg text-xs text-slate-300">
+      <div className="absolute top-3 left-4 z-10 flex items-center gap-2 bg-[#1b1e26]/85 backdrop-blur-md px-3 py-1.5 rounded-lg border border-slate-700/60 shadow-lg text-xs text-slate-300">
         <Sparkles className="w-4 h-4 text-blue-400" />
-        <span className="font-semibold text-slate-100">3D Studio & Simulation</span>
+        <span className="font-semibold text-slate-100">3D Draping Studio</span>
         <span className="text-slate-500">|</span>
         <span className="text-slate-400">{currentMaterial.name}</span>
+        {modelLoaded && (
+          <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded font-medium">
+            CLO-Mannequin Active
+          </span>
+        )}
       </div>
 
       {/* Top Right Studio Controls */}
@@ -470,7 +561,7 @@ export const StudioViewport: React.FC = () => {
               ? 'bg-blue-600 hover:bg-blue-500 text-white'
               : 'bg-slate-700/70 hover:bg-slate-700 text-slate-200'
           }`}
-          title="Toggle Simulation"
+          title="Toggle Simulation (Space)"
         >
           {isSimulating ? (
             <>
@@ -492,6 +583,16 @@ export const StudioViewport: React.FC = () => {
         </button>
 
         <div className="w-[1px] h-4 bg-slate-700" />
+
+        {/* Toggle Avatar Style (Porcelain vs Realistic) */}
+        <button
+          onClick={toggleAvatarStyle}
+          className="p-1.5 hover:bg-slate-700/60 rounded text-slate-300 hover:text-white transition-colors flex items-center gap-1 text-xs"
+          title="Switch between Porcelain Mannequin and Realistic Skin"
+        >
+          <UserCheck className="w-4 h-4 text-blue-400" />
+          <span className="text-[11px] capitalize hidden sm:inline">{avatarMode}</span>
+        </button>
 
         <button
           onClick={toggleHeatmap}

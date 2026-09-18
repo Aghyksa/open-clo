@@ -5,6 +5,7 @@ export interface ClothParticle {
   pos: THREE.Vector3;
   prevPos: THREE.Vector3;
   originalPos: THREE.Vector3;
+  local2D: { x: number; y: number };
   invMass: number;
   normal: THREE.Vector3;
   uv: THREE.Vector2;
@@ -27,7 +28,7 @@ export interface SeamConstraint {
 }
 
 export interface AvatarCollider {
-  type: 'capsule' | 'sphere' | 'cylinder';
+  type: 'capsule' | 'sphere';
   start: THREE.Vector3;
   end: THREE.Vector3;
   radius: number;
@@ -42,63 +43,99 @@ export class ClothSimulator {
   stressMap: Float32Array = new Float32Array(0);
 
   gravity: THREE.Vector3 = new THREE.Vector3(0, -9.8, 0);
-  damping: number = 0.985;
-  iterations: number = 5;
+  damping: number = 0.982;
+  iterations: number = 7;
+  simTime: number = 0;
 
   constructor() {
     this.setupAvatarColliders();
   }
 
   setupAvatarColliders() {
+    // Exact anatomical colliders calibrated to the 3D female mannequin avatar
     this.colliders = [
-      // Torso / Chest
+      // 1. Neck (prevents garment from slipping over head)
       {
         type: 'capsule',
-        start: new THREE.Vector3(0, 0.95, 0),
-        end: new THREE.Vector3(0, 1.45, 0),
-        radius: 0.22,
+        start: new THREE.Vector3(0, 1.42, 0.02),
+        end: new THREE.Vector3(0, 1.58, 0.02),
+        radius: 0.065,
       },
-      // Hips / Pelvis
+      // 2. Head
       {
-        type: 'capsule',
-        start: new THREE.Vector3(0, 0.65, 0),
-        end: new THREE.Vector3(0, 0.95, 0),
-        radius: 0.21,
+        type: 'sphere',
+        start: new THREE.Vector3(0, 1.63, 0.03),
+        end: new THREE.Vector3(0, 1.63, 0.03),
+        radius: 0.11,
       },
-      // Neck & Head
+      // 3. Clavicle & Shoulders (Primary load-bearing shelf for garments)
       {
         type: 'capsule',
-        start: new THREE.Vector3(0, 1.45, 0),
-        end: new THREE.Vector3(0, 1.75, 0),
-        radius: 0.12,
+        start: new THREE.Vector3(-0.04, 1.415, 0.02),
+        end: new THREE.Vector3(-0.22, 1.38, 0.01),
+        radius: 0.072,
       },
-      // Left Shoulder & Arm
       {
         type: 'capsule',
-        start: new THREE.Vector3(-0.2, 1.35, 0),
-        end: new THREE.Vector3(-0.45, 0.95, 0),
-        radius: 0.08,
+        start: new THREE.Vector3(0.04, 1.415, 0.02),
+        end: new THREE.Vector3(0.22, 1.38, 0.01),
+        radius: 0.072,
       },
-      // Right Shoulder & Arm
+      // 4. Chest & Upper Torso
       {
         type: 'capsule',
-        start: new THREE.Vector3(0.2, 1.35, 0),
-        end: new THREE.Vector3(0.45, 0.95, 0),
-        radius: 0.08,
+        start: new THREE.Vector3(0, 1.18, 0.03),
+        end: new THREE.Vector3(0, 1.38, 0.03),
+        radius: 0.145,
       },
-      // Left Leg
+      // 5. Bust Cushion (Front projection)
       {
-        type: 'capsule',
-        start: new THREE.Vector3(-0.11, 0.65, 0),
-        end: new THREE.Vector3(-0.11, 0.05, 0),
-        radius: 0.09,
+        type: 'sphere',
+        start: new THREE.Vector3(0, 1.22, 0.07),
+        end: new THREE.Vector3(0, 1.22, 0.07),
+        radius: 0.135,
       },
-      // Right Leg
+      // 6. Waist & Midriff
       {
         type: 'capsule',
-        start: new THREE.Vector3(0.11, 0.65, 0),
-        end: new THREE.Vector3(0.11, 0.05, 0),
-        radius: 0.09,
+        start: new THREE.Vector3(0, 0.98, 0.03),
+        end: new THREE.Vector3(0, 1.18, 0.03),
+        radius: 0.125,
+      },
+      // 7. Pelvis & Hips
+      {
+        type: 'capsule',
+        start: new THREE.Vector3(0, 0.80, 0.02),
+        end: new THREE.Vector3(0, 0.98, 0.02),
+        radius: 0.165,
+      },
+      // 8. Left Upper Arm
+      {
+        type: 'capsule',
+        start: new THREE.Vector3(-0.22, 1.38, 0.01),
+        end: new THREE.Vector3(-0.38, 1.08, 0.01),
+        radius: 0.065,
+      },
+      // 9. Right Upper Arm
+      {
+        type: 'capsule',
+        start: new THREE.Vector3(0.22, 1.38, 0.01),
+        end: new THREE.Vector3(0.38, 1.08, 0.01),
+        radius: 0.065,
+      },
+      // 10. Left Leg / Thigh
+      {
+        type: 'capsule',
+        start: new THREE.Vector3(-0.10, 0.80, 0),
+        end: new THREE.Vector3(-0.10, 0.15, 0),
+        radius: 0.088,
+      },
+      // 11. Right Leg / Thigh
+      {
+        type: 'capsule',
+        start: new THREE.Vector3(0.10, 0.80, 0),
+        end: new THREE.Vector3(0.10, 0.15, 0),
+        radius: 0.088,
       },
     ];
   }
@@ -112,15 +149,20 @@ export class ClothSimulator {
     this.constraints = [];
     this.seamConstraints = [];
     this.indices = [];
+    this.simTime = 0;
 
-    const pieceVertexOffsets = new Map<string, number>();
+    // Filter to active pieces in 3D (pieces that have at least one seam connection or are front/back)
+    const activePieces = pieces.filter(
+      (p) =>
+        p.id === 'piece-front' ||
+        p.id === 'piece-back' ||
+        seams.some((s) => s.edgeA.pieceId === p.id || s.edgeB.pieceId === p.id)
+    );
 
-    // For each pattern piece, generate a grid mesh in 3D around the avatar
-    pieces.forEach((piece) => {
-      const startIdx = this.particles.length;
-      pieceVertexOffsets.set(piece.id, startIdx);
+    const cols = 20;
+    const rows = 24;
 
-      // Determine bounding box in 2D
+    activePieces.forEach((piece) => {
       let minX = Infinity,
         minY = Infinity,
         maxX = -Infinity,
@@ -132,41 +174,53 @@ export class ClothSimulator {
         if (pt.y > maxY) maxY = pt.y;
       });
 
-      const cols = 14;
-      const rows = 16;
       const stepX = (maxX - minX) / (cols - 1);
       const stepY = (maxY - minY) / (rows - 1);
 
       const gridIndices: (number | null)[][] = [];
 
-      const [originX, originY, originZ] = piece.placement.origin3D;
       const isBack = piece.id === 'piece-back';
-      const isSleeve = piece.id.includes('sleeve');
+      const isFront = piece.id === 'piece-front';
 
-      // Generate particles
       for (let r = 0; r < rows; r++) {
         gridIndices[r] = [];
         for (let c = 0; c < cols; c++) {
           const lx = minX + c * stepX;
           const ly = minY + r * stepY;
 
-          // Check if point inside polygon
           if (this.isPointInPolygon(lx, ly, piece.points)) {
             const pIdx = this.particles.length;
             gridIndices[r][c] = pIdx;
 
-            // Map 2D coordinate to initial 3D drape position
-            const normX = (lx / 250); // Scale factor from mm to 3D meters
-            const normY = (-ly / 300);
+            let px = 0;
+            let py = 0;
+            let pz = 0;
 
-            let px = originX + normX;
-            let py = 1.0 + originY + normY;
-            let pz = originZ;
-
-            if (isBack) {
-              px = originX - normX;
-            } else if (isSleeve) {
-              pz = originZ + normX * 0.5;
+            if (isFront) {
+              // Front Bodice: positioned slightly in front of chest & draped over shoulders
+              px = lx * 0.00135;
+              py = 1.46 - (ly - (-220)) * 0.00115;
+              const curve = 1.0 - Math.min(1.0, Math.abs(lx / 140));
+              pz = 0.16 + curve * 0.045;
+              // Shoulder curve meeting back shoulder
+              if (ly < -160) {
+                const shoulderBlend = Math.min(1.0, (-ly - 160) / 90);
+                pz = THREE.MathUtils.lerp(pz, 0.03, shoulderBlend);
+              }
+            } else if (isBack) {
+              // Back Bodice: positioned behind back & over shoulders
+              px = lx * 0.00135;
+              py = 1.46 - (ly - (-220)) * 0.00115;
+              const curve = 1.0 - Math.min(1.0, Math.abs(lx / 140));
+              pz = -0.10 - curve * 0.035;
+              if (ly < -160) {
+                const shoulderBlend = Math.min(1.0, (-ly - 160) / 90);
+                pz = THREE.MathUtils.lerp(pz, -0.01, shoulderBlend);
+              }
+            } else {
+              px = piece.placement.origin3D[0] + lx * 0.0012;
+              py = 1.35 + piece.placement.origin3D[1] - ly * 0.0012;
+              pz = piece.placement.origin3D[2];
             }
 
             const pos = new THREE.Vector3(px, py, pz);
@@ -174,7 +228,8 @@ export class ClothSimulator {
               pos: pos.clone(),
               prevPos: pos.clone(),
               originalPos: pos.clone(),
-              invMass: 1.0 / (material.density / 100),
+              local2D: { x: lx, y: ly },
+              invMass: 1.0 / Math.max(0.1, material.density / 140),
               normal: new THREE.Vector3(0, 0, isBack ? -1 : 1),
               uv: new THREE.Vector2(c / (cols - 1), 1 - r / (rows - 1)),
               pinned: false,
@@ -186,33 +241,29 @@ export class ClothSimulator {
         }
       }
 
-      // Generate structural, shear & bending constraints and triangle indices
+      // Constraints
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
           const iCurrent = gridIndices[r][c];
           if (iCurrent === null) continue;
 
-          // Horizontal constraint
+          // Structural
           if (c + 1 < cols && gridIndices[r][c + 1] !== null) {
-            const iRight = gridIndices[r][c + 1]!;
-            this.addConstraint(iCurrent, iRight, material.stretchStiffness);
+            this.addConstraint(iCurrent, gridIndices[r][c + 1]!, material.stretchStiffness);
           }
-          // Vertical constraint
           if (r + 1 < rows && gridIndices[r + 1][c] !== null) {
-            const iDown = gridIndices[r + 1][c]!;
-            this.addConstraint(iCurrent, iDown, material.stretchStiffness);
-          }
-          // Diagonal shear constraints
-          if (r + 1 < rows && c + 1 < cols && gridIndices[r + 1][c + 1] !== null) {
-            const iDiag1 = gridIndices[r + 1][c + 1]!;
-            this.addConstraint(iCurrent, iDiag1, material.stretchStiffness * 0.85);
-          }
-          if (r + 1 < rows && c - 1 >= 0 && gridIndices[r + 1][c - 1] !== null) {
-            const iDiag2 = gridIndices[r + 1][c - 1]!;
-            this.addConstraint(iCurrent, iDiag2, material.stretchStiffness * 0.85);
+            this.addConstraint(iCurrent, gridIndices[r + 1][c]!, material.stretchStiffness);
           }
 
-          // Bending constraints (2 hops)
+          // Shear cross
+          if (r + 1 < rows && c + 1 < cols && gridIndices[r + 1][c + 1] !== null) {
+            this.addConstraint(iCurrent, gridIndices[r + 1][c + 1]!, material.stretchStiffness * 0.85);
+          }
+          if (r + 1 < rows && c - 1 >= 0 && gridIndices[r + 1][c - 1] !== null) {
+            this.addConstraint(iCurrent, gridIndices[r + 1][c - 1]!, material.stretchStiffness * 0.85);
+          }
+
+          // Bending (2 hops)
           if (c + 2 < cols && gridIndices[r][c + 2] !== null) {
             this.addConstraint(iCurrent, gridIndices[r][c + 2]!, material.bendingStiffness);
           }
@@ -220,7 +271,7 @@ export class ClothSimulator {
             this.addConstraint(iCurrent, gridIndices[r + 2][c]!, material.bendingStiffness);
           }
 
-          // Generate Triangles
+          // Triangle Indices
           if (r + 1 < rows && c + 1 < cols) {
             const pTL = gridIndices[r][c];
             const pTR = gridIndices[r][c + 1];
@@ -246,31 +297,87 @@ export class ClothSimulator {
       }
     });
 
-    // Build Seam Sewing Springs between connected edges
+    // Virtual Seams
     seams.forEach((seam) => {
       const pA = pieces.find((p) => p.id === seam.edgeA.pieceId);
       const pB = pieces.find((p) => p.id === seam.edgeB.pieceId);
       if (!pA || !pB) return;
 
-      const particlesA = this.getEdgeParticles(pA);
-      const particlesB = this.getEdgeParticles(pB);
+      const particlesA = this.getOrderedEdgeParticles(pA, seam.edgeA.edgeIndex);
+      const particlesB = this.getOrderedEdgeParticles(pB, seam.edgeB.edgeIndex);
 
-      const count = Math.min(particlesA.length, particlesB.length);
-      for (let i = 0; i < count; i++) {
-        const idxA = particlesA[i];
-        const idxB = particlesB[count - 1 - i]; // Invert direction for matching seams
-        if (idxA !== undefined && idxB !== undefined) {
+      if (particlesA.length === 0 || particlesB.length === 0) return;
+
+      const pairCount = Math.max(particlesA.length, particlesB.length);
+      for (let k = 0; k < pairCount; k++) {
+        const tau = pairCount > 1 ? k / (pairCount - 1) : 0.5;
+        const idxA = this.sampleParticleAtTau(particlesA, tau);
+        const idxB = this.sampleParticleAtTau(particlesB, tau);
+
+        if (idxA !== null && idxB !== null && idxA !== idxB) {
           this.seamConstraints.push({
             p1: idxA,
             p2: idxB,
-            restLength: 0.02, // Tight seam distance
-            strength: seam.strength,
+            restLength: 0.015,
+            strength: seam.strength * 1.8,
           });
         }
       }
     });
 
     this.stressMap = new Float32Array(this.particles.length);
+  }
+
+  private getOrderedEdgeParticles(piece: PatternPiece, edgeIndex: number): { index: number; t: number }[] {
+    const pts = piece.points;
+    if (edgeIndex < 0 || edgeIndex >= pts.length) return [];
+
+    const p1 = pts[edgeIndex];
+    const p2 = pts[(edgeIndex + 1) % pts.length];
+
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq < 0.0001) return [];
+
+    const threshold = 24; // mm
+    const candidates: { index: number; t: number }[] = [];
+
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      if (p.pieceId !== piece.id) continue;
+
+      const px = p.local2D.x;
+      const py = p.local2D.y;
+
+      let t = ((px - p1.x) * dx + (py - p1.y) * dy) / lenSq;
+      t = Math.max(0, Math.min(1, t));
+
+      const projX = p1.x + t * dx;
+      const projY = p1.y + t * dy;
+      const dist = Math.hypot(px - projX, py - projY);
+
+      if (dist <= threshold) {
+        candidates.push({ index: i, t });
+      }
+    }
+
+    candidates.sort((a, b) => a.t - b.t);
+    return candidates;
+  }
+
+  private sampleParticleAtTau(candidates: { index: number; t: number }[], tau: number): number | null {
+    if (candidates.length === 0) return null;
+    let bestIdx = candidates[0].index;
+    let bestDiff = Infinity;
+    for (const c of candidates) {
+      const diff = Math.abs(c.t - tau);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestIdx = c.index;
+      }
+    }
+    return bestIdx;
   }
 
   private addConstraint(p1: number, p2: number, stiffness: number) {
@@ -292,22 +399,12 @@ export class ClothSimulator {
     return inside;
   }
 
-  private getEdgeParticles(piece: PatternPiece): number[] {
-    // Collect outer edge particles for this piece
-    const result: number[] = [];
-    for (let i = 0; i < this.particles.length; i++) {
-      if (this.particles[i].pieceId === piece.id) {
-        result.push(i);
-      }
-    }
-    return result.slice(0, 10);
-  }
-
   step(dt: number) {
+    this.simTime += dt;
     const subDt = Math.min(dt, 0.033) / this.iterations;
 
     for (let iter = 0; iter < this.iterations; iter++) {
-      // 1. Verlet integration (External forces + inertia)
+      // 1. Verlet integration
       for (let i = 0; i < this.particles.length; i++) {
         const p = this.particles[i];
         if (p.pinned) continue;
@@ -315,12 +412,11 @@ export class ClothSimulator {
         const vel = p.pos.clone().sub(p.prevPos).multiplyScalar(this.damping);
         p.prevPos.copy(p.pos);
 
-        // Apply gravity & velocity
         const accel = this.gravity.clone().multiplyScalar(subDt * subDt);
         p.pos.add(vel).add(accel);
       }
 
-      // 2. Virtual Sewing Constraints (Pulls stitched seams together)
+      // 2. Virtual Sewing Constraints (Stable PBD correction, max 0.5 displacement per particle)
       for (let s = 0; s < this.seamConstraints.length; s++) {
         const sc = this.seamConstraints[s];
         const p1 = this.particles[sc.p1];
@@ -328,15 +424,18 @@ export class ClothSimulator {
 
         const delta = p2.pos.clone().sub(p1.pos);
         const dist = delta.length();
-        if (dist > sc.restLength && dist > 0.001) {
+        if (dist > sc.restLength && dist > 0.0005) {
           const diff = (dist - sc.restLength) / dist;
-          const correction = delta.multiplyScalar(diff * 0.4 * sc.strength);
+          // Scale factor: strictly clamped <= 0.5 per particle to guarantee unconditional stability
+          const pull = Math.min(diff, 0.9) * 0.45 * Math.min(1.0, sc.strength);
+          const correction = delta.multiplyScalar(pull);
+
           if (!p1.pinned) p1.pos.add(correction);
           if (!p2.pinned) p2.pos.sub(correction);
         }
       }
 
-      // 3. Distance & Bending Constraints (Fabric stretch resistance)
+      // 3. Stretch & Bending Constraints
       for (let c = 0; c < this.constraints.length; c++) {
         const cons = this.constraints[c];
         const p1 = this.particles[cons.p1];
@@ -351,21 +450,20 @@ export class ClothSimulator {
           if (!p1.pinned) p1.pos.add(correction);
           if (!p2.pinned) p2.pos.sub(correction);
 
-          // Update stress tracking
           const strain = Math.abs(dist - cons.restLength) / cons.restLength;
           this.stressMap[cons.p1] = Math.max(this.stressMap[cons.p1], strain);
           this.stressMap[cons.p2] = Math.max(this.stressMap[cons.p2], strain);
         }
       }
 
-      // 4. Avatar Collision Detection & Resolution
+      // 4. Avatar Collision Detection & Surface Friction
       for (let i = 0; i < this.particles.length; i++) {
         const p = this.particles[i];
         if (p.pinned) continue;
 
         for (let c = 0; c < this.colliders.length; c++) {
           const col = this.colliders[c];
-          this.resolveCapsuleCollision(p, col);
+          this.resolveCollider(p, col);
         }
 
         // Floor collision
@@ -378,7 +476,22 @@ export class ClothSimulator {
     }
   }
 
-  private resolveCapsuleCollision(p: ClothParticle, col: AvatarCollider) {
+  private resolveCollider(p: ClothParticle, col: AvatarCollider) {
+    if (col.type === 'sphere') {
+      const distVec = p.pos.clone().sub(col.start);
+      const dist = distVec.length();
+      const skinOffset = col.radius + 0.012;
+      if (dist < skinOffset && dist > 0.0001) {
+        const normal = distVec.normalize();
+        p.pos.copy(col.start.clone().add(normal.multiplyScalar(skinOffset)));
+        const v = p.pos.clone().sub(p.prevPos);
+        v.multiplyScalar(0.4);
+        p.prevPos.copy(p.pos.clone().sub(v));
+      }
+      return;
+    }
+
+    // Capsule collision
     const ab = col.end.clone().sub(col.start);
     const ap = p.pos.clone().sub(col.start);
 
@@ -390,15 +503,23 @@ export class ClothSimulator {
     const distVector = p.pos.clone().sub(closestPoint);
     const dist = distVector.length();
 
-    const skinOffset = col.radius + 0.015; // 1.5cm air cushion between body & cloth
+    const skinOffset = col.radius + 0.012;
     if (dist < skinOffset && dist > 0.0001) {
       const normal = distVector.normalize();
       p.pos.copy(closestPoint.add(normal.multiplyScalar(skinOffset)));
 
-      // Surface friction damping
-      const v = p.pos.clone().sub(p.prevPos);
-      v.multiplyScalar(0.7);
-      p.prevPos.copy(p.pos.clone().sub(v));
+      // If normal faces upward (resting on top of shoulder/clavicle), apply high static friction
+      if (normal.y > 0.45) {
+        // Firmly hold cloth on top of shoulders
+        p.prevPos.x = p.pos.x;
+        p.prevPos.z = p.pos.z;
+        p.prevPos.y = p.pos.y;
+      } else {
+        const v = p.pos.clone().sub(p.prevPos);
+        const vNormal = normal.clone().multiplyScalar(v.dot(normal));
+        const vTangent = v.clone().sub(vNormal).multiplyScalar(0.25);
+        p.prevPos.copy(p.pos.clone().sub(vTangent));
+      }
     }
   }
 }
