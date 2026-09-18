@@ -5,13 +5,15 @@ import { ToolSidebar } from './components/UI/ToolSidebar';
 import { PropertyInspector } from './components/UI/PropertyInspector';
 import { PatternCanvas } from './components/PatternViewport/PatternCanvas';
 import { StudioViewport } from './components/Studio3D/StudioViewport';
+import { ControlPanelModal } from './components/UI/ControlPanelModal';
 import { Activity, Scissors, Compass } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const { layout, activeTool, setActiveTool, isSimulating, setIsSimulating, pieces, seams } =
+  const { layout, activeTool, setActiveTool, isSimulating, setIsSimulating, pieces, seams, undo, redo } =
     useCloStore();
 
   const [splitRatio, setSplitRatio] = useState(0.48); // 48% 2D Pattern, 52% 3D Studio
+  const [controlPanelOpen, setControlPanelOpen] = useState(false);
   const isDraggingSplitter = useRef(false);
 
   const handleSplitterMouseDown = (e: React.MouseEvent) => {
@@ -59,23 +61,35 @@ export const App: React.FC = () => {
       const key = e.key.toLowerCase();
       if (key === 'v') setActiveTool('select');
       if (key === 'a') setActiveTool('vertex');
+      if (key === 'p') setActiveTool('pen');
+      if (key === 'c') setActiveTool('curve');
       if (key === 's') setActiveTool('sew');
       if (key === 'h') setActiveTool('move');
       if (key === 'm') setActiveTool('measure');
+      if (key === 't') setActiveTool('graphic');
       if (key === ' ') {
         e.preventDefault();
         setIsSimulating(!isSimulating);
+      }
+      // Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
+      if ((e.ctrlKey || e.metaKey) && key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      if ((e.ctrlKey || e.metaKey) && (key === 'y' || (key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redo();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTool, isSimulating, setActiveTool, setIsSimulating]);
+  }, [activeTool, isSimulating, setActiveTool, setIsSimulating, undo, redo]);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0c0e12] text-slate-100 font-sans">
       {/* Top Application Bar */}
-      <TopNav />
+      <TopNav onOpenControlPanel={() => setControlPanelOpen(true)} />
 
       {/* Main Workspace */}
       <div className="flex flex-1 overflow-hidden relative">
@@ -157,6 +171,9 @@ export const App: React.FC = () => {
           </span>
         </div>
       </footer>
+
+      {/* Control Panel Modal */}
+      <ControlPanelModal isOpen={controlPanelOpen} onClose={() => setControlPanelOpen(false)} />
     </div>
   );
 };

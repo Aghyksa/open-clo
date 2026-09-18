@@ -1084,6 +1084,7 @@ export interface GarmentTemplate {
   category: 'Tops' | 'Outerwear' | 'Dresses' | 'Skirts';
   description: string;
   piecesCount: number;
+  icon: string;
   recommendedFabric: string;
   recommendedColor: string;
   generator: () => { pieces: PatternPiece[]; seams: SeamConnection[] };
@@ -1094,6 +1095,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
     id: 'tshirt',
     name: 'Classic Crewneck Tee',
     category: 'Tops',
+    icon: '👕',
     description: 'Timeless tailored crewneck t-shirt with balanced proportions and natural shoulder drape.',
     piecesCount: 2,
     recommendedFabric: 'cotton-jersey',
@@ -1104,6 +1106,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
     id: 'hoodie',
     name: 'Streetwear Pullover Hoodie',
     category: 'Outerwear',
+    icon: '🧥',
     description: 'Heavy fleece boxy hoodie featuring an anatomical kangaroo pocket and sculpted hood.',
     piecesCount: 4,
     recommendedFabric: 'french-terry',
@@ -1114,6 +1117,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
     id: 'bomber',
     name: 'Zip Bomber Jacket',
     category: 'Outerwear',
+    icon: '🧥',
     description: 'Structured zip-front bomber with dual front flight panels and ribbed waist hem.',
     piecesCount: 3,
     recommendedFabric: 'structured-leather',
@@ -1124,6 +1128,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
     id: 'dress',
     name: 'Summer A-Line Dress',
     category: 'Dresses',
+    icon: '👗',
     description: 'Flowing feminine silhouette with fitted bust, tailored waist, and flared hemline.',
     piecesCount: 2,
     recommendedFabric: 'silk-satin',
@@ -1134,6 +1139,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
     id: 'polo',
     name: 'Classic Pique Polo Shirt',
     category: 'Tops',
+    icon: '👔',
     description: 'Clean preppy polo featuring button placket cutout and contrasting ribbed collar band.',
     piecesCount: 3,
     recommendedFabric: 'cotton-jersey',
@@ -1144,6 +1150,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
     id: 'tanktop',
     name: 'Athletic Tank Top',
     category: 'Tops',
+    icon: '🎽',
     description: 'Racerback-styled athletic sleeveless tank with deep scoop neck and flatlock stretch seams.',
     piecesCount: 2,
     recommendedFabric: 'sport-spandex',
@@ -1154,6 +1161,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
     id: 'croptop',
     name: 'Modern Crop Top',
     category: 'Tops',
+    icon: '👚',
     description: 'Minimalist contemporary cropped top ending cleanly above the waistline.',
     piecesCount: 2,
     recommendedFabric: 'cotton-jersey',
@@ -1164,6 +1172,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
     id: 'oversized',
     name: 'Boxy Drop-Shoulder Tee',
     category: 'Tops',
+    icon: '👕',
     description: 'Relaxed streetwear aesthetic with dropped shoulder lines and extended wide hem.',
     piecesCount: 2,
     recommendedFabric: 'heavy-denim',
@@ -1174,6 +1183,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
     id: 'skirt',
     name: 'Flared A-Line Skirt',
     category: 'Skirts',
+    icon: '👗',
     description: 'High-waisted flared skirt with natural circular drapery folds and hem flare.',
     piecesCount: 2,
     recommendedFabric: 'silk-satin',

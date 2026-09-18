@@ -30,6 +30,7 @@ export const StudioViewport: React.FC = () => {
     showHeatmap,
     showAvatar,
     cameraPreset,
+    avatar,
     setIsSimulating,
     resetSimulation,
     toggleWireframe,
@@ -186,9 +187,9 @@ export const StudioViewport: React.FC = () => {
 
             // Apply sleek CLO3D matte porcelain finish by default
             const porcelainMat = new THREE.MeshStandardMaterial({
-              color: '#8a9aab',
-              roughness: 0.5,
-              metalness: 0.03,
+              color: '#5c6b7a',
+              roughness: 0.55,
+              metalness: 0.05,
             });
             // Store original material on userData for toggling
             mesh.userData.origMaterial = mesh.material;
@@ -348,6 +349,36 @@ export const StudioViewport: React.FC = () => {
       avatarGroupRef.current.visible = showAvatar;
     }
   }, [showAvatar]);
+
+  // Scale mannequin model based on avatar measurements
+  useEffect(() => {
+    if (!gltfModelRef.current) return;
+    const model = gltfModelRef.current;
+
+    // Reference mannequin is 169.5cm (from GLB analysis: bounding box height 1.695m)
+    const refHeight = 169.5;
+    const heightScale = avatar.height / refHeight;
+
+    // Width scaling based on chest/waist/hip circumference
+    // Reference body: chest=88cm, waist=62cm, hips=92cm (from GLB cross-sections)
+    const refChest = 88;
+    const refWaist = 62;
+    const refHips = 92;
+    const avgWidthScale = (
+      (avatar.chestCircumference / refChest) +
+      (avatar.waistCircumference / refWaist) +
+      (avatar.hipsCircumference / refHips)
+    ) / 3;
+
+    // Apply non-uniform scale: height on Y, width on X/Z
+    model.scale.set(avgWidthScale, heightScale, avgWidthScale);
+
+    // Rebuild cloth simulation to match new body proportions
+    simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial);
+    if (clothGeomRef.current) {
+      clothGeomRef.current.setIndex(simulatorRef.current.indices);
+    }
+  }, [avatar.height, avatar.chestCircumference, avatar.waistCircumference, avatar.hipsCircumference]);
 
   // Toggle Avatar Material Style (CLO3D Porcelain vs Realistic Skin)
   const toggleAvatarStyle = () => {

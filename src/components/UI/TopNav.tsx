@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useCloStore } from '../../store/useCloStore';
-import { exportPatternsToSvg, GARMENT_TEMPLATES } from '../../utils/patternPresets';
+import { exportPatternsToSvg, GARMENT_TEMPLATES, FABRIC_PRESETS } from '../../utils/patternPresets';
 import {
   Shirt,
   Download,
@@ -12,9 +12,16 @@ import {
   Play,
   Pause,
   RotateCcw,
+  FolderKanban,
+  Save,
+  Palette,
 } from 'lucide-react';
 
-export const TopNav: React.FC = () => {
+interface TopNavProps {
+  onOpenControlPanel: () => void;
+}
+
+export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
   const {
     layout,
     setLayout,
@@ -24,10 +31,17 @@ export const TopNav: React.FC = () => {
     setIsSimulating,
     resetSimulation,
     activeTemplateId,
+    currentMaterial,
+    setMaterial,
+    customColor,
+    setCustomColor,
+    saveActiveProject,
+    isSaved,
   } = useCloStore();
 
   const [exportOpen, setExportOpen] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
+  const [fabricOpen, setFabricOpen] = useState(false);
 
   const handleExportSvg = () => {
     const svgData = exportPatternsToSvg(pieces);
@@ -83,9 +97,9 @@ export const TopNav: React.FC = () => {
         </div>
       </div>
 
-      {/* Center Viewport Layout Switcher & Simulation Button */}
+      {/* Center: Simulation + Viewport Switcher */}
       <div className="flex items-center gap-2">
-        {/* Simulation Play/Pause Button */}
+        {/* Simulation Play/Pause */}
         <button
           onClick={() => setIsSimulating(!isSimulating)}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all ${
@@ -161,26 +175,114 @@ export const TopNav: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Actions: Template Quick Selector & Export */}
-      <div className="flex items-center gap-2.5 relative">
+      {/* Right: Projects, Template, Fabric, Color, Save, Export */}
+      <div className="flex items-center gap-2 relative">
         {downloadSuccess && (
           <div className="hidden lg:flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md">
             <Check className="w-3.5 h-3.5" /> {downloadSuccess}
           </div>
         )}
 
+        {/* Projects Button */}
+        <button
+          onClick={onOpenControlPanel}
+          className="flex items-center gap-1.5 bg-[#1a1d26] hover:bg-slate-700/60 text-slate-300 hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-700/60 transition-colors"
+          title="Manage Projects (Create, Delete, Switch)"
+        >
+          <FolderKanban className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="hidden xl:inline">Projects</span>
+        </button>
+
         {/* Garment Template Select */}
         <select
           value={activeTemplateId}
           onChange={(e) => loadPreset(e.target.value)}
-          className="bg-[#1a1d26] text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700/80 focus:outline-none focus:border-blue-500 font-medium cursor-pointer"
+          className="bg-[#1a1d26] text-slate-200 text-xs px-3 py-1.5 rounded-lg border border-slate-700/80 focus:outline-none focus:border-blue-500 font-medium cursor-pointer max-w-[140px]"
+          title="Switch Garment Template"
         >
           {GARMENT_TEMPLATES.map((tmpl) => (
             <option key={tmpl.id} value={tmpl.id}>
-              {tmpl.name} ({tmpl.category})
+              {tmpl.icon} {tmpl.name}
             </option>
           ))}
         </select>
+
+        {/* Fabric / Material Picker */}
+        <div className="relative">
+          <button
+            onClick={() => setFabricOpen(!fabricOpen)}
+            className="flex items-center gap-1.5 bg-[#1a1d26] hover:bg-slate-700/60 text-slate-300 hover:text-white text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-700/60 transition-colors"
+            title={`Fabric: ${currentMaterial.name}`}
+          >
+            <Palette className="w-3.5 h-3.5 text-amber-400" />
+            <span className="hidden xl:inline truncate max-w-[80px]">{currentMaterial.name}</span>
+            <ChevronDown className="w-3 h-3" />
+          </button>
+
+          {fabricOpen && (
+            <div className="absolute right-0 mt-2 w-72 bg-[#181b24] border border-slate-700 rounded-xl shadow-2xl py-1.5 z-50 text-xs max-h-80 overflow-y-auto">
+              <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                Fabric Material
+              </div>
+              {FABRIC_PRESETS.map((fab) => (
+                <button
+                  key={fab.id}
+                  onClick={() => {
+                    setMaterial(fab);
+                    setFabricOpen(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 flex items-center gap-3 transition-colors ${
+                    currentMaterial.id === fab.id
+                      ? 'bg-blue-600/20 text-blue-300'
+                      : 'hover:bg-blue-600/10 hover:text-blue-300 text-slate-200'
+                  }`}
+                >
+                  <span
+                    className="w-5 h-5 rounded border border-white/20 flex-shrink-0"
+                    style={{ backgroundColor: fab.color }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium">{fab.name}</div>
+                    <div className="text-[10px] text-slate-400 truncate">
+                      {fab.category} • {fab.density}gsm • Stretch: {(fab.stretchStiffness * 100).toFixed(0)}%
+                    </div>
+                  </div>
+                  {currentMaterial.id === fab.id && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                </button>
+              ))}
+
+              <div className="px-3 pt-3 pb-2 border-t border-slate-700/60 mt-1">
+                <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+                  Custom Color
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={customColor}
+                    onChange={(e) => setCustomColor(e.target.value)}
+                    className="w-8 h-8 rounded border border-slate-600 cursor-pointer bg-transparent"
+                    title="Pick custom garment color"
+                  />
+                  <span className="text-slate-300 font-mono text-[11px]">{customColor}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Save Button */}
+        <button
+          onClick={saveActiveProject}
+          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+            isSaved
+              ? 'bg-[#1a1d26] text-slate-400 border-slate-700/60'
+              : 'bg-emerald-600/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-600/30'
+          }`}
+          title={isSaved ? 'All changes saved' : 'Save changes (Ctrl+S)'}
+        >
+          <Save className="w-3.5 h-3.5" />
+          <span className="hidden xl:inline">{isSaved ? 'Saved' : 'Save'}</span>
+        </button>
 
         {/* Export Button */}
         <div className="relative">

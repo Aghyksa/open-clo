@@ -70,7 +70,16 @@ const TSHIRT_HEM_Y = 0.72;    // hips
 const DRESS_HEM_Y = 0.37;     // knees
 
 const TUBE_COLS = 32;          // columns around circumference
-const GARMENT_EASE = 1.07;     // 7% larger than body
+const GARMENT_EASE = 1.25;     // 25% larger than body — generous clearance prevents clipping
+
+// Extra radial offset at specific body regions to prevent clipping
+// (body cross-sections are elliptical approximations of complex mesh geometry)
+const REGION_EXTRA_OFFSET: [number, number, number][] = [
+  // [yMin, yMax, extraOffset in meters]
+  [0.75, 0.85, 0.025],   // bust region — complex geometry, needs big clearance
+  [0.65, 0.72, 0.020],   // hip region
+  [1.10, 1.26, 0.030],   // shoulder/arm junction — arms extend outward here
+];
 
 // ─── Procedural wrinkle noise (value noise) ───
 function hashNoise(x: number, y: number): number {
@@ -239,13 +248,14 @@ export class ClothSimulator {
 
     // ── Armholes ──
     // Side regions: angle near π/2 (right side) and 3π/2 (left side)
-    const armholeDepthMax = 0.12; // how far down from shoulder the armhole extends
+    // Must be large enough to clear the mannequin's arms which extend outward
+    const armholeDepthMax = 0.20; // how far down from shoulder the armhole extends (20cm)
     if (depthFromTop < armholeDepthMax) {
       // Right side armhole
       const distFromRight = Math.abs(angle - Math.PI / 2);
       // Left side armhole
       const distFromLeft = Math.abs(angle - 3 * Math.PI / 2);
-      const armholeAngularWidth = 0.50; // radians (~29°)
+      const armholeAngularWidth = 0.75; // radians (~43°) — wide enough to clear arms
 
       for (const dist of [distFromRight, distFromLeft]) {
         if (dist < armholeAngularWidth) {
@@ -371,8 +381,20 @@ export class ClothSimulator {
         const easeHW = hw + hemFlare;
         const easeHD = hd + hemFlare * 0.6;
 
-        const rawX = easeHW * Math.sin(angle);         // left-right
-        const rawZ = -easeHD * Math.cos(angle) + cross.zCenter; // front-back
+        // Add region-specific extra offset to prevent clipping at complex geometry
+        let extraOffset = 0;
+        for (const [yMin, yMax, offset] of REGION_EXTRA_OFFSET) {
+          if (y >= yMin && y <= yMax) {
+            // Smooth blend at region boundaries
+            const regionCenter = (yMin + yMax) / 2;
+            const regionHalf = (yMax - yMin) / 2;
+            const blend = 1.0 - Math.abs(y - regionCenter) / regionHalf;
+            extraOffset = Math.max(extraOffset, offset * blend);
+          }
+        }
+
+        const rawX = (easeHW + extraOffset) * Math.sin(angle);         // left-right
+        const rawZ = -(easeHD + extraOffset) * Math.cos(angle) + cross.zCenter; // front-back
 
         // Apply procedural wrinkle displacement
         const wrinkle = this.computeWrinkle(angle, y, topY, hemY, c, r);
