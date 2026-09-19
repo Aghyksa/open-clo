@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { PatternPiece, SeamConnection, FabricMaterial } from '../types/cad';
+import { useCloStore } from '../store/useCloStore';
 
 export interface ClothParticle {
   pos: THREE.Vector3;
@@ -912,6 +913,7 @@ export class ClothSimulator {
   step(dt: number) {
     this.simTime += dt;
     const t = this.simTime;
+    const dynamics = useCloStore.getState().simulationDynamics ?? 0.6;
 
     for (let i = 0; i < this.particles.length; i++) {
       const p = this.particles[i];
@@ -920,37 +922,46 @@ export class ClothSimulator {
       const oz = p.originalPos.z;
 
       // ── 1. Breathing: ONLY expands outward, never contracts into body ──
-      const breathCycle = (Math.sin(t * 1.8) * 0.5 + 0.5) * 0.0025;
+      const breathAmp = 0.0025 + 0.004 * dynamics; // up to ~6.5mm
+      const breathCycle = (Math.sin(t * 1.8) * 0.5 + 0.5) * breathAmp;
       const breathWeight = this._breathPhases[i];
       // Expand radially outward
       const bx = ox !== 0 ? Math.sign(ox) * breathCycle * breathWeight : 0;
       const bz = (oz > 0.04 ? 1 : -1) * breathCycle * breathWeight * 0.6;
 
-      // ── 2. Gentle sway: pendulum-like at hem ──
+      // ── 2. Natural Wind Waves & Hem Sway (CLO3D-Style Dynamic Draping) ──
       const swayPhase = this._swayPhases[i];
       const hemW = this._hemWeights[i];
-      const swayX = Math.sin(t * 0.9 + swayPhase * 6.28) * 0.003 * hemW;
-      const swayZ = Math.sin(t * 0.7 + swayPhase * 4.0 + 1.5) * 0.002 * hemW;
 
-      // ── 3. Micro wrinkle shimmer: subtle oscillation of wrinkle depth ──
-      const shimmer = Math.sin(t * 2.5 + i * 0.37) * 0.15 + 0.85; // 0.7-1.0 modulation
+      // Traveling sinusoidal wind waves across fabric
+      const windSpeed = 2.8;
+      const wavePhase = t * windSpeed - (oy * 4.5) + (ox * 2.5);
+      const windWaveX = Math.sin(wavePhase) * (0.016 * dynamics) * hemW;
+      const windWaveZ = Math.cos(wavePhase * 0.8 + oz * 3.0) * (0.012 * dynamics) * hemW;
+
+      // Natural pendulum hem sway (creates lifelike fabric swing)
+      const swayX = Math.sin(t * 1.2 + swayPhase * 6.28) * (0.005 + 0.022 * dynamics) * hemW;
+      const swayZ = Math.sin(t * 0.9 + swayPhase * 4.0 + 1.5) * (0.004 + 0.018 * dynamics) * hemW;
+
+      // ── 3. Micro wrinkle shimmer ──
+      const shimmer = Math.sin(t * 3.0 + i * 0.37) * (0.15 + 0.25 * dynamics) + 0.85;
       const wx = this._wrinkleOffsets[i * 3] * shimmer;
       const wy = this._wrinkleOffsets[i * 3 + 1] * shimmer;
       const wz = this._wrinkleOffsets[i * 3 + 2] * shimmer;
 
       // ── Combine ──
-      p.pos.x = ox + bx + swayX + (wx - this._wrinkleOffsets[i * 3]);
+      p.pos.x = ox + bx + swayX + windWaveX + (wx - this._wrinkleOffsets[i * 3]);
       p.pos.y = oy + (wy - this._wrinkleOffsets[i * 3 + 1]);
-      p.pos.z = oz + bz + swayZ + (wz - this._wrinkleOffsets[i * 3 + 2]);
+      p.pos.z = oz + bz + swayZ + windWaveZ + (wz - this._wrinkleOffsets[i * 3 + 2]);
 
       // Update prevPos for any external code that reads velocity
       p.prevPos.copy(p.pos);
     }
 
-    // Slowly modulate stress map for visual interest in heatmap mode
+    // Modulate stress map for visual interest in heatmap mode
     for (let i = 0; i < this.stressMap.length; i++) {
       const base = this.stressMap[i];
-      const flicker = Math.sin(t * 1.2 + i * 0.23) * 0.008;
+      const flicker = Math.sin(t * 1.5 + i * 0.23) * (0.008 + 0.015 * dynamics);
       this.stressMap[i] = Math.max(0, Math.min(1, base + flicker));
     }
   }

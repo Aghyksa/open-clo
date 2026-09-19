@@ -136,6 +136,7 @@ interface CloState {
 
   // 3D Viewport Controls
   isSimulating: boolean;
+  simulationDynamics: number; // 0 (calm) to 1.0 (runway wind)
   simulationIteration: number;
   showWireframe: boolean;
   showHeatmap: boolean;
@@ -200,6 +201,7 @@ interface CloState {
 
   // Viewport & Simulation
   setIsSimulating: (simulating: boolean) => void;
+  setSimulationDynamics: (dynamics: number) => void;
   toggleWireframe: () => void;
   toggleHeatmap: () => void;
   toggleAvatar: () => void;
@@ -290,6 +292,7 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     isSimulating: true,
+    simulationDynamics: 0.6,
     simulationIteration: 0,
     showWireframe: false,
     showHeatmap: false,
@@ -1141,9 +1144,17 @@ export const useCloStore = create<CloState>((set, get) => {
     setPendingSeamEdge: (edge) => set({ pendingSeamEdge: edge }),
 
     addSeam: (edgeA, edgeB, stitchType) => {
+      // Don't sew an edge to itself
+      if (edgeA.pieceId === edgeB.pieceId && edgeA.edgeIndex === edgeB.edgeIndex) {
+        return set({ pendingSeamEdge: null });
+      }
+
       get().pushHistory();
       const state = get();
-      const exists = state.seams.some(
+      const chosenStitch = stitchType || state.stitchSettings.defaultType || 'single-needle';
+      const preset = STITCH_PRESETS.find((sp) => sp.id === chosenStitch);
+
+      const existingIndex = state.seams.findIndex(
         (s) =>
           (s.edgeA.pieceId === edgeA.pieceId &&
             s.edgeA.edgeIndex === edgeA.edgeIndex &&
@@ -1154,10 +1165,25 @@ export const useCloStore = create<CloState>((set, get) => {
             s.edgeB.pieceId === edgeA.pieceId &&
             s.edgeB.edgeIndex === edgeA.edgeIndex)
       );
-      if (exists) return set({ pendingSeamEdge: null });
 
-      const chosenStitch = stitchType || state.stitchSettings.defaultType || 'single-needle';
-      const preset = STITCH_PRESETS.find((sp) => sp.id === chosenStitch);
+      // If exact seam already exists, update its stitch parameters without breaking
+      if (existingIndex !== -1) {
+        const updatedSeams = [...state.seams];
+        updatedSeams[existingIndex] = {
+          ...updatedSeams[existingIndex],
+          stitchType: chosenStitch,
+          strength: preset?.defaultStrength || 1.0,
+          threadColor: state.stitchSettings.defaultColor,
+          seamAllowanceMm: preset?.seamAllowanceMm || 12,
+        };
+        set({
+          seams: updatedSeams,
+          pendingSeamEdge: null,
+          simulationIteration: state.simulationIteration + 1,
+          ...syncToActiveProject({ seams: updatedSeams }),
+        });
+        return;
+      }
 
       const newSeam: SeamConnection = {
         id: `seam-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
@@ -1263,6 +1289,7 @@ export const useCloStore = create<CloState>((set, get) => {
     // Viewport & 3D Settings
     // ==========================================
     setIsSimulating: (simulating) => set({ isSimulating: simulating }),
+    setSimulationDynamics: (dynamics) => set({ simulationDynamics: Math.max(0, Math.min(1, dynamics)) }),
     toggleWireframe: () => set((state) => ({ showWireframe: !state.showWireframe })),
     toggleHeatmap: () => set((state) => ({ showHeatmap: !state.showHeatmap })),
     toggleAvatar: () => set((state) => ({ showAvatar: !state.showAvatar })),

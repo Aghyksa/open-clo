@@ -14,6 +14,7 @@ import {
   Thermometer,
   Sparkles,
   UserCheck,
+  Wind,
 } from 'lucide-react';
 
 export const StudioViewport: React.FC = () => {
@@ -25,6 +26,7 @@ export const StudioViewport: React.FC = () => {
     currentMaterial,
     customColor,
     isSimulating,
+    simulationDynamics,
     simulationIteration,
     showWireframe,
     showHeatmap,
@@ -32,6 +34,7 @@ export const StudioViewport: React.FC = () => {
     cameraPreset,
     avatar,
     setIsSimulating,
+    setSimulationDynamics,
     resetSimulation,
     toggleWireframe,
     toggleHeatmap,
@@ -660,6 +663,42 @@ export const StudioViewport: React.FC = () => {
           title="Reset Drape & Position"
         >
           <RotateCcw className="w-3.5 h-3.5" />
+        </button>
+
+        <div className="w-[1px] h-4 bg-slate-700" />
+
+        {/* Fabric Dynamics / Wind Control */}
+        <button
+          onClick={() => {
+            const next =
+              simulationDynamics <= 0.05
+                ? 0.35
+                : simulationDynamics <= 0.4
+                ? 0.65
+                : simulationDynamics <= 0.75
+                ? 1.0
+                : 0.0;
+            setSimulationDynamics(next);
+          }}
+          className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-colors ${
+            simulationDynamics > 0.05
+              ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40 hover:bg-blue-600/40'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+          }`}
+          title={`Fabric Motion & Wind: ${Math.round(
+            simulationDynamics * 100
+          )}% (Click to cycle Calm / Breeze / Wind / Runway)`}
+        >
+          <Wind className="w-3.5 h-3.5" />
+          <span className="text-[11px] hidden sm:inline">
+            {simulationDynamics <= 0.05
+              ? 'Calm'
+              : simulationDynamics <= 0.4
+              ? 'Breeze'
+              : simulationDynamics <= 0.75
+              ? 'Wind'
+              : 'Runway'}
+          </span>
         </button>
 
         <div className="w-[1px] h-4 bg-slate-700" />

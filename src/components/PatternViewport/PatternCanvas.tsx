@@ -34,6 +34,7 @@ export const PatternCanvas: React.FC = () => {
     avatar,
     avatar2D,
     stitchSettings,
+    layout,
     selectPiece,
     selectVertex,
     updatePiecePosition,
@@ -50,6 +51,7 @@ export const PatternCanvas: React.FC = () => {
     addBlankPiece,
     setPendingSeamEdge,
     addSeam,
+    removeSeam,
     updateAvatar2D,
     setAvatarMeasurement,
     undo,
@@ -59,6 +61,9 @@ export const PatternCanvas: React.FC = () => {
     addFabricPatch,
     addCustomPiece,
   } = useCloStore();
+
+  // Container dimensions for non-stretching high-DPI canvas
+  const [canvasDims, setCanvasDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
 
   // Viewport Pan & Zoom state
   const [viewState, setViewState] = useState({
@@ -71,6 +76,18 @@ export const PatternCanvas: React.FC = () => {
   const [showLayersOverlay, setShowLayersOverlay] = useState(false);
   const [showAvatarControls, setShowAvatarControls] = useState(false);
   const [showPatchModal, setShowPatchModal] = useState(false);
+
+  // CLO3D-Style Sewing hover state & interactive preview
+  const [sewHover, setSewHover] = useState<{
+    pieceId: string;
+    edgeIndex: number;
+    lenCm: number;
+    midScreen: { x: number; y: number };
+    startScreen: { x: number; y: number };
+    endScreen: { x: number; y: number };
+  } | null>(null);
+  const [mouseScreenPos, setMouseScreenPos] = useState<{ x: number; y: number } | null>(null);
+  const [seamToast, setSeamToast] = useState<string | null>(null);
 
   // Cutting Tool state
   const [cutLine, setCutLine] = useState<{ start: { x: number; y: number }; end: { x: number; y: number } } | null>(null);
@@ -85,6 +102,46 @@ export const PatternCanvas: React.FC = () => {
     edgeIndex: number;
     point: { x: number; y: number };
   } | null>(null);
+
+  // Observe container resizing (prevents any canvas distortion / stretching on view switch or resize)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const parent = canvas.parentElement;
+
+    const updateSize = () => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setCanvasDims({
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        });
+      }
+    };
+
+    updateSize();
+
+    const ro = new ResizeObserver(() => {
+      updateSize();
+    });
+
+    ro.observe(canvas);
+    if (parent) ro.observe(parent);
+
+    window.addEventListener('resize', updateSize);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', updateSize);
+    };
+  }, []);
+
+  // Auto-dismiss seam toast after 3.5 seconds
+  useEffect(() => {
+    if (!seamToast) return;
+    const timer = setTimeout(() => setSeamToast(null), 3500);
+    return () => clearTimeout(timer);
+  }, [seamToast]);
 
   // Dragging state
   const isDraggingRef = useRef(false);
@@ -430,8 +487,9 @@ export const PatternCanvas: React.FC = () => {
     // Retina DPR scaling
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
+    if (rect.width === 0 || rect.height === 0) return;
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
     ctx.scale(dpr, dpr);
 
     const width = rect.width;
@@ -698,7 +756,7 @@ export const PatternCanvas: React.FC = () => {
         ctx.restore();
       }
 
-      // Highlight pending seam edge
+      // Highlight pending seam edge (first edge clicked in Sew mode)
       if (
         pendingSeamEdge &&
         pendingSeamEdge.pieceId === piece.id &&
@@ -712,8 +770,103 @@ export const PatternCanvas: React.FC = () => {
         ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 4;
         ctx.stroke();
+
+        // Directional notch indicator (CLO3D style)
+        const notchX = screenPts[idx1].x * 0.75 + screenPts[idx2].x * 0.25;
+        const notchY = screenPts[idx1].y * 0.75 + screenPts[idx2].y * 0.25;
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(notchX, notchY, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Highlight hovered edge in Sew mode
+      if (
+        activeTool === 'sew' &&
+        sewHover &&
+        sewHover.pieceId === piece.id &&
+        screenPts[sewHover.edgeIndex] &&
+        (!pendingSeamEdge || pendingSeamEdge.pieceId !== piece.id || pendingSeamEdge.edgeIndex !== sewHover.edgeIndex)
+      ) {
+        const idx1 = sewHover.edgeIndex;
+        const idx2 = (idx1 + 1) % pts.length;
+        ctx.beginPath();
+        ctx.moveTo(screenPts[idx1].x, screenPts[idx1].y);
+        ctx.lineTo(screenPts[idx2].x, screenPts[idx2].y);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+
+        // Hover Notch
+        const notchX = screenPts[idx1].x * 0.75 + screenPts[idx2].x * 0.25;
+        const notchY = screenPts[idx1].y * 0.75 + screenPts[idx2].y * 0.25;
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(notchX, notchY, 4.5, 0, Math.PI * 2);
+        ctx.fill();
       }
     });
+
+    // 4b. CLO3D Interactive Rubber-Band Sewing Preview Line
+    if (activeTool === 'sew' && pendingSeamEdge && mouseScreenPos) {
+      const pA = pieces.find((p) => p.id === pendingSeamEdge.pieceId);
+      if (pA && pA.points[pendingSeamEdge.edgeIndex]) {
+        const p1A = pA.points[pendingSeamEdge.edgeIndex];
+        const p2A = pA.points[(pendingSeamEdge.edgeIndex + 1) % pA.points.length];
+        const rot1A = rotatePoint(p1A.x, p1A.y, pA.rotation);
+        const rot2A = rotatePoint(p2A.x, p2A.y, pA.rotation);
+        const midA = worldToScreen(
+          pA.position.x + (rot1A.x + rot2A.x) / 2,
+          pA.position.y + (rot1A.y + rot2A.y) / 2
+        );
+
+        const targetPos = sewHover ? sewHover.midScreen : mouseScreenPos;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(midA.x, midA.y);
+        const cpX = (midA.x + targetPos.x) / 2;
+        const cpY = (midA.y + targetPos.y) / 2 - 25;
+        ctx.quadraticCurveTo(cpX, cpY, targetPos.x, targetPos.y);
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Target marker
+        ctx.fillStyle = sewHover ? '#10b981' : '#f59e0b';
+        ctx.beginPath();
+        ctx.arc(targetPos.x, targetPos.y, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // If hovering target edge, show live length comparison pill (CLO3D segment match)
+        if (sewHover) {
+          const lenA = Math.round((Math.hypot(p2A.x - p1A.x, p2A.y - p1A.y) / 10) * 10) / 10;
+          const lenB = sewHover.lenCm;
+          const diff = Math.abs(Math.round((lenA - lenB) * 10) / 10);
+          const isMatching = diff <= 1.5;
+
+          const pillText = `${lenA} cm ⟷ ${lenB} cm ${isMatching ? '(✓ Cocok)' : `(Beda: ${diff} cm)`}`;
+          ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
+          const tw = ctx.measureText(pillText).width;
+          const px = (midA.x + targetPos.x) / 2 - tw / 2 - 8;
+          const py = (midA.y + targetPos.y) / 2 - 35;
+
+          ctx.fillStyle = isMatching ? 'rgba(6, 78, 59, 0.95)' : 'rgba(120, 53, 15, 0.95)';
+          ctx.strokeStyle = isMatching ? '#10b981' : '#f59e0b';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(px, py, tw + 16, 22, 6);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(pillText, px + 8, py + 15);
+        }
+        ctx.restore();
+      }
+    }
 
     // 5. Draw Pen/Curve Hover Preview Point
     if (hoverInfo && (activeTool === 'pen' || activeTool === 'curve')) {
@@ -848,6 +1001,10 @@ export const PatternCanvas: React.FC = () => {
     stitchSettings,
     viewState,
     hoverInfo,
+    sewHover,
+    mouseScreenPos,
+    canvasDims,
+    layout,
     cutLine,
     drawingPolygonPoints,
     polygonMousePos,
@@ -909,28 +1066,34 @@ export const PatternCanvas: React.FC = () => {
         return;
       }
 
-      // 1. Sew Tool: Click edge
+      // 1. Sew Tool: Click edge (CLO3D Segment Sewing)
       if (activeTool === 'sew') {
         for (const piece of pieces) {
-          const edgeHit = findEdgeAt(world.x, world.y, piece);
+          const edgeHit = findEdgeAt(world.x, world.y, piece, 22);
           if (edgeHit !== null) {
             const edge: SeamEdge = { pieceId: piece.id, edgeIndex: edgeHit.edgeIndex };
             if (!pendingSeamEdge) {
               setPendingSeamEdge(edge);
+              setSeamToast(`Garis 1 terpilih (${piece.name}). Sekarang klik garis target di pola pasangan.`);
             } else {
               if (
                 pendingSeamEdge.pieceId !== edge.pieceId ||
                 pendingSeamEdge.edgeIndex !== edge.edgeIndex
               ) {
                 addSeam(pendingSeamEdge, edge);
+                setSeamToast(`✓ Jahitan berhasil dihubungkan!`);
               } else {
                 setPendingSeamEdge(null);
+                setSeamToast(`Pilihan jahitan dibatalkan.`);
               }
             }
             return;
           }
         }
-        setPendingSeamEdge(null);
+        if (pendingSeamEdge) {
+          setPendingSeamEdge(null);
+          setSeamToast(`Pilihan jahitan dibatalkan.`);
+        }
         return;
       }
 
@@ -1028,6 +1191,8 @@ export const PatternCanvas: React.FC = () => {
     const sy = e.clientY - rect.top;
     const world = screenToWorld(sx, sy);
 
+    setMouseScreenPos({ x: sx, y: sy });
+
     if (activeTool === 'polygon') {
       setPolygonMousePos({ x: world.x, y: world.y });
     }
@@ -1035,6 +1200,41 @@ export const PatternCanvas: React.FC = () => {
     if (dragModeRef.current === 'cut') {
       setCutLine((prev) => (prev ? { ...prev, end: { x: world.x, y: world.y } } : null));
       return;
+    }
+
+    // Update hover preview for Sew tool (CLO3D Segment Sewing)
+    if (!isDraggingRef.current && activeTool === 'sew') {
+      let foundSew: any = null;
+      for (const piece of pieces) {
+        const edgeHit = findEdgeAt(world.x, world.y, piece, 22);
+        if (edgeHit !== null) {
+          const pts = piece.points;
+          const p1 = pts[edgeHit.edgeIndex];
+          const p2 = pts[(edgeHit.edgeIndex + 1) % pts.length];
+          const distWorld = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+          const lenCm = Math.round((distWorld / 10) * 10) / 10;
+          const rot1 = rotatePoint(p1.x, p1.y, piece.rotation);
+          const rot2 = rotatePoint(p2.x, p2.y, piece.rotation);
+          const startScreen = worldToScreen(piece.position.x + rot1.x, piece.position.y + rot1.y);
+          const endScreen = worldToScreen(piece.position.x + rot2.x, piece.position.y + rot2.y);
+          const midScreen = {
+            x: (startScreen.x + endScreen.x) / 2,
+            y: (startScreen.y + endScreen.y) / 2,
+          };
+          foundSew = {
+            pieceId: piece.id,
+            edgeIndex: edgeHit.edgeIndex,
+            lenCm,
+            midScreen,
+            startScreen,
+            endScreen,
+          };
+          break;
+        }
+      }
+      setSewHover(foundSew);
+    } else if (sewHover && activeTool !== 'sew') {
+      setSewHover(null);
     }
 
     // Update hover preview for Pen / Curve tool
@@ -1138,6 +1338,37 @@ export const PatternCanvas: React.FC = () => {
     draggedPieceIdRef.current = null;
     draggedVertexRef.current = null;
     dragHandleRef.current = null;
+  };
+
+  const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    if (pendingSeamEdge) {
+      setPendingSeamEdge(null);
+      setSeamToast('Pilihan jahitan dibatalkan.');
+      return;
+    }
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const world = screenToWorld(sx, sy);
+
+    for (const piece of pieces) {
+      const edgeHit = findEdgeAt(world.x, world.y, piece, 22);
+      if (edgeHit !== null) {
+        const matchingSeam = seams.find(
+          (s) =>
+            (s.edgeA.pieceId === piece.id && s.edgeA.edgeIndex === edgeHit.edgeIndex) ||
+            (s.edgeB.pieceId === piece.id && s.edgeB.edgeIndex === edgeHit.edgeIndex)
+        );
+        if (matchingSeam) {
+          removeSeam(matchingSeam.id);
+          setSeamToast('✂️ Jahitan berhasil dilepas.');
+          return;
+        }
+      }
+    }
   };
 
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -1650,13 +1881,22 @@ export const PatternCanvas: React.FC = () => {
         </div>
       )}
 
+      {/* CLO3D Dynamic Toast / Status Banner */}
+      {seamToast && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 bg-[#141824]/95 text-slate-100 text-xs px-4 py-2 rounded-full border border-blue-500/50 shadow-2xl flex items-center gap-2 backdrop-blur-md animate-in fade-in zoom-in duration-200 pointer-events-none">
+          <Scissors className="w-3.5 h-3.5 text-blue-400" />
+          <span className="font-medium">{seamToast}</span>
+        </div>
+      )}
+
       <canvas
         ref={canvasRef}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onWheel={handleWheel}
-        className={`w-full h-full ${
+        onContextMenu={handleContextMenu}
+        className={`w-full h-full block ${
           activeTool === 'move'
             ? 'cursor-grab'
             : activeTool === 'pen'
