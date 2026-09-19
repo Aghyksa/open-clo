@@ -169,7 +169,9 @@ export class ClothSimulator {
   // Drop animation state
   private _dropRestPositions: THREE.Vector3[] = [];
   private _dropStartPositions: THREE.Vector3[] = [];
-  private _dropParticleDelays: Float32Array = new Float32Array(0);
+
+  // PBD physics mode flag
+  _isPhysicsMode: boolean = false;
 
   /**
    * Resolve cloth-body penetrations by sampling mannequin vertex positions directly.
@@ -651,7 +653,7 @@ export class ClothSimulator {
       }
     }
 
-    // ── Build triangle indices ──
+    // ── Build triangle indices AND distance constraints ──
     // Tube topology: columns wrap around (col TUBE_COLS connects back to col 0)
     for (let r = 0; r < rows - 1; r++) {
       for (let c = 0; c < cols; c++) {
@@ -669,8 +671,44 @@ export class ClothSimulator {
         if (tr !== null && bl !== null && br !== null) {
           this.indices.push(tr, bl, br);
         }
+
+        // ── Distance constraints for PBD physics ──
+        // Structural: horizontal (tl-tr), vertical (tl-bl)
+        if (tl !== null && tr !== null) {
+          this.constraints.push({
+            p1: tl, p2: tr,
+            restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos),
+            stiffness: 0.8,
+          });
+        }
+        if (tl !== null && bl !== null) {
+          this.constraints.push({
+            p1: tl, p2: bl,
+            restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos),
+            stiffness: 0.8,
+          });
+        }
+        // Shear: diagonals (tl-br, tr-bl)
+        if (tl !== null && br !== null) {
+          this.constraints.push({
+            p1: tl, p2: br,
+            restLength: this.particles[tl].pos.distanceTo(this.particles[br].pos),
+            stiffness: 0.5,
+          });
+        }
+        if (tr !== null && bl !== null) {
+          this.constraints.push({
+            p1: tr, p2: bl,
+            restLength: this.particles[tr].pos.distanceTo(this.particles[bl].pos),
+            stiffness: 0.5,
+          });
+        }
       }
     }
+    // Add last-column vertical constraints (right edge of last column to bottom)
+    // These are already handled by c=lastCol in the loop above via the horizontal wrap,
+    // and the vertical constraint for the last column is also covered.
+    // (The wrap cNext = 0 covers horizontal; vertical tl-bl covers it.)
 
     // ── Build Extra Pieces: Pockets, Patches, Sleeves, Collars, Custom Fabric Panels ──
     const extraPieces = pieces.filter(
@@ -785,6 +823,30 @@ export class ClothSimulator {
                 this.indices.push(tl, tr, bl);
                 this.indices.push(tr, br, bl);
               }
+
+              // ── Sleeve distance constraints ──
+              // Structural: horizontal ring + vertical along sleeve
+              this.constraints.push({
+                p1: tl, p2: tr,
+                restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos),
+                stiffness: 0.8,
+              });
+              this.constraints.push({
+                p1: tl, p2: bl,
+                restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos),
+                stiffness: 0.8,
+              });
+              // Shear
+              this.constraints.push({
+                p1: tl, p2: br,
+                restLength: this.particles[tl].pos.distanceTo(this.particles[br].pos),
+                stiffness: 0.5,
+              });
+              this.constraints.push({
+                p1: tr, p2: bl,
+                restLength: this.particles[tr].pos.distanceTo(this.particles[bl].pos),
+                stiffness: 0.5,
+              });
             }
           }
         }
@@ -1023,111 +1085,245 @@ export class ClothSimulator {
   }
 
   /**
-   * Initialize the drop animation: store rest positions and compute elevated start positions.
-   * Each particle is moved upward by ~0.4 units, with sleeves/outer particles delayed.
+   * Initialize PBD physics drop: lift particles above mannequin, unpin them, enable physics mode.
+   * Collar/neckline particles near the top stay slightly attracted (soft-pinned via low invMass).
    */
   initDropAnimation() {
     const n = this.particles.length;
     this._dropRestPositions = [];
     this._dropStartPositions = [];
-    this._dropParticleDelays = new Float32Array(n);
 
-    // Find vertical bounds for cascade calculation
-    let minY = Infinity, maxY = -Infinity;
+    // Find the topmost Y to identify collar/neckline region
+    let maxY = -Infinity;
     for (let i = 0; i < n; i++) {
-      const y = this.particles[i].pos.y;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
+      if (this.particles[i].pos.y > maxY) maxY = this.particles[i].pos.y;
     }
+
+    const liftHeight = 0.5;
+    const spreadFactor = 1.05;
 
     for (let i = 0; i < n; i++) {
       const p = this.particles[i];
 
-      // Store the final resting position (current position)
-      this._dropRestPositions.push(p.pos.clone());
+      // Store the final rest position (current on-body position)
+      this._dropRestPositions.push(p.originalPos.clone());
 
-      // Compute elevated start position
-      const liftHeight = 0.4;
-      // Spread out slightly (scale outward from center)
-      const spreadFactor = 1.08;
-      const startPos = new THREE.Vector3(
-        p.pos.x * spreadFactor,
-        p.pos.y + liftHeight,
-        p.pos.z * spreadFactor
-      );
-      this._dropStartPositions.push(startPos);
+      // Lift all particles up and spread slightly outward
+      p.pos.y += liftHeight;
+      p.pos.x *= spreadFactor;
+      p.pos.z *= spreadFactor;
 
-      // Cascade delay: sleeves and outer particles fall slightly later
-      // Particles farther from center-X have more delay (sleeve effect)
-      const distFromCenter = Math.abs(p.pos.x);
-      const verticalFactor = (p.pos.y - minY) / (maxY - minY + 0.001); // 0=bottom, 1=top
-      // Sleeves delay: 0-0.15, top parts fall first
-      this._dropParticleDelays[i] = distFromCenter * 0.3 + (1 - verticalFactor) * 0.05;
+      // Sync prevPos so initial velocity is zero
+      p.prevPos.copy(p.pos);
 
-      // Move particle to start position immediately
-      p.pos.copy(startPos);
-      p.prevPos.copy(startPos);
+      // Store start positions for reference
+      this._dropStartPositions.push(p.pos.clone());
+
+      // Un-pin all particles: collar particles get very low invMass (heavy = slow to move)
+      // so they act as soft anchors
+      const distFromTop = maxY - p.originalPos.y;
+      if (distFromTop < 0.03 || p.pieceId.includes('collar') || p.pieceId.includes('kerah')) {
+        // Collar/neckline: keep pinned — they anchor the garment
+        p.pinned = true;
+        // But lift them to rest position + small offset (they'll pull garment down)
+        p.pos.x = p.originalPos.x;
+        p.pos.y = p.originalPos.y + 0.08;
+        p.pos.z = p.originalPos.z;
+        p.prevPos.copy(p.pos);
+      } else {
+        p.pinned = false;
+      }
+    }
+
+    this._isPhysicsMode = true;
+  }
+
+  /**
+   * Step PBD ragdoll cloth physics: Verlet integration, distance constraints, body collision.
+   * @param dt Timestep in seconds
+   */
+  stepPhysics(dt: number) {
+    if (!this._isPhysicsMode) return;
+
+    const n = this.particles.length;
+    const gx = this.gravity.x;
+    const gy = this.gravity.y;
+    const gz = this.gravity.z;
+    const damp = this.damping;
+    const dtSq = dt * dt;
+
+    // ── 1. Verlet Integration ──
+    for (let i = 0; i < n; i++) {
+      const p = this.particles[i];
+      if (p.pinned) {
+        // Pinned particles slowly move toward their rest position (soft anchor)
+        const rest = this._dropRestPositions[i];
+        if (rest) {
+          p.pos.x += (rest.x - p.pos.x) * 0.05;
+          p.pos.y += (rest.y - p.pos.y) * 0.05;
+          p.pos.z += (rest.z - p.pos.z) * 0.05;
+          p.prevPos.copy(p.pos);
+        }
+        continue;
+      }
+
+      const vx = (p.pos.x - p.prevPos.x) * damp;
+      const vy = (p.pos.y - p.prevPos.y) * damp;
+      const vz = (p.pos.z - p.prevPos.z) * damp;
+
+      p.prevPos.x = p.pos.x;
+      p.prevPos.y = p.pos.y;
+      p.prevPos.z = p.pos.z;
+
+      p.pos.x += vx + gx * dtSq;
+      p.pos.y += vy + gy * dtSq;
+      p.pos.z += vz + gz * dtSq;
+    }
+
+    // ── 2. Constraint Solving (PBD) ──
+    const constraints = this.constraints;
+    const nc = constraints.length;
+
+    for (let iter = 0; iter < this.iterations; iter++) {
+      for (let ci = 0; ci < nc; ci++) {
+        const c = constraints[ci];
+        const p1 = this.particles[c.p1];
+        const p2 = this.particles[c.p2];
+
+        const dx = p2.pos.x - p1.pos.x;
+        const dy = p2.pos.y - p1.pos.y;
+        const dz = p2.pos.z - p1.pos.z;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+        if (dist < 1e-8) continue;
+
+        const diff = (dist - c.restLength) / dist;
+        const stiffness = c.stiffness;
+
+        const w1 = p1.pinned ? 0 : p1.invMass;
+        const w2 = p2.pinned ? 0 : p2.invMass;
+        const wSum = w1 + w2;
+        if (wSum < 1e-8) continue;
+
+        const correction = diff * stiffness;
+        const s1 = (w1 / wSum) * correction;
+        const s2 = (w2 / wSum) * correction;
+
+        p1.pos.x += dx * s1;
+        p1.pos.y += dy * s1;
+        p1.pos.z += dz * s1;
+
+        p2.pos.x -= dx * s2;
+        p2.pos.y -= dy * s2;
+        p2.pos.z -= dz * s2;
+      }
+
+      // ── 3. Body Collision (ellipse approximation — fast) ──
+      const skinOffset = 0.03;
+      for (let i = 0; i < n; i++) {
+        const p = this.particles[i];
+        if (p.pinned) continue;
+
+        const py = p.pos.y;
+        // Only check within body range
+        if (py < 0.30 || py > 1.44) continue;
+
+        const cross = this.getBodyCrossSection(py);
+        const hw = cross.halfWidth;
+        const hd = cross.halfDepth;
+        if (hw < 0.01 || hd < 0.01) continue;
+
+        const dx = p.pos.x;
+        const dz = p.pos.z - cross.zCenter;
+
+        // Ellipse test: (dx/hw)^2 + (dz/hd)^2 < 1 means inside body
+        const ex = dx / (hw + skinOffset);
+        const ez = dz / (hd + skinOffset);
+        const ellipseDist = Math.sqrt(ex * ex + ez * ez);
+
+        if (ellipseDist < 1.0) {
+          // Push outward along ellipse normal
+          if (ellipseDist < 1e-6) {
+            // Particle at center — push in default direction
+            p.pos.x = (hw + skinOffset) * 1.01;
+          } else {
+            const scale = 1.0 / ellipseDist;
+            p.pos.x = dx * scale + 0; // keep centered at x=0 origin
+            p.pos.z = dz * scale + cross.zCenter;
+            // Recalculate with actual offset
+            p.pos.x = (dx / ellipseDist) * (hw + skinOffset);
+            p.pos.z = (dz / ellipseDist) * (hd + skinOffset) + cross.zCenter;
+          }
+        }
+      }
+    }
+
+    // ── 4. Floor Collision ──
+    for (let i = 0; i < n; i++) {
+      const p = this.particles[i];
+      if (p.pos.y < 0.05) {
+        p.pos.y = 0.05;
+      }
+    }
+
+    // ── 5. Capsule Colliders (arms, neck) ──
+    for (let i = 0; i < n; i++) {
+      const p = this.particles[i];
+      if (p.pinned) continue;
+
+      for (const collider of this.colliders) {
+        if (collider.type !== 'capsule') continue;
+        // Point-to-line-segment distance
+        const ab = new THREE.Vector3().subVectors(collider.end, collider.start);
+        const ap = new THREE.Vector3().subVectors(p.pos, collider.start);
+        const t = Math.max(0, Math.min(1, ap.dot(ab) / ab.dot(ab)));
+        const closest = new THREE.Vector3().copy(collider.start).addScaledVector(ab, t);
+        const diff = new THREE.Vector3().subVectors(p.pos, closest);
+        const dist = diff.length();
+        if (dist < collider.radius + 0.01 && dist > 1e-6) {
+          diff.multiplyScalar((collider.radius + 0.01) / dist);
+          p.pos.copy(closest).add(diff);
+        }
+      }
     }
   }
 
   /**
-   * Advance drop animation by one frame.
-   * @param progress Global animation progress 0-1
+   * Get total kinetic energy of the cloth particles (used to detect settling).
    */
-  stepDropAnimation(progress: number) {
-    const n = this.particles.length;
-    if (this._dropRestPositions.length !== n) return;
+  getKineticEnergy(): number {
+    let energy = 0;
+    for (let i = 0; i < this.particles.length; i++) {
+      const p = this.particles[i];
+      if (p.pinned) continue;
+      const vx = p.pos.x - p.prevPos.x;
+      const vy = p.pos.y - p.prevPos.y;
+      const vz = p.pos.z - p.prevPos.z;
+      energy += vx * vx + vy * vy + vz * vz;
+    }
+    return energy;
+  }
 
+  /**
+   * Restore particles to their original rest positions after physics simulation ends.
+   * Re-pins all particles and disables physics mode.
+   */
+  restoreFromPhysics() {
+    if (!this._isPhysicsMode) return;
+
+    const n = this.particles.length;
     for (let i = 0; i < n; i++) {
       const p = this.particles[i];
       const rest = this._dropRestPositions[i];
-      const start = this._dropStartPositions[i];
-      const delay = this._dropParticleDelays[i];
-
-      // Compute local progress accounting for per-particle delay
-      // Remap: if progress < delay, particle hasn't started; if progress >= delay, remap to 0-1
-      const maxDelay = 0.15;
-      const normalizedDelay = delay / (maxDelay + 0.001) * 0.15; // max 0.15 delay
-      let localProgress = (progress - normalizedDelay) / (1 - normalizedDelay);
-      localProgress = Math.max(0, Math.min(1, localProgress));
-
-      // Phase-based easing for realistic cloth drop
-      let easedProgress: number;
-      if (localProgress < 0.1) {
-        // Phase 1: Appear above, slightly spread — ease in
-        easedProgress = localProgress / 0.1 * 0.05; // barely moving
-      } else if (localProgress < 0.7) {
-        // Phase 2: Gravity acceleration (ease-in quadratic)
-        const t2 = (localProgress - 0.1) / 0.6;
-        easedProgress = 0.05 + t2 * t2 * 0.7; // accelerating fall
-      } else if (localProgress < 0.9) {
-        // Phase 3: Hit body, settle — ease-out with overshoot
-        const t3 = (localProgress - 0.7) / 0.2;
-        const overshoot = 1.02 + Math.sin(t3 * Math.PI) * 0.025; // slight bounce past target
-        easedProgress = 0.75 + t3 * 0.25 * overshoot;
-      } else {
-        // Phase 4: Final micro-adjustments — smooth settle with elastic
-        const t4 = (localProgress - 0.9) / 0.1;
-        const elastic = 1.0 - Math.cos(t4 * Math.PI * 1.5) * 0.008 * (1 - t4);
-        easedProgress = Math.min(1.0, 0.98 + t4 * 0.02) * elastic;
+      if (rest) {
+        p.pos.copy(rest);
+        p.prevPos.copy(rest);
+        p.originalPos.copy(rest);
       }
-
-      easedProgress = Math.max(0, Math.min(1, easedProgress));
-
-      // Lerp from start to rest
-      p.pos.x = start.x + (rest.x - start.x) * easedProgress;
-      p.pos.y = start.y + (rest.y - start.y) * easedProgress;
-      p.pos.z = start.z + (rest.z - start.z) * easedProgress;
-
-      // Add a slight horizontal wobble during fall for cloth-like feel
-      if (localProgress > 0.1 && localProgress < 0.85) {
-        const wobbleIntensity = Math.sin(localProgress * Math.PI) * 0.006;
-        const wobbleFreq = localProgress * 12 + i * 0.7;
-        p.pos.x += Math.sin(wobbleFreq) * wobbleIntensity;
-        p.pos.z += Math.cos(wobbleFreq * 0.8) * wobbleIntensity * 0.7;
-      }
-
-      p.prevPos.copy(p.pos);
+      p.pinned = false;
     }
+
+    this._isPhysicsMode = false;
+    this._recomputeAnimationCache();
   }
 }

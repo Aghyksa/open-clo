@@ -291,15 +291,27 @@ export const StudioViewport: React.FC = () => {
       const storeState = useCloStore.getState();
 
       if (storeState.isDropAnimating) {
-        // Drop animation mode
-        const DROP_DURATION = 1.5; // seconds
+        // PBD ragdoll cloth physics mode
+        const DROP_TIMEOUT = 4.0; // seconds max for physics
         const elapsed = (now - dropStartTimeRef.current) / 1000;
-        const progress = Math.min(elapsed / DROP_DURATION, 1.0);
 
-        sim.stepDropAnimation(progress);
-        storeState.setDropAnimationProgress(progress);
+        // Run PBD physics step (use fixed substep for stability)
+        const physicsDt = Math.min(dt, 0.016); // cap at ~60fps equivalent
+        const substeps = Math.max(1, Math.round(dt / physicsDt));
+        for (let s = 0; s < substeps; s++) {
+          sim.stepPhysics(physicsDt);
+        }
 
-        if (progress >= 1.0) {
+        // Check if cloth has settled (low kinetic energy) or timed out
+        const energy = sim.getKineticEnergy();
+        const settled = elapsed > 1.0 && energy < 0.00001;
+        const timedOut = elapsed >= DROP_TIMEOUT;
+
+        storeState.setDropAnimationProgress(Math.min(elapsed / DROP_TIMEOUT, 1.0));
+
+        if (settled || timedOut) {
+          // Restore cloth to original rest positions and resume normal animation
+          sim.restoreFromPhysics();
           storeState.stopDropAnimation();
         }
       } else if (storeState.isSimulating) {
@@ -381,6 +393,13 @@ export const StudioViewport: React.FC = () => {
 
   // Rebuild simulation when pieces/seams or materials change
   useEffect(() => {
+    // Cancel any active drop animation when pieces/material change
+    const sim = simulatorRef.current;
+    if (sim._isPhysicsMode) {
+      sim._isPhysicsMode = false;
+      useCloStore.getState().stopDropAnimation();
+    }
+
     const refHeight = 169.5;
     const heightScale = avatar.height / refHeight;
     const avgWidthScale = (
@@ -390,14 +409,14 @@ export const StudioViewport: React.FC = () => {
     ) / 3;
     const avatarScale = { scaleX: avgWidthScale, scaleY: heightScale, scaleZ: avgWidthScale };
 
-    simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial, avatarScale);
+    sim.buildFromPieces(pieces, seams, currentMaterial, avatarScale);
     if (clothGeomRef.current) {
-      clothGeomRef.current.setIndex(simulatorRef.current.indices);
+      clothGeomRef.current.setIndex(sim.indices);
     }
     // Resolve collisions with mannequin mesh if loaded
     if (gltfModelRef.current) {
       gltfModelRef.current.updateMatrixWorld(true);
-      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.025);
+      sim.resolveCollisionsWithMesh(gltfModelRef.current, 0.025);
     }
   }, [pieces, seams, currentMaterial, simulationIteration]);
 
