@@ -430,6 +430,11 @@ export class ClothSimulator {
           hw = Math.min(hw, (0.130 + r * 0.015) * sX);
         }
 
+        // Dress sleeveless armhole contour (leaves arms completely free)
+        if (isDress && r <= 5) {
+          hw = Math.min(hw, (0.145 + r * 0.008) * sX);
+        }
+
         // Garment depth must maintain true anatomical clearance
         let hd = (effectiveHD * sZ) * stiffnessEase + 0.022;
         // Bust protrusion clearance prevents avatar chest peaks from clipping through fabric
@@ -438,6 +443,13 @@ export class ClothSimulator {
           hd += bustProtrusion;
         }
         const zCenter = cross.zCenter * sZ;
+
+        // Smooth dress torso contour (eliminates terraced tire ridges)
+        if (isDress && unscaledY >= 1.06 && unscaledY <= 1.35) {
+          const smoothT = (unscaledY - 1.06) / (1.35 - 1.06);
+          const smoothTorsoHW = THREE.MathUtils.lerp(0.128, 0.155, Math.sin(smoothT * Math.PI * 0.85)) * sX;
+          hw = Math.max(minHW, smoothTorsoHW);
+        }
 
         // Dress A-line flare below waist
         if (isDress && unscaledY < 1.06) {
@@ -640,7 +652,8 @@ export class ClothSimulator {
           const radiusZ = (0.080 + ht * 0.040) * sZ;
 
           const px = Math.cos(hang) * radiusX;
-          const pz = Math.sin(hang) * radiusZ + cross.zCenter * sZ + 0.035 * sZ + ht * 0.045 * sZ;
+          const backBodyZ = (cross.zCenter + cross.halfDepth) * sZ;
+          const pz = backBodyZ + 0.018 * sZ + Math.sin(hang) * radiusZ + ht * 0.035 * sZ;
 
           this.particles.push({
             pos: new THREE.Vector3(px, y, pz),
@@ -780,16 +793,23 @@ export class ClothSimulator {
 
       // Front Placket strip with buttons
       const placketBaseIdx = this.particles.length;
-      const plkRows = 5;
+      const plkRows = 7;
       for (let pr = 0; pr < plkRows; pr++) {
         const pt = pr / (plkRows - 1);
-        const py = THREE.MathUtils.lerp(1.410 * sY, 1.300 * sY, pt);
+        const py = THREE.MathUtils.lerp(1.410 * sY, 1.220 * sY, pt);
         const cross = this.getBodyCrossSection(py / sY);
-        const bodiceHD = (cross.halfDepth * sZ) * stiffnessEase + 0.022;
-        const pz = -bodiceHD - 0.004 + cross.zCenter * sZ;
+        const unscaledPy = py / sY;
+        const bustProtrusion = (unscaledPy >= 1.15 && unscaledPy <= 1.25)
+          ? Math.sin((unscaledPy - 1.15) / 0.10 * Math.PI) * 0.032 * sX
+          : 0;
+        const bodiceHD = (cross.halfDepth * sZ) * stiffnessEase + 0.022 + bustProtrusion;
+        const pz = -bodiceHD - 0.012 + cross.zCenter * sZ;
 
         for (let pc = 0; pc < 2; pc++) {
-          const px = (pc - 0.5) * 0.026 * sX;
+          const px = (pc - 0.5) * 0.040 * sX;
+          const isButtonVertex = (pr === 1 || pr === 3);
+          const placketColor = isButtonVertex ? new THREE.Color('#0f172a') : new THREE.Color('#f8fafc');
+
           this.particles.push({
             pos: new THREE.Vector3(px, py, pz),
             prevPos: new THREE.Vector3(px, py, pz),
@@ -800,6 +820,7 @@ export class ClothSimulator {
             uv: new THREE.Vector2(pc, pt),
             pinned: false,
             pieceId: 'piece-collar',
+            color: placketColor,
           });
         }
       }
