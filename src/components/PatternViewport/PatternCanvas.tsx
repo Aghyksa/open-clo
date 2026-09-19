@@ -16,9 +16,7 @@ import {
   Trash2,
   Plus,
   Compass,
-  Slice,
   Shapes,
-  PlusCircle,
 } from 'lucide-react';
 
 export const PatternCanvas: React.FC = () => {
@@ -2466,80 +2464,14 @@ export const PatternCanvas: React.FC = () => {
         </button>
       </div>
 
-      {/* Floating Quick Design & Cutting Bar */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1 bg-[#171a23]/95 backdrop-blur-md px-3 py-1.5 rounded-2xl border border-slate-700/80 shadow-2xl text-xs text-slate-300">
-        <button
-          onClick={() => setActiveTool(activeTool === 'cut' ? 'select' : 'cut')}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTool === 'cut'
-              ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/40'
-              : 'hover:bg-slate-800 text-slate-300 hover:text-white'
-          }`}
-          title="Potong Pola (Cut/Slice Tool - Hotkey X)"
-        >
-          <Slice className="w-3.5 h-3.5" />
-          <span>Potong (X)</span>
-        </button>
-
-        <button
-          onClick={() => setShowPatchModal(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold hover:bg-slate-800 text-slate-300 hover:text-white transition-all"
-          title="Tambal Kain & Patch Library (Hotkey K)"
-        >
-          <Shapes className="w-3.5 h-3.5 text-amber-400" />
-          <span>Tambal Kain (K)</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTool(activeTool === 'polygon' ? 'select' : 'polygon')}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-            activeTool === 'polygon'
-              ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/40'
-              : 'hover:bg-slate-800 text-slate-300 hover:text-white'
-          }`}
-          title="Gambar Pola Baru Bebas (Hotkey N)"
-        >
-          <PlusCircle className="w-3.5 h-3.5" />
-          <span>Pola Baru (N)</span>
-        </button>
-
-        <span className="w-px h-4 bg-slate-700 mx-1" />
-
-        <button
-          onClick={() => selectedPieceId && duplicatePiece(selectedPieceId)}
-          disabled={!selectedPieceId}
-          className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-semibold hover:bg-slate-800 text-slate-300 hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          title="Duplikat Pola Terpilih (Ctrl+D)"
-        >
-          <Copy className="w-3.5 h-3.5 text-indigo-400" />
-          <span>Duplikat</span>
-        </button>
-
-        <button
-          onClick={() => {
-            if (selectedPieceId && selectedVertexIndex !== null) {
-              deleteVertex(selectedPieceId, selectedVertexIndex);
-            } else if (selectedPieceId) {
-              deletePiece(selectedPieceId);
-            }
-          }}
-          disabled={!selectedPieceId}
-          className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-xs font-semibold hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-          title="Hapus Pola / Titik Terpilih (Del)"
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-          <span>Hapus</span>
-        </button>
-      </div>
-
-      {/* Tambal Kain & Fabric Patch Library Modal */}
+      {/* Fabric Patch & Component Library Modal */}
       {(showPatchModal || activeTool === 'patch') && (
         <div className="absolute inset-0 z-30 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-[#181b24] border border-slate-700/90 rounded-2xl p-5 max-w-xl w-full shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2 text-white font-bold text-sm">
                 <Shapes className="w-5 h-5 text-blue-400" />
-                <span>Tambal Kain & Fabric Patch Library</span>
+                <span>Fabric Patch & Component Library</span>
               </div>
               <button
                 onClick={() => {
@@ -2548,25 +2480,25 @@ export const PatternCanvas: React.FC = () => {
                 }}
                 className="text-slate-400 hover:text-white text-xs px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors font-medium"
               >
-                ✕ Tutup
+                ✕ Close
               </button>
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              Pilih potongan kain, kantong, lengan, atau tambalan untuk ditambahkan langsung ke pola dan otomatis muncul di manekin 3D.
+              Select a garment piece, pocket, sleeve, or decorative patch to insert directly into your 2D pattern cutting workspace.
             </p>
 
             <div className="grid grid-cols-3 gap-2.5">
               {[
-                { type: 'pocket', icon: '👝', title: 'Kantong Tempel', desc: 'Patch pocket dada' },
-                { type: 'sleeve', icon: '💪', title: 'Lengan Baju', desc: 'Sepasang lengan pendek' },
-                { type: 'collar', icon: '👔', title: 'Kerah Ribbed', desc: 'Kerah leher baju' },
-                { type: 'star', icon: '⭐', title: 'Emblem Bintang', desc: 'Applique bintang 5 sudut' },
-                { type: 'shield', icon: '🛡️', title: 'Emblem Perisai', desc: 'Badge / lambang dada' },
-                { type: 'circle', icon: '⭕', title: 'Tambalan Bulat', desc: 'Tambalan siku / lutut' },
-                { type: 'waistband', icon: '📏', title: 'Ban Pinggang', desc: 'Ribbed hem bawah' },
-                { type: 'cuff', icon: '🧥', title: 'Manset Lengan', desc: 'Ribbed cuff pergelangan' },
-                { type: 'rect', icon: '📐', title: 'Kain Persegi', desc: 'Panel kain custom' },
+                { type: 'pocket', icon: '👝', title: 'Patch Pocket', desc: 'Chest / utility pocket' },
+                { type: 'sleeve', icon: '💪', title: 'Short Sleeves', desc: 'Pair of anatomical sleeves' },
+                { type: 'collar', icon: '👔', title: 'Ribbed Collar', desc: 'Neckband rib knit collar' },
+                { type: 'star', icon: '⭐', title: 'Star Emblem', desc: '5-point decorative applique' },
+                { type: 'shield', icon: '🛡️', title: 'Shield Crest', desc: 'Chest heraldic badge' },
+                { type: 'circle', icon: '⭕', title: 'Round Elbow Patch', desc: 'Circular reinforcement patch' },
+                { type: 'waistband', icon: '📏', title: 'Waistband Band', desc: 'Ribbed hem bottom band' },
+                { type: 'cuff', icon: '🧥', title: 'Wrist Cuffs', desc: 'Ribbed sleeve cuffs' },
+                { type: 'rect', icon: '📐', title: 'Rectangular Panel', desc: 'Custom fabric block' },
               ].map((item) => (
                 <button
                   key={item.type}

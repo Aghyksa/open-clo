@@ -98,42 +98,38 @@ export const App: React.FC = () => {
 
         {/* Viewport Area with Resizable Splitter */}
         <main className="flex-1 flex overflow-hidden relative">
-          {layout === 'dual' ? (
-            <>
-              {/* 2D Pattern Canvas */}
-              <div
-                style={{ width: `${splitRatio * 100}%` }}
-                className="h-full relative overflow-hidden flex-shrink-0"
-              >
-                <PatternCanvas />
-              </div>
+          {/* 2D Pattern Workspace */}
+          <div
+            style={{
+              display: layout === '3d-only' ? 'none' : 'block',
+              width: layout === 'dual' ? `${splitRatio * 100}%` : '100%',
+            }}
+            className="h-full relative overflow-hidden flex-shrink-0"
+          >
+            <PatternCanvas />
+          </div>
 
-              {/* Interactive Resizable Divider (like CLO3D) */}
-              <div
-                onMouseDown={handleSplitterMouseDown}
-                className="w-1.5 h-full bg-[#1c202a] hover:bg-blue-500 active:bg-blue-600 cursor-col-resize z-30 transition-colors flex items-center justify-center group select-none flex-shrink-0"
-                title="Drag to resize 2D & 3D viewports"
-              >
-                <div className="w-0.5 h-8 bg-slate-600 group-hover:bg-white rounded-full transition-colors" />
-              </div>
-
-              {/* 3D Studio & Simulation Viewport */}
-              <div
-                style={{ width: `${(1 - splitRatio) * 100}%` }}
-                className="h-full relative overflow-hidden flex-1"
-              >
-                <StudioViewport />
-              </div>
-            </>
-          ) : layout === 'pattern-only' ? (
-            <div className="w-full h-full relative overflow-hidden">
-              <PatternCanvas />
-            </div>
-          ) : (
-            <div className="w-full h-full relative overflow-hidden">
-              <StudioViewport />
+          {/* Interactive Resizable Divider (like CLO3D) */}
+          {layout === 'dual' && (
+            <div
+              onMouseDown={handleSplitterMouseDown}
+              className="w-1.5 h-full bg-[#1c202a] hover:bg-blue-500 active:bg-blue-600 cursor-col-resize z-30 transition-colors flex items-center justify-center group select-none flex-shrink-0"
+              title="Drag to resize 2D & 3D viewports"
+            >
+              <div className="w-0.5 h-8 bg-slate-600 group-hover:bg-white rounded-full transition-colors" />
             </div>
           )}
+
+          {/* 3D Studio & Simulation Viewport */}
+          <div
+            style={{
+              display: layout === 'pattern-only' ? 'none' : 'block',
+              width: layout === 'dual' ? `${(1 - splitRatio) * 100}%` : '100%',
+            }}
+            className="h-full relative overflow-hidden flex-1"
+          >
+            <StudioViewport />
+          </div>
         </main>
 
         {/* Right Property Inspector Panel */}

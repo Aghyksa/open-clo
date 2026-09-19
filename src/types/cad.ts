@@ -24,7 +24,8 @@ export type StitchType =
   | 'overlock'
   | 'flatlock'
   | 'zigzag'
-  | 'saddle';
+  | 'saddle'
+  | 'topstitch';
 
 export interface SeamConnection {
   id: string;
@@ -110,7 +111,7 @@ export type CadTool =
   | 'pen'       // P: Add point on edge
   | 'curve'     // C: Curvature tool (bend edge)
   | 'cut'       // X: Scissor / Slice pattern piece
-  | 'patch'     // K: Tambal Kain / Add Fabric Piece
+  | 'patch'     // K: Fabric Patch / Add Fabric Piece
   | 'polygon'   // N: Draw custom polygon pattern piece
   | 'sew'       // S: Virtual Sewing tool
   | 'free-sew'  // F: Free Sewing (partial edge seams)

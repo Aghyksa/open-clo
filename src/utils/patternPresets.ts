@@ -708,6 +708,20 @@ export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConne
       strength: 1.0,
       stitchType: 'overlock',
     },
+    {
+      id: 'seam-hoodie-hood',
+      edgeA: { pieceId: 'piece-hood', edgeIndex: 3 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 1 },
+      strength: 1.2,
+      stitchType: 'double-needle',
+    },
+    {
+      id: 'seam-hoodie-pocket',
+      edgeA: { pieceId: 'piece-pocket', edgeIndex: 3 },
+      edgeB: { pieceId: 'piece-front', edgeIndex: 9 },
+      strength: 1.2,
+      stitchType: 'topstitch',
+    },
   ];
 
   return { pieces, seams };
@@ -747,10 +761,28 @@ export function createBomberJacketPreset(): { pieces: PatternPiece[]; seams: Sea
     { id: 'bb8', x: -135, y: -90 },
   ];
 
+  const sleeveLPoints = [
+    { id: 'bms0', x: -105, y: -20 },
+    { id: 'bms1', x: -90, y: -65 },
+    { id: 'bms2', x: 0, y: -90 },
+    { id: 'bms3', x: 90, y: -65 },
+    { id: 'bms4', x: 105, y: -20 },
+    { id: 'bms5', x: 65, y: 160 },
+    { id: 'bms6', x: -65, y: 160 },
+  ];
+  const sleeveRPoints = JSON.parse(JSON.stringify(sleeveLPoints));
+
+  const collarPoints = [
+    { id: 'bmc0', x: -95, y: -15 },
+    { id: 'bmc1', x: 95, y: -15 },
+    { id: 'bmc2', x: 95, y: 15 },
+    { id: 'bmc3', x: -95, y: 15 },
+  ];
+
   const pieces: PatternPiece[] = [
     {
-      id: 'piece-front-l',
-      name: 'Left Front Panel',
+      id: 'piece-bomber-front-l',
+      name: 'Bomber Left Front Panel',
       points: frontLeft,
       position: { x: 140, y: 260 },
       rotation: 0,
@@ -758,8 +790,8 @@ export function createBomberJacketPreset(): { pieces: PatternPiece[]; seams: Sea
       placement: { origin3D: [-0.08, 0.4, 0.16], rotation3D: [0, 0, 0] },
     },
     {
-      id: 'piece-front-r',
-      name: 'Right Front Panel',
+      id: 'piece-bomber-front-r',
+      name: 'Bomber Right Front Panel',
       points: frontRight,
       position: { x: 300, y: 260 },
       rotation: 0,
@@ -767,44 +799,92 @@ export function createBomberJacketPreset(): { pieces: PatternPiece[]; seams: Sea
       placement: { origin3D: [0.08, 0.4, 0.16], rotation3D: [0, 0, 0] },
     },
     {
-      id: 'piece-back',
-      name: 'Back Panel',
+      id: 'piece-bomber-back',
+      name: 'Bomber Back Panel',
       points: backPoints,
       position: { x: 510, y: 260 },
       rotation: 0,
       color: '#115e59',
       placement: { origin3D: [0, 0.4, -0.11], rotation3D: [0, Math.PI, 0] },
     },
+    {
+      id: 'piece-bomber-sleeve-l',
+      name: 'Bomber Left Long Sleeve',
+      points: sleeveLPoints,
+      position: { x: 740, y: 190 },
+      rotation: 0,
+      color: '#0f766e',
+      placement: { origin3D: [0.42, 0.3, 0], rotation3D: [0, 0, -Math.PI / 4] },
+    },
+    {
+      id: 'piece-bomber-sleeve-r',
+      name: 'Bomber Right Long Sleeve',
+      points: sleeveRPoints,
+      position: { x: 740, y: 430 },
+      rotation: 0,
+      color: '#0f766e',
+      placement: { origin3D: [-0.42, 0.3, 0], rotation3D: [0, 0, Math.PI / 4] },
+    },
+    {
+      id: 'piece-bomber-collar',
+      name: 'Bomber Ribbed Baseball Collar',
+      points: collarPoints,
+      position: { x: 320, y: 80 },
+      rotation: 0,
+      color: '#134e4a',
+      placement: { origin3D: [0, 0.55, 0.05], rotation3D: [0, 0, 0] },
+    },
   ];
 
   const seams: SeamConnection[] = [
     {
+      id: 'seam-bomber-zipper',
+      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 2 },
+      edgeB: { pieceId: 'piece-bomber-front-r', edgeIndex: 5 },
+      strength: 1.5,
+      stitchType: 'double-needle',
+    },
+    {
       id: 'seam-bomber-sh-l',
-      edgeA: { pieceId: 'piece-front-l', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
+      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 0 },
+      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 0 },
       strength: 1.3,
       stitchType: 'double-needle',
     },
     {
       id: 'seam-bomber-sh-r',
-      edgeA: { pieceId: 'piece-front-r', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
+      edgeA: { pieceId: 'piece-bomber-front-r', edgeIndex: 1 },
+      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 3 },
       strength: 1.3,
       stitchType: 'double-needle',
     },
     {
       id: 'seam-bomber-sd-l',
-      edgeA: { pieceId: 'piece-front-l', edgeIndex: 4 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 7 },
+      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 4 },
+      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 7 },
       strength: 1.2,
       stitchType: 'single-needle',
     },
     {
       id: 'seam-bomber-sd-r',
-      edgeA: { pieceId: 'piece-front-r', edgeIndex: 3 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 5 },
+      edgeA: { pieceId: 'piece-bomber-front-r', edgeIndex: 3 },
+      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 5 },
       strength: 1.2,
       stitchType: 'single-needle',
+    },
+    {
+      id: 'seam-bomber-sleeve-l',
+      edgeA: { pieceId: 'piece-bomber-sleeve-l', edgeIndex: 1 },
+      edgeB: { pieceId: 'piece-bomber-front-l', edgeIndex: 5 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+    {
+      id: 'seam-bomber-sleeve-r',
+      edgeA: { pieceId: 'piece-bomber-sleeve-r', edgeIndex: 1 },
+      edgeB: { pieceId: 'piece-bomber-front-r', edgeIndex: 2 },
+      strength: 1.0,
+      stitchType: 'overlock',
     },
   ];
 
@@ -816,27 +896,27 @@ export function createBomberJacketPreset(): { pieces: PatternPiece[]; seams: Sea
 // ==========================================
 export function createTankTopPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
   const frontPoints = [
-    { id: 'tf0', x: -90, y: -220 },
+    { id: 'tf0', x: -85, y: -220 },
     { id: 'tf1', x: -45, y: -240 },
     { id: 'tf2', x: 0, y: -160 },
     { id: 'tf3', x: 45, y: -240 },
-    { id: 'tf4', x: 90, y: -220 },
-    { id: 'tf5', x: 110, y: -80 },
-    { id: 'tf6', x: 105, y: 140 },
-    { id: 'tf7', x: -105, y: 140 },
-    { id: 'tf8', x: -110, y: -80 },
+    { id: 'tf4', x: 85, y: -220 },
+    { id: 'tf5', x: 125, y: -80 },
+    { id: 'tf6', x: 120, y: 140 },
+    { id: 'tf7', x: -120, y: 140 },
+    { id: 'tf8', x: -125, y: -80 },
   ];
 
   const backPoints = [
-    { id: 'tb0', x: -90, y: -220 },
+    { id: 'tb0', x: -85, y: -220 },
     { id: 'tb1', x: -45, y: -240 },
     { id: 'tb2', x: 0, y: -210 },
     { id: 'tb3', x: 45, y: -240 },
-    { id: 'tb4', x: 90, y: -220 },
-    { id: 'tb5', x: 110, y: -80 },
-    { id: 'tb6', x: 105, y: 140 },
-    { id: 'tb7', x: -105, y: 140 },
-    { id: 'tb8', x: -110, y: -80 },
+    { id: 'tb4', x: 85, y: -220 },
+    { id: 'tb5', x: 125, y: -80 },
+    { id: 'tb6', x: 120, y: 140 },
+    { id: 'tb7', x: -120, y: 140 },
+    { id: 'tb8', x: -125, y: -80 },
   ];
 
   const pieces: PatternPiece[] = [
@@ -1314,6 +1394,27 @@ export function createPoloPreset(): { pieces: PatternPiece[]; seams: SeamConnect
       strength: 1.0,
       stitchType: 'overlock',
     },
+    {
+      id: 'seam-polo-sleeve-l',
+      edgeA: { pieceId: 'piece-sleeve-l', edgeIndex: 1 },
+      edgeB: { pieceId: 'piece-front', edgeIndex: 9 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+    {
+      id: 'seam-polo-sleeve-r',
+      edgeA: { pieceId: 'piece-sleeve-r', edgeIndex: 1 },
+      edgeB: { pieceId: 'piece-front', edgeIndex: 5 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+    {
+      id: 'seam-polo-collar',
+      edgeA: { pieceId: 'piece-collar', edgeIndex: 0 },
+      edgeB: { pieceId: 'piece-front', edgeIndex: 1 },
+      strength: 1.2,
+      stitchType: 'double-needle',
+    },
   ];
 
   return { pieces, seams };
@@ -1362,8 +1463,8 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
     name: 'Zip Bomber Jacket',
     category: 'Outerwear',
     icon: '🧥',
-    description: 'Structured zip-front bomber with dual front flight panels and ribbed waist hem.',
-    piecesCount: 3,
+    description: 'Structured zip-front bomber with flight panels, ribbed collar and cuffs, and long sleeves.',
+    piecesCount: 6,
     recommendedFabric: 'structured-leather',
     recommendedColor: '#0f766e',
     generator: createBomberJacketPreset,

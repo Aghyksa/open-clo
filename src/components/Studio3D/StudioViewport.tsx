@@ -255,7 +255,8 @@ export const StudioViewport: React.FC = () => {
     clothGeomRef.current = clothGeom;
 
     const clothMat = new THREE.MeshStandardMaterial({
-      color: customColor,
+      color: 0xffffff,
+      vertexColors: true,
       roughness: currentMaterial.roughness,
       metalness: currentMaterial.metalness,
       side: THREE.DoubleSide,
@@ -307,16 +308,17 @@ export const StudioViewport: React.FC = () => {
         const DROP_DURATION = 1.8; // seconds for natural cloth settling
         const elapsed = (now - dropStartTimeRef.current) / 1000;
 
-        // Run PBD physics step (use fixed substep for stability)
-        const physicsDt = Math.min(dt, 0.016); // cap at ~60fps equivalent
-        const substeps = Math.max(1, Math.round(dt / physicsDt));
+        // Run PBD physics step (4 substeps per frame for smooth cloth dynamics)
+        const physicsDt = Math.min(dt, 0.016);
+        const substeps = 4;
+        const subDt = physicsDt / substeps;
         for (let s = 0; s < substeps; s++) {
-          sim.stepPhysics(physicsDt);
+          sim.stepPhysics(subDt);
         }
 
         // Check if cloth has settled (low kinetic energy) or duration reached
         const energy = sim.getKineticEnergy();
-        const settled = elapsed > 1.2 && energy < 0.00005;
+        const settled = elapsed > 1.4 && energy < 0.0001;
         const timedOut = elapsed >= DROP_DURATION;
 
         storeState.setDropAnimationProgress(Math.min(elapsed / DROP_DURATION, 1.0));
@@ -352,6 +354,11 @@ export const StudioViewport: React.FC = () => {
             colors[i * 3] = color.r;
             colors[i * 3 + 1] = color.g;
             colors[i * 3 + 2] = color.b;
+          } else {
+            const c = p.color || new THREE.Color(customColor);
+            colors[i * 3] = c.r;
+            colors[i * 3 + 1] = c.g;
+            colors[i * 3 + 2] = c.b;
           }
         }
 
@@ -360,15 +367,14 @@ export const StudioViewport: React.FC = () => {
           new THREE.BufferAttribute(positions, 3)
         );
 
-        if (isHeatmap) {
-          clothGeomRef.current.setAttribute(
-            'color',
-            new THREE.BufferAttribute(colors, 3)
-          );
-        }
+        clothGeomRef.current.setAttribute(
+          'color',
+          new THREE.BufferAttribute(colors, 3)
+        );
 
-        if (clothGeomRef.current.index === null && sim.indices.length > 0) {
-          clothGeomRef.current.setIndex(sim.indices);
+        if (clothGeomRef.current.index === null || clothGeomRef.current.index.count !== sim.indices.length) {
+          clothGeomRef.current.setIndex(new THREE.BufferAttribute(new Uint32Array(sim.indices), 1));
+          clothGeomRef.current.setDrawRange(0, sim.indices.length);
         }
 
         clothGeomRef.current.computeVertexNormals();
@@ -423,7 +429,9 @@ export const StudioViewport: React.FC = () => {
 
     sim.buildFromPieces(pieces, seams, currentMaterial, avatarScale);
     if (clothGeomRef.current) {
-      clothGeomRef.current.setIndex(sim.indices);
+      clothGeomRef.current.setIndex(new THREE.BufferAttribute(new Uint32Array(sim.indices), 1));
+      clothGeomRef.current.setDrawRange(0, sim.indices.length);
+      clothGeomRef.current.computeVertexNormals();
     }
     // Resolve collisions with mannequin mesh if loaded
     if (gltfModelRef.current) {
@@ -436,11 +444,11 @@ export const StudioViewport: React.FC = () => {
   useEffect(() => {
     if (!clothMeshRef.current) return;
     const mat = clothMeshRef.current.material as THREE.MeshStandardMaterial;
-    mat.color.set(customColor);
+    mat.color.set(0xffffff);
     mat.wireframe = showWireframe;
     mat.roughness = currentMaterial.roughness;
     mat.metalness = currentMaterial.metalness;
-    mat.vertexColors = showHeatmap;
+    mat.vertexColors = true;
     mat.needsUpdate = true;
   }, [customColor, showWireframe, showHeatmap, currentMaterial]);
 
