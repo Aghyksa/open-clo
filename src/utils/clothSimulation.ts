@@ -694,61 +694,51 @@ export class ClothSimulator {
           const sleeveBaseIdx = this.particles.length;
 
           // ── Natural sleeve drape geometry ──
-          // Sleeves should NOT go horizontal like T-pose.
-          // Real garments on a mannequin: sleeves hang down at ~70° from horizontal,
-          // curving slightly outward then dropping nearly straight down.
-          //
-          // We model this as a catenary-like curve:
-          //   Start: shoulder joint (slightly outboard of torso)
-          //   Control: slight outward extension at ~30° below horizontal
-          //   End: hanging nearly vertical (short sleeve = bicep level, long = wrist)
+          // On a mannequin without visible arms, sleeves hang straight down
+          // from the shoulder point, close to the body sides.
+          // Short sleeves: small tube curving slightly outward then ending at bicep level
+          // Long sleeves: tube hanging down close to body, ending near waist
 
-          const shoulderX = side * 0.195 * sX;
+          const shoulderX = side * 0.198 * sX;
           const shoulderY = 1.34 * sY;
           const shoulderZ = 0.015 * sZ;
 
-          // Short sleeve hangs just past armhole, barely extended outward
-          // Long sleeve drapes all the way to wrist level
-          const sleeveEndX = side * (isLongSleeve ? 0.22 : 0.25) * sX;
-          const sleeveEndY = (isLongSleeve ? 0.72 : 1.12) * sY;
-          const sleeveEndZ = (isLongSleeve ? 0.06 : 0.02) * sZ;
-
-          // Control point: where the sleeve bows outward before gravity pulls it down
-          const ctrlX = side * (isLongSleeve ? 0.30 : 0.28) * sX;
-          const ctrlY = (isLongSleeve ? 1.10 : 1.22) * sY;
-          const ctrlZ = 0.02 * sZ;
+          // End point: sleeves hang nearly straight down, slightly away from body
+          const sleeveEndX = side * (isLongSleeve ? 0.21 : 0.23) * sX;
+          const sleeveEndY = (isLongSleeve ? 0.75 : 1.14) * sY;
+          const sleeveEndZ = (isLongSleeve ? 0.03 : 0.02) * sZ;
 
           // Radius: shoulder cap wider, tapers to cuff
-          const startR = 0.085 * sX;
-          const endR = (isLongSleeve ? 0.048 : 0.065) * sX;
+          const startR = 0.082 * sX;
+          const endR = (isLongSleeve ? 0.048 : 0.062) * sX;
 
           for (let sr = 0; sr < sleeveRows; sr++) {
             const st = sr / (sleeveRows - 1);
 
-            // Quadratic Bézier for natural sleeve drape curve
-            const oneMinT = 1 - st;
-            const cx = oneMinT * oneMinT * shoulderX + 2 * oneMinT * st * ctrlX + st * st * sleeveEndX;
-            const cy = oneMinT * oneMinT * shoulderY + 2 * oneMinT * st * ctrlY + st * st * sleeveEndY;
-            const cz = oneMinT * oneMinT * shoulderZ + 2 * oneMinT * st * ctrlZ + st * st * sleeveEndZ;
+            // Simple linear interpolation — straight tube from shoulder down
+            const cx = THREE.MathUtils.lerp(shoulderX, sleeveEndX, st);
+            const cy = THREE.MathUtils.lerp(shoulderY, sleeveEndY, st);
+            const cz = THREE.MathUtils.lerp(shoulderZ, sleeveEndZ, st);
 
-            // Tangent along curve for proper tube orientation
-            const tx = 2 * (oneMinT * (ctrlX - shoulderX) + st * (sleeveEndX - ctrlX));
-            const ty = 2 * (oneMinT * (ctrlY - shoulderY) + st * (sleeveEndY - ctrlY));
-            const tz = 2 * (oneMinT * (ctrlZ - shoulderZ) + st * (sleeveEndZ - ctrlZ));
-
+            // Sleeve axis direction (tangent)
+            const tx = sleeveEndX - shoulderX;
+            const ty = sleeveEndY - shoulderY;
+            const tz = sleeveEndZ - shoulderZ;
             const tangent = new THREE.Vector3(tx, ty, tz).normalize();
 
-            // Build perpendicular frame (Frenet frame)
-            const up = Math.abs(tangent.y) > 0.95
-              ? new THREE.Vector3(1, 0, 0)
-              : new THREE.Vector3(0, 1, 0);
-            const perp1 = new THREE.Vector3().crossVectors(tangent, up).normalize();
+            // Stable perpendicular frame — use world Z as reference to avoid flipping
+            const refUp = new THREE.Vector3(0, 0, 1);
+            const perp1 = new THREE.Vector3().crossVectors(tangent, refUp).normalize();
+            // If tangent is parallel to refUp, fallback to X
+            if (perp1.lengthSq() < 0.001) {
+              perp1.crossVectors(tangent, new THREE.Vector3(1, 0, 0)).normalize();
+            }
             const perp2 = new THREE.Vector3().crossVectors(tangent, perp1).normalize();
 
             const currR = THREE.MathUtils.lerp(startR, endR, st);
 
             // Add slight gravity sag at mid-sleeve for long sleeves
-            const sagAmount = isLongSleeve ? Math.sin(st * Math.PI) * 0.012 * sY : 0;
+            const sagAmount = isLongSleeve ? Math.sin(st * Math.PI) * 0.008 * sY : 0;
 
             for (let sc = 0; sc < sleeveCols; sc++) {
               const sAngle = (sc / sleeveCols) * Math.PI * 2;
