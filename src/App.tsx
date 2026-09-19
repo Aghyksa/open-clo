@@ -64,13 +64,13 @@ export const App: React.FC = () => {
       if (key === 'p') setActiveTool('pen');
       if (key === 'c') setActiveTool('curve');
       if (key === 's') setActiveTool('sew');
+      if (key === 'f') setActiveTool('free-sew');
+      if (key === 'b') setActiveTool('edit-sew');
       if (key === 'h') setActiveTool('move');
       if (key === 'm') setActiveTool('measure');
       if (key === 't') setActiveTool('graphic');
-      if (key === ' ') {
-        e.preventDefault();
-        setIsSimulating(!isSimulating);
-      }
+      if (key === 'x') setActiveTool('cut');
+      if (key === 'n') setActiveTool('polygon');
       // Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
       if ((e.ctrlKey || e.metaKey) && key === 'z' && !e.shiftKey) {
         e.preventDefault();

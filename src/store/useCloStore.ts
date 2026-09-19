@@ -234,6 +234,10 @@ const initial = loadProjectsFromStorage();
 const active = initial.activeProject;
 
 export const useCloStore = create<CloState>((set, get) => {
+  // Expose store for debugging / QA testing
+  if (typeof window !== 'undefined') {
+    (window as any).__CLO_STORE = { getState: get, setState: set };
+  }
   // Helper to commit changes to active project & localStorage
   const syncToActiveProject = (updatedState: Partial<CloState>) => {
     const state = get();
