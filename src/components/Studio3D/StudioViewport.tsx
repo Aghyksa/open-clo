@@ -15,6 +15,7 @@ import {
   Sparkles,
   UserCheck,
   Wind,
+  ArrowDownToLine,
 } from 'lucide-react';
 
 export const StudioViewport: React.FC = () => {
@@ -33,6 +34,7 @@ export const StudioViewport: React.FC = () => {
     showAvatar,
     cameraPreset,
     avatar,
+    isDropAnimating,
     setIsSimulating,
     setSimulationDynamics,
     resetSimulation,
@@ -40,6 +42,7 @@ export const StudioViewport: React.FC = () => {
     toggleHeatmap,
     toggleAvatar,
     setCameraPreset,
+    startDropAnimation,
   } = useCloStore();
 
   const [avatarMode, setAvatarMode] = useState<'mannequin' | 'realistic'>('mannequin');
@@ -58,6 +61,9 @@ export const StudioViewport: React.FC = () => {
   const dragPlaneRef = useRef<THREE.Plane>(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0));
   const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
+
+  // Drop animation timing
+  const dropStartTimeRef = useRef<number>(0);
 
   // Initialize Three.js Scene
   useEffect(() => {
@@ -221,7 +227,7 @@ export const StudioViewport: React.FC = () => {
         // Build cloth tailored to the scaled mannequin and resolve collisions
         const currentScale = { scaleX: avgWidthScale, scaleY: heightScale, scaleZ: avgWidthScale };
         simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial, currentScale);
-        simulatorRef.current.resolveCollisionsWithMesh(model, 0.015);
+        simulatorRef.current.resolveCollisionsWithMesh(model, 0.025);
         if (clothGeomRef.current) {
           clothGeomRef.current.setIndex(simulatorRef.current.indices);
         }
@@ -282,7 +288,21 @@ export const StudioViewport: React.FC = () => {
       controls.update();
 
       const sim = simulatorRef.current;
-      if (useCloStore.getState().isSimulating) {
+      const storeState = useCloStore.getState();
+
+      if (storeState.isDropAnimating) {
+        // Drop animation mode
+        const DROP_DURATION = 1.5; // seconds
+        const elapsed = (now - dropStartTimeRef.current) / 1000;
+        const progress = Math.min(elapsed / DROP_DURATION, 1.0);
+
+        sim.stepDropAnimation(progress);
+        storeState.setDropAnimationProgress(progress);
+
+        if (progress >= 1.0) {
+          storeState.stopDropAnimation();
+        }
+      } else if (storeState.isSimulating) {
         sim.step(dt);
       }
 
@@ -292,7 +312,7 @@ export const StudioViewport: React.FC = () => {
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
 
-        const isHeatmap = useCloStore.getState().showHeatmap;
+        const isHeatmap = storeState.showHeatmap;
 
         for (let i = 0; i < particleCount; i++) {
           const p = sim.particles[i];
@@ -377,7 +397,7 @@ export const StudioViewport: React.FC = () => {
     // Resolve collisions with mannequin mesh if loaded
     if (gltfModelRef.current) {
       gltfModelRef.current.updateMatrixWorld(true);
-      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.015);
+      simulatorRef.current.resolveCollisionsWithMesh(gltfModelRef.current, 0.025);
     }
   }, [pieces, seams, currentMaterial, simulationIteration]);
 
@@ -431,7 +451,7 @@ export const StudioViewport: React.FC = () => {
       clothGeomRef.current.setIndex(simulatorRef.current.indices);
     }
     // Resolve collisions with scaled mannequin mesh
-    simulatorRef.current.resolveCollisionsWithMesh(model, 0.015);
+    simulatorRef.current.resolveCollisionsWithMesh(model, 0.025);
   }, [avatar.height, avatar.chestCircumference, avatar.waistCircumference, avatar.hipsCircumference]);
 
   // Toggle Avatar Material Style (CLO3D Porcelain vs Realistic Skin)
@@ -451,6 +471,15 @@ export const StudioViewport: React.FC = () => {
         }
       });
     }
+  };
+
+  // Handle Drop Animation
+  const handleDropAnimation = () => {
+    if (isDropAnimating) return; // Don't restart if already animating
+    const sim = simulatorRef.current;
+    sim.initDropAnimation();
+    dropStartTimeRef.current = performance.now();
+    startDropAnimation();
   };
 
   // Camera Presets
@@ -663,6 +692,20 @@ export const StudioViewport: React.FC = () => {
           title="Reset Drape & Position"
         >
           <RotateCcw className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          onClick={handleDropAnimation}
+          disabled={isDropAnimating}
+          className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+            isDropAnimating
+              ? 'bg-purple-600 text-white cursor-not-allowed opacity-80'
+              : 'bg-slate-700/80 hover:bg-purple-600/80 text-slate-200 hover:text-white'
+          }`}
+          title="Drop garment onto mannequin"
+        >
+          <ArrowDownToLine className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">{isDropAnimating ? 'Dropping…' : 'Drop'}</span>
         </button>
 
         <div className="w-[1px] h-4 bg-slate-700" />

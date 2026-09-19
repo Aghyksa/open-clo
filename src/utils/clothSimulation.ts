@@ -105,7 +105,7 @@ const TSHIRT_HEM_Y = 0.72;    // Hips / upper pelvis
 const DRESS_HEM_Y = 0.38;     // Knees
 
 const TUBE_COLS = 36;          // Columns around circumference
-const GARMENT_EASE = 1.08;     // 8% ease + explicit radial clearance prevents clipping
+const GARMENT_EASE = 1.15;     // 15% ease — natural loose fit prevents clipping
 
 // No extra radial offsets needed — mesh collision resolution handles all body regions
 
@@ -166,12 +166,17 @@ export class ClothSimulator {
   private _swayPhases: Float32Array = new Float32Array(0);
   private _hemWeights: Float32Array = new Float32Array(0);
 
+  // Drop animation state
+  private _dropRestPositions: THREE.Vector3[] = [];
+  private _dropStartPositions: THREE.Vector3[] = [];
+  private _dropParticleDelays: Float32Array = new Float32Array(0);
+
   /**
    * Resolve cloth-body penetrations by sampling mannequin vertex positions directly.
    * Builds a radial distance map from mannequin vertices (no raycasting needed),
    * then pushes any cloth vertex that's too close to the body outward.
    */
-  resolveCollisionsWithMesh(mannequinGroup: THREE.Group, skinOffset: number = 0.015) {
+  resolveCollisionsWithMesh(mannequinGroup: THREE.Group, skinOffset: number = 0.025) {
     // Collect all vertex world positions from the mannequin model
     const worldPos = new THREE.Vector3();
     const heightBands = 55;
@@ -481,29 +486,29 @@ export class ClothSimulator {
 
     // ── Fold frequencies (matching real cotton jersey behavior) ──
     // High-freq micro wrinkles — tiny surface texture
-    const microWrinkle = fbmNoise(col * 0.8, row * 0.6, 3) * 0.0015;
+    const microWrinkle = fbmNoise(col * 0.8, row * 0.6, 3) * 0.003;
 
     // Medium vertical compression folds at waist (8-10 folds around)
     const waistFold = Math.sin(angle * 8.0 + fbmNoise(row * 0.3, 0, 2) * 2.0)
-      * 0.0025 * waistFactor;
+      * 0.005 * waistFactor;
 
     // Bust tension radiating folds — horizontal lines under bust
-    const bustFold = Math.sin(angle * 4.0 + 0.3) * 0.002 * bustFactor
+    const bustFold = Math.sin(angle * 4.0 + 0.3) * 0.004 * bustFactor
       * (1.0 - sideTension); // reduced at sides
 
     // Broad drape folds — 3-4 major vertical fold lines
     const drapeFold = Math.sin(angle * 3.0 + 0.7)
-      * 0.002 * (0.2 + normalizedY * 0.5);
+      * 0.004 * (0.2 + normalizedY * 0.5);
 
     // Hem gathering — gentle outward flare
-    const hemGather = Math.sin(angle * 5.0 + 1.3) * 0.003 * hemProximity;
+    const hemGather = Math.sin(angle * 5.0 + 1.3) * 0.006 * hemProximity;
 
     // Side seam pull — slight inward at side seams
-    const seamPull = -0.001 * sideTension * (0.3 + normalizedY * 0.4);
+    const seamPull = -0.002 * sideTension * (0.3 + normalizedY * 0.4);
 
     // Vertical displacement (fabric bunching)
     const verticalBunch = fbmNoise(col * 0.4 + 3.7, row * 0.3 + 1.2, 2)
-      * 0.0015 * (waistFactor * 0.4 + hemProximity * 0.2);
+      * 0.003 * (waistFactor * 0.4 + hemProximity * 0.2);
 
     const radial = microWrinkle + waistFold + bustFold + drapeFold + hemGather + seamPull;
     const vertical = verticalBunch;
@@ -585,7 +590,7 @@ export class ClothSimulator {
       const zCenter = cross.zCenter * sZ;
 
       // Slight flare at hem for dress, minimal for T-shirt
-      const hemFlare = isDress ? Math.max(0, t - 0.6) * 0.06 * sX : Math.max(0, t - 0.85) * 0.01 * sX;
+      const hemFlare = isDress ? Math.max(0, t - 0.6) * 0.06 * sX : Math.max(0, t - 0.65) * 0.04 * sX;
 
       for (let c = 0; c < cols; c++) {
         // Angle: 0 = front center (-Z), goes CW when viewed from top
@@ -709,8 +714,8 @@ export class ClothSimulator {
           const sleeveEndZ = (isLongSleeve ? 0.03 : 0.02) * sZ;
 
           // Radius: shoulder cap wider, tapers to cuff
-          const startR = 0.082 * sX;
-          const endR = (isLongSleeve ? 0.048 : 0.062) * sX;
+          const startR = 0.095 * sX;
+          const endR = (isLongSleeve ? 0.058 : 0.072) * sX;
 
           for (let sr = 0; sr < sleeveRows; sr++) {
             const st = sr / (sleeveRows - 1);
@@ -1014,6 +1019,115 @@ export class ClothSimulator {
       const base = this.stressMap[i];
       const flicker = Math.sin(t * 1.5 + i * 0.23) * (0.008 + 0.015 * dynamics);
       this.stressMap[i] = Math.max(0, Math.min(1, base + flicker));
+    }
+  }
+
+  /**
+   * Initialize the drop animation: store rest positions and compute elevated start positions.
+   * Each particle is moved upward by ~0.4 units, with sleeves/outer particles delayed.
+   */
+  initDropAnimation() {
+    const n = this.particles.length;
+    this._dropRestPositions = [];
+    this._dropStartPositions = [];
+    this._dropParticleDelays = new Float32Array(n);
+
+    // Find vertical bounds for cascade calculation
+    let minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const y = this.particles[i].pos.y;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+
+    for (let i = 0; i < n; i++) {
+      const p = this.particles[i];
+
+      // Store the final resting position (current position)
+      this._dropRestPositions.push(p.pos.clone());
+
+      // Compute elevated start position
+      const liftHeight = 0.4;
+      // Spread out slightly (scale outward from center)
+      const spreadFactor = 1.08;
+      const startPos = new THREE.Vector3(
+        p.pos.x * spreadFactor,
+        p.pos.y + liftHeight,
+        p.pos.z * spreadFactor
+      );
+      this._dropStartPositions.push(startPos);
+
+      // Cascade delay: sleeves and outer particles fall slightly later
+      // Particles farther from center-X have more delay (sleeve effect)
+      const distFromCenter = Math.abs(p.pos.x);
+      const verticalFactor = (p.pos.y - minY) / (maxY - minY + 0.001); // 0=bottom, 1=top
+      // Sleeves delay: 0-0.15, top parts fall first
+      this._dropParticleDelays[i] = distFromCenter * 0.3 + (1 - verticalFactor) * 0.05;
+
+      // Move particle to start position immediately
+      p.pos.copy(startPos);
+      p.prevPos.copy(startPos);
+    }
+  }
+
+  /**
+   * Advance drop animation by one frame.
+   * @param progress Global animation progress 0-1
+   */
+  stepDropAnimation(progress: number) {
+    const n = this.particles.length;
+    if (this._dropRestPositions.length !== n) return;
+
+    for (let i = 0; i < n; i++) {
+      const p = this.particles[i];
+      const rest = this._dropRestPositions[i];
+      const start = this._dropStartPositions[i];
+      const delay = this._dropParticleDelays[i];
+
+      // Compute local progress accounting for per-particle delay
+      // Remap: if progress < delay, particle hasn't started; if progress >= delay, remap to 0-1
+      const maxDelay = 0.15;
+      const normalizedDelay = delay / (maxDelay + 0.001) * 0.15; // max 0.15 delay
+      let localProgress = (progress - normalizedDelay) / (1 - normalizedDelay);
+      localProgress = Math.max(0, Math.min(1, localProgress));
+
+      // Phase-based easing for realistic cloth drop
+      let easedProgress: number;
+      if (localProgress < 0.1) {
+        // Phase 1: Appear above, slightly spread — ease in
+        easedProgress = localProgress / 0.1 * 0.05; // barely moving
+      } else if (localProgress < 0.7) {
+        // Phase 2: Gravity acceleration (ease-in quadratic)
+        const t2 = (localProgress - 0.1) / 0.6;
+        easedProgress = 0.05 + t2 * t2 * 0.7; // accelerating fall
+      } else if (localProgress < 0.9) {
+        // Phase 3: Hit body, settle — ease-out with overshoot
+        const t3 = (localProgress - 0.7) / 0.2;
+        const overshoot = 1.02 + Math.sin(t3 * Math.PI) * 0.025; // slight bounce past target
+        easedProgress = 0.75 + t3 * 0.25 * overshoot;
+      } else {
+        // Phase 4: Final micro-adjustments — smooth settle with elastic
+        const t4 = (localProgress - 0.9) / 0.1;
+        const elastic = 1.0 - Math.cos(t4 * Math.PI * 1.5) * 0.008 * (1 - t4);
+        easedProgress = Math.min(1.0, 0.98 + t4 * 0.02) * elastic;
+      }
+
+      easedProgress = Math.max(0, Math.min(1, easedProgress));
+
+      // Lerp from start to rest
+      p.pos.x = start.x + (rest.x - start.x) * easedProgress;
+      p.pos.y = start.y + (rest.y - start.y) * easedProgress;
+      p.pos.z = start.z + (rest.z - start.z) * easedProgress;
+
+      // Add a slight horizontal wobble during fall for cloth-like feel
+      if (localProgress > 0.1 && localProgress < 0.85) {
+        const wobbleIntensity = Math.sin(localProgress * Math.PI) * 0.006;
+        const wobbleFreq = localProgress * 12 + i * 0.7;
+        p.pos.x += Math.sin(wobbleFreq) * wobbleIntensity;
+        p.pos.z += Math.cos(wobbleFreq * 0.8) * wobbleIntensity * 0.7;
+      }
+
+      p.prevPos.copy(p.pos);
     }
   }
 }

@@ -151,6 +151,10 @@ interface CloState {
   layout: ViewportLayout;
   cameraPreset: 'front' | 'back' | 'side' | 'perspective';
 
+  // Drop Animation
+  isDropAnimating: boolean;
+  dropAnimationProgress: number; // 0-1
+
   // History (Undo / Redo)
   undoStack: HistoryStep[];
   redoStack: HistoryStep[];
@@ -223,6 +227,11 @@ interface CloState {
   setCameraPreset: (preset: 'front' | 'back' | 'side' | 'perspective') => void;
   resetSimulation: () => void;
   loadPreset: (id: string) => void;
+
+  // Drop Animation Actions
+  startDropAnimation: () => void;
+  setDropAnimationProgress: (progress: number) => void;
+  stopDropAnimation: () => void;
 
   // History Actions
   undo: () => void;
@@ -319,6 +328,10 @@ export const useCloStore = create<CloState>((set, get) => {
     showAvatar: true,
     layout: 'dual',
     cameraPreset: 'perspective',
+
+    // Drop Animation
+    isDropAnimating: false,
+    dropAnimationProgress: 0,
 
     undoStack: [],
     redoStack: [],
@@ -1406,6 +1419,11 @@ export const useCloStore = create<CloState>((set, get) => {
     setCameraPreset: (preset) => set({ cameraPreset: preset }),
 
     resetSimulation: () => set((state) => ({ simulationIteration: state.simulationIteration + 1 })),
+
+    // Drop Animation Actions
+    startDropAnimation: () => set({ isDropAnimating: true, dropAnimationProgress: 0 }),
+    setDropAnimationProgress: (progress) => set({ dropAnimationProgress: progress }),
+    stopDropAnimation: () => set({ isDropAnimating: false, dropAnimationProgress: 0 }),
 
     loadPreset: (id: string) => {
       const template = GARMENT_TEMPLATES.find((t) => t.id === id);
