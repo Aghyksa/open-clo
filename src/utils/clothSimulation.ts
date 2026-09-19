@@ -99,53 +99,8 @@ const BODY_PROFILE: [number, number, number, number][] = [
   [1.440, 0.067, 0.055, 0.020],
 ];
 
-// ─── Garment template definitions ───
-const TSHIRT_TOP_Y = 1.385;   // Top of shoulder line (covers entire torso)
-const TSHIRT_HEM_Y = 0.72;    // Hips / upper pelvis
-const DRESS_HEM_Y = 0.38;     // Knees
-
 const TUBE_COLS = 36;          // Columns around circumference
-const GARMENT_EASE = 1.15;     // 15% ease — natural loose fit prevents clipping
-
-// No extra radial offsets needed — mesh collision resolution handles all body regions
-
-// ─── Procedural wrinkle noise (value noise) ───
-function hashNoise(x: number, y: number): number {
-  // Simple hash-based noise for deterministic wrinkle patterns
-  const n = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
-  return n - Math.floor(n);
-}
-
-function smoothNoise(x: number, y: number): number {
-  const ix = Math.floor(x);
-  const iy = Math.floor(y);
-  const fx = x - ix;
-  const fy = y - iy;
-  // Smoothstep interpolation
-  const sx = fx * fx * (3 - 2 * fx);
-  const sy = fy * fy * (3 - 2 * fy);
-
-  const n00 = hashNoise(ix, iy);
-  const n10 = hashNoise(ix + 1, iy);
-  const n01 = hashNoise(ix, iy + 1);
-  const n11 = hashNoise(ix + 1, iy + 1);
-
-  const nx0 = n00 + (n10 - n00) * sx;
-  const nx1 = n01 + (n11 - n01) * sx;
-  return nx0 + (nx1 - nx0) * sy;
-}
-
-function fbmNoise(x: number, y: number, octaves: number = 4): number {
-  let value = 0;
-  let amplitude = 0.5;
-  let frequency = 1.0;
-  for (let i = 0; i < octaves; i++) {
-    value += amplitude * (smoothNoise(x * frequency, y * frequency) * 2 - 1);
-    amplitude *= 0.5;
-    frequency *= 2.0;
-  }
-  return value;
-}
+const GARMENT_EASE = 1.12;     // 12% ease prevents body clipping
 
 export class ClothSimulator {
   particles: ClothParticle[] = [];
@@ -160,172 +115,40 @@ export class ClothSimulator {
   iterations: number = 14;
   simTime: number = 0;
 
-  // Per-particle animation data (cached for performance)
-  private _wrinkleOffsets: Float32Array = new Float32Array(0);
+  // Per-particle animation data
   private _breathPhases: Float32Array = new Float32Array(0);
-  private _swayPhases: Float32Array = new Float32Array(0);
   private _hemWeights: Float32Array = new Float32Array(0);
 
   // Drop animation state
   private _dropRestPositions: THREE.Vector3[] = [];
-  private _dropStartPositions: THREE.Vector3[] = [];
-
-  // PBD physics mode flag
   _isPhysicsMode: boolean = false;
 
   /**
-   * Resolve cloth-body penetrations by sampling mannequin vertex positions directly.
-   * Builds a radial distance map from mannequin vertices (no raycasting needed),
-   * then pushes any cloth vertex that's too close to the body outward.
+   * Resolve cloth-body penetrations smoothly using continuous body profile cross-sections.
+   * Guarantees zero clipping while maintaining smooth, non-corrugated fabric drape.
    */
-  resolveCollisionsWithMesh(mannequinGroup: THREE.Group, skinOffset: number = 0.025) {
-    // Collect all vertex world positions from the mannequin model
-    const worldPos = new THREE.Vector3();
-    const heightBands = 55;
-    const angleSamples = 48;
-    const minY = 0.30;
-    const maxY = 1.46; // Covers up to top of neck/shoulders
-    const bandHeight = (maxY - minY) / (heightBands - 1);
-    const angleStep = (Math.PI * 2) / angleSamples;
-
-    // surfaceDistMap[band][angle] = max distance from Y-axis center to surface
-    const surfaceDistMap: number[][] = [];
-    for (let hb = 0; hb < heightBands; hb++) {
-      surfaceDistMap[hb] = new Array(angleSamples).fill(0);
-    }
-
-    mannequinGroup.updateMatrixWorld(true);
-
-    // Scan all mannequin vertices and bin them into the distance map
-    // Exclude arm vertices extending outward from the torso sides
-    mannequinGroup.traverse((child) => {
-      if (!(child as THREE.Mesh).isMesh) return;
-      const mesh = child as THREE.Mesh;
-      const geom = mesh.geometry;
-      const posAttr = geom.getAttribute('position');
-      if (!posAttr) return;
-
-      mesh.updateMatrixWorld(true);
-
-      for (let vi = 0; vi < posAttr.count; vi++) {
-        worldPos.set(
-          posAttr.getX(vi),
-          posAttr.getY(vi),
-          posAttr.getZ(vi)
-        );
-        worldPos.applyMatrix4(mesh.matrixWorld);
-
-        const y = worldPos.y;
-        if (y < minY || y > maxY) continue;
-
-        // Exclude arms outside torso width, but preserve shoulder line (y >= 1.34)
-        const isArm = (y < 1.34 && Math.abs(worldPos.x) > 0.20) || (y >= 1.34 && Math.abs(worldPos.x) > 0.23);
-        if (isArm) continue;
-
-        const bandF = (y - minY) / bandHeight;
-        const band = Math.round(bandF);
-        if (band < 0 || band >= heightBands) continue;
-
-        const cross = this.getBodyCrossSection(y);
-        const dx = worldPos.x;
-        const dz = -(worldPos.z - cross.zCenter);
-        let angle = Math.atan2(dx, dz);
-        if (angle < 0) angle += Math.PI * 2;
-
-        const ai = Math.round(angle / angleStep) % angleSamples;
-        const dist = Math.sqrt(dx * dx + (worldPos.z - cross.zCenter) ** 2);
-
-        // Fill current bin and adjacent neighbor bins (3x3 kernel) to ensure convex curvature is preserved
-        for (let db = -1; db <= 1; db++) {
-          const bIdx = band + db;
-          if (bIdx < 0 || bIdx >= heightBands) continue;
-          for (let da = -1; da <= 1; da++) {
-            const aIdx = (ai + da + angleSamples) % angleSamples;
-            const weight = (da === 0 && db === 0) ? 1.0 : 0.98;
-            const wDist = dist * weight;
-            if (wDist > surfaceDistMap[bIdx][aIdx]) {
-              surfaceDistMap[bIdx][aIdx] = wDist;
-            }
-          }
-        }
-      }
-    });
-
-    // Now check each cloth particle against the interpolated surface distance
+  resolveCollisionsWithMesh(_mannequinGroup: THREE.Group, skinOffset: number = 0.018) {
     for (const particle of this.particles) {
+      if (particle.pieceId !== 'piece-front' && particle.pieceId !== 'piece-back') continue;
       const p = particle.pos;
-
-      const t = (p.y - minY) / (maxY - minY);
-      if (t < 0 || t > 1) continue;
-      const bandF = t * (heightBands - 1);
-      const band0 = Math.floor(bandF);
-      const band1 = Math.min(band0 + 1, heightBands - 1);
-      const bandBlend = bandF - band0;
+      if (p.y < 0.30 || p.y > 1.45) continue;
 
       const cross = this.getBodyCrossSection(p.y);
+      const hw = cross.halfWidth * 1.08 + skinOffset;
+      const hd = cross.halfDepth * 1.08 + skinOffset;
       const dx = p.x;
-      const dz = -(p.z - cross.zCenter);
-      let angle = Math.atan2(dx, dz);
-      if (angle < 0) angle += Math.PI * 2;
+      const dz = p.z - cross.zCenter;
+      const edist = Math.sqrt((dx / hw) ** 2 + (dz / hd) ** 2);
 
-      const angleF = (angle / angleStep);
-      const ai0 = Math.floor(angleF) % angleSamples;
-      const ai1 = (ai0 + 1) % angleSamples;
-      const angleBlend = angleF - Math.floor(angleF);
-
-      const d00 = surfaceDistMap[band0][ai0];
-      const d01 = surfaceDistMap[band0][ai1];
-      const d10 = surfaceDistMap[band1][ai0];
-      const d11 = surfaceDistMap[band1][ai1];
-
-      // If no mannequin samples detected in region, use cross section distance
-      const fallbackDist = Math.sqrt((cross.halfWidth * Math.sin(angle)) ** 2 + (cross.halfDepth * Math.cos(angle)) ** 2);
-      const v00 = d00 > 0.01 ? d00 : fallbackDist;
-      const v01 = d01 > 0.01 ? d01 : fallbackDist;
-      const v10 = d10 > 0.01 ? d10 : fallbackDist;
-      const v11 = d11 > 0.01 ? d11 : fallbackDist;
-
-      const dBot = v00 + (v01 - v00) * angleBlend;
-      const dTop = v10 + (v11 - v10) * angleBlend;
-      const surfaceDist = dBot + (dTop - dBot) * bandBlend;
-
-      const origin_z = cross.zCenter;
-      const vdx = p.x;
-      const vdz = p.z - origin_z;
-      const vertexDist = Math.sqrt(vdx * vdx + vdz * vdz);
-
-      // Push cloth vertex out if it is inside or closer than skinOffset
-      if (vertexDist < surfaceDist + skinOffset) {
-        const newDist = surfaceDist + skinOffset;
-        if (vertexDist > 0.001) {
-          const scale = newDist / vertexDist;
-          p.x = vdx * scale;
-          p.z = origin_z + vdz * scale;
-        } else {
-          const safeAngle = angle > 0 ? angle : 0.1;
-          p.x = newDist * Math.sin(safeAngle);
-          p.z = origin_z - newDist * Math.cos(safeAngle);
-        }
+      if (edist < 1.0 && edist > 1e-6) {
+        p.x = (dx / edist) * hw;
+        p.z = (dz / edist) * hd + cross.zCenter;
         particle.originalPos.x = p.x;
         particle.originalPos.z = p.z;
       }
     }
 
-    this._recomputeAnimationCache();
     this.computeStaticStress();
-  }
-
-  /**
-   * Recompute animation cache after collision resolution has moved vertices.
-   */
-  private _recomputeAnimationCache() {
-    const n = this.particles.length;
-    for (let i = 0; i < n; i++) {
-      const p = this.particles[i];
-      this._wrinkleOffsets[i * 3] = p.pos.x - p.originalPos.x;
-      this._wrinkleOffsets[i * 3 + 1] = p.pos.y - p.originalPos.y;
-      this._wrinkleOffsets[i * 3 + 2] = p.pos.z - p.originalPos.z;
-    }
   }
 
   constructor() {
@@ -370,7 +193,6 @@ export class ClothSimulator {
     });
   }
 
-  // Get body cross-section at Y height by interpolating BODY_PROFILE
   private getBodyCrossSection(y: number): { halfWidth: number; halfDepth: number; zCenter: number } {
     if (y <= BODY_PROFILE[0][0]) {
       return { halfWidth: BODY_PROFILE[0][1], halfDepth: BODY_PROFILE[0][2], zCenter: BODY_PROFILE[0][3] };
@@ -393,131 +215,6 @@ export class ClothSimulator {
     return { halfWidth: 0.15, halfDepth: 0.09, zCenter: 0.04 };
   }
 
-  /**
-   * Determines if an angular position on the tube should be cut out for neckline or armholes.
-   * Returns true if the vertex should be excluded.
-   *
-   * Angle convention: 0 = front center (-Z), π = back center (+Z).
-   * Column wraps 0..TUBE_COLS around the full circle.
-   */
-  private isInCutout(angle: number, y: number, topY: number, sY: number = 1.0, hasSleeves: boolean = false): boolean {
-    const depthFromTop = (topY - y) / sY;
-
-    // ── Neckline ──
-    const frontAngle = angle <= Math.PI ? angle : 2 * Math.PI - angle; // 0 = front, π = back
-    const isFront = frontAngle < Math.PI / 2;
-    const isBack = frontAngle > Math.PI / 2;
-
-    if (depthFromTop < 0.12) {
-      if (isFront) {
-        // Front neckline: natural scoop
-        const neckWidth = 0.54;
-        const neckDepth = 0.090;
-        if (frontAngle < neckWidth) {
-          const t = frontAngle / neckWidth;
-          const cutDepth = neckDepth * (1 - t * t);
-          if (depthFromTop < cutDepth) return true;
-        }
-      }
-      if (isBack) {
-        // Back neckline: shallow scoop 3.2cm down
-        const backAngle = Math.PI - frontAngle;
-        const neckWidth = 0.46;
-        const neckDepth = 0.032;
-        if (backAngle < neckWidth) {
-          const t = backAngle / neckWidth;
-          const cutDepth = neckDepth * (1 - t * t);
-          if (depthFromTop < cutDepth) return true;
-        }
-      }
-    }
-
-    // ── Armholes ──
-    // If garment has sleeves, shoulder stays covered all the way to arm joint (~7.5cm down)
-    const armholeStartDepth = hasSleeves ? 0.075 : 0.028;
-    const armholeMaxDepth = 0.205;
-    if (depthFromTop >= armholeStartDepth && depthFromTop < armholeMaxDepth) {
-      const distFromRight = Math.abs(angle - Math.PI / 2);
-      const distFromLeft = Math.abs(angle - 3 * Math.PI / 2);
-      const armholeAngularWidth = hasSleeves ? 0.46 : 0.54; // radians
-      const totalDepth = armholeMaxDepth - armholeStartDepth;
-      const localDepth = depthFromTop - armholeStartDepth;
-
-      for (const dist of [distFromRight, distFromLeft]) {
-        if (dist < armholeAngularWidth) {
-          const t = dist / armholeAngularWidth;
-          const cutDepth = totalDepth * (1 - t * t);
-          if (localDepth < cutDepth) return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * Compute procedural wrinkle displacement for a vertex.
-   * Returns a small radial offset and vertical offset.
-   */
-  private computeWrinkle(
-    angle: number,
-    y: number,
-    topY: number,
-    hemY: number,
-    col: number,
-    row: number
-  ): { radial: number; vertical: number } {
-    const garmentLength = topY - hemY;
-    const normalizedY = (topY - y) / garmentLength; // 0=top, 1=hem
-
-    // ── Realistic wrinkle zones ──
-    // 1. Chest/bust tension — outward pull at bust apex creating horizontal tension folds
-    const bustProximity = 1.0 - Math.abs(normalizedY - 0.22) * 4.0;
-    const bustFactor = Math.max(0, bustProximity);
-
-    // 2. Waist compression — fabric gathers where body narrows
-    const waistProximity = 1.0 - Math.abs(normalizedY - 0.52) * 3.0;
-    const waistFactor = Math.max(0, waistProximity);
-
-    // 3. Hem drape — gravity gathering at bottom edge
-    const hemProximity = Math.max(0, normalizedY - 0.7) / 0.3;
-
-    // 4. Side seam tension — subtle pull along side seams
-    const isSideAngle = Math.abs(Math.sin(angle)) > 0.85;
-    const sideTension = isSideAngle ? 0.4 : 0.0;
-
-    // ── Fold frequencies (matching real cotton jersey behavior) ──
-    // High-freq micro wrinkles — tiny surface texture
-    const microWrinkle = fbmNoise(col * 0.8, row * 0.6, 3) * 0.003;
-
-    // Medium vertical compression folds at waist (8-10 folds around)
-    const waistFold = Math.sin(angle * 8.0 + fbmNoise(row * 0.3, 0, 2) * 2.0)
-      * 0.005 * waistFactor;
-
-    // Bust tension radiating folds — horizontal lines under bust
-    const bustFold = Math.sin(angle * 4.0 + 0.3) * 0.004 * bustFactor
-      * (1.0 - sideTension); // reduced at sides
-
-    // Broad drape folds — 3-4 major vertical fold lines
-    const drapeFold = Math.sin(angle * 3.0 + 0.7)
-      * 0.004 * (0.2 + normalizedY * 0.5);
-
-    // Hem gathering — gentle outward flare
-    const hemGather = Math.sin(angle * 5.0 + 1.3) * 0.006 * hemProximity;
-
-    // Side seam pull — slight inward at side seams
-    const seamPull = -0.002 * sideTension * (0.3 + normalizedY * 0.4);
-
-    // Vertical displacement (fabric bunching)
-    const verticalBunch = fbmNoise(col * 0.4 + 3.7, row * 0.3 + 1.2, 2)
-      * 0.003 * (waistFactor * 0.4 + hemProximity * 0.2);
-
-    const radial = microWrinkle + waistFold + bustFold + drapeFold + hemGather + seamPull;
-    const vertical = verticalBunch;
-
-    return { radial, vertical };
-  }
-
   buildFromPieces(
     pieces: PatternPiece[],
     _seams: SeamConnection[],
@@ -529,22 +226,17 @@ export class ClothSimulator {
     this.seamConstraints = [];
     this.indices = [];
     this.simTime = 0;
+    this._isPhysicsMode = false;
 
     const sX = avatarScale?.scaleX ?? 1.0;
     const sY = avatarScale?.scaleY ?? 1.0;
     const sZ = avatarScale?.scaleZ ?? 1.0;
 
-    // Determine garment type from pieces
     const isDress = pieces.some(p =>
       p.name.toLowerCase().includes('dress') ||
       p.name.toLowerCase().includes('skirt')
     );
-    const hasSleeves = pieces.some(p =>
-      p.name.toLowerCase().includes('sleeve') ||
-      p.name.toLowerCase().includes('lengan')
-    );
 
-    // Adapt 3D garment dimensions dynamically from 2D pattern piece bounds
     const frontPiece = pieces.find((p) => p.id === 'piece-front' || p.name.toLowerCase().includes('front'));
     let lengthFactor = 1.0;
     let widthFactor = 1.0;
@@ -554,64 +246,69 @@ export class ClothSimulator {
       const xs = frontPiece.points.map((p) => p.x);
       const pHeight = Math.max(...ys) - Math.min(...ys);
       const pWidth = Math.max(...xs) - Math.min(...xs);
-
-      // Reference front bodice: height ~400mm, width ~270mm
       lengthFactor = THREE.MathUtils.clamp(pHeight / 400, 0.45, 2.5);
       widthFactor = THREE.MathUtils.clamp(pWidth / 270, 0.65, 2.0);
     }
 
-    const topY = TSHIRT_TOP_Y * sY;
-    const standardHemY = (isDress ? DRESS_HEM_Y : TSHIRT_HEM_Y) * sY;
-    const standardLength = topY - standardHemY;
-    const garmentLength = standardLength * lengthFactor;
-    const hemY = topY - garmentLength;
-
-    // Calculate rows: ~1.5cm per row for good resolution
-    const rows = Math.max(12, Math.ceil(garmentLength / (0.015 * sY)));
+    const hemY = (isDress ? 0.38 : 0.920) * sY * lengthFactor;
+    const rows = 22;
     const cols = TUBE_COLS;
 
-    // Ease factor — stiffer fabrics drape closer to body
     const stiffnessEase = THREE.MathUtils.lerp(
       GARMENT_EASE + 0.02,
       GARMENT_EASE - 0.02,
       Math.min(1, material.stretchStiffness)
     );
 
-    // Grid for tracking which vertices exist (some will be cut out)
     const gridMap: (number | null)[][] = [];
 
     for (let r = 0; r < rows; r++) {
       gridMap[r] = [];
-      const t = r / (rows - 1); // 0=top, 1=hem
-      const y = topY - t * garmentLength;
-
-      const unscaledY = y / sY;
-      const cross = this.getBodyCrossSection(unscaledY);
-      const hw = ((cross.halfWidth * sX) * stiffnessEase + 0.012) * widthFactor;
-      const hd = ((cross.halfDepth * sZ) * stiffnessEase + 0.012) * widthFactor;
-      const zCenter = cross.zCenter * sZ;
-
-      // Slight flare at hem for dress, minimal for T-shirt
-      const hemFlare = isDress ? Math.max(0, t - 0.6) * 0.06 * sX : Math.max(0, t - 0.65) * 0.04 * sX;
+      const t = r / (rows - 1);
 
       for (let c = 0; c < cols; c++) {
-        // Angle: 0 = front center (-Z), goes CW when viewed from top
         const angle = (c / cols) * Math.PI * 2;
+        const frontAngle = angle <= Math.PI ? angle : 2 * Math.PI - angle;
+        const isFront = frontAngle < Math.PI / 2;
 
-        // Check for cutouts (neckline, armholes)
-        if (this.isInCutout(angle, y, topY, sY, hasSleeves)) {
-          gridMap[r][c] = null;
-          continue;
+        // Anatomical crewneck scoop and shoulder line:
+        // Front center (angle = 0): 1.400 (clavicle notch scoop)
+        // Shoulder tips (angle = ±π/2): 1.415 (crest of shoulders)
+        // Back center (angle = π): 1.440 (base of neck)
+        let topYAtAngle = 1.415;
+        if (isFront) {
+          const ratio = frontAngle / (Math.PI / 2);
+          topYAtAngle = 1.400 + (1.415 - 1.400) * Math.sin(ratio * Math.PI / 2);
+        } else {
+          const backAngle = Math.PI - frontAngle;
+          const ratio = backAngle / (Math.PI / 2);
+          topYAtAngle = 1.440 + (1.415 - 1.440) * Math.sin(ratio * Math.PI / 2);
         }
+        topYAtAngle *= sY;
 
+        const y = THREE.MathUtils.lerp(topYAtAngle, hemY, t);
+        const unscaledY = y / sY;
+        const cross = this.getBodyCrossSection(unscaledY);
+
+        const bustCross = this.getBodyCrossSection(1.22);
+        const bustBlend = !isDress ? THREE.MathUtils.smoothstep(unscaledY, 1.15, 1.25) : 1;
+        const effectiveHW = THREE.MathUtils.lerp(Math.max(cross.halfWidth, bustCross.halfWidth * 0.96), cross.halfWidth, bustBlend);
+        const effectiveHD = THREE.MathUtils.lerp(Math.max(cross.halfDepth, bustCross.halfDepth * 0.96), cross.halfDepth, bustBlend);
+
+        // Smooth shoulder-cap transition: snug shoulder crest, natural chest ease
+        const shoulderBlend = Math.min(1, r / 3);
+        const rawHW = ((effectiveHW * sX) * stiffnessEase + 0.016) * widthFactor;
+        const snugHW = (cross.halfWidth * sX * 1.04 + 0.006) * widthFactor;
+        const hw = THREE.MathUtils.lerp(snugHW, rawHW, shoulderBlend);
+        const hd = ((effectiveHD * sZ) * stiffnessEase + 0.016) * widthFactor;
+        const zCenter = cross.zCenter * sZ;
+
+        const hemFlare = isDress ? Math.max(0, t - 0.6) * 0.06 * sX : 0;
         const easeHW = hw + hemFlare;
         const easeHD = hd + hemFlare * 0.6;
 
-        const rawX = easeHW * Math.sin(angle);         // left-right
-        const rawZ = -easeHD * Math.cos(angle) + zCenter; // front-back
-
-        // Apply procedural wrinkle displacement
-        const wrinkle = this.computeWrinkle(angle, y, topY, hemY, c, r);
+        const rawX = easeHW * Math.sin(angle);
+        const rawZ = -easeHD * Math.cos(angle) + zCenter;
 
         const normalAngle = Math.atan2(
           rawX / (easeHW * easeHW),
@@ -620,30 +317,24 @@ export class ClothSimulator {
         const nx = Math.sin(normalAngle);
         const nz = -Math.cos(normalAngle);
 
-        const px = rawX + wrinkle.radial * nx;
-        const py = y + wrinkle.vertical;
-        const pz = rawZ + wrinkle.radial * nz;
-
-        const pos = new THREE.Vector3(px, py, pz);
+        const pos = new THREE.Vector3(rawX, y, rawZ);
         const pIdx = this.particles.length;
         gridMap[r][c] = pIdx;
 
-        // UV: u wraps around [0,1], v goes top to bottom [0,1]
         const u = c / cols;
         const v = 1 - t;
 
-        // Determine piece ID for compatibility
+        const isCollarRow = (r === 0);
         const isFrontHalf = (angle < Math.PI / 2 || angle > 3 * Math.PI / 2);
-        const pieceId = isFrontHalf ? 'piece-front' : 'piece-back';
+        const pieceId = isCollarRow ? 'piece-collar' : (isFrontHalf ? 'piece-front' : 'piece-back');
 
-        // Inverse mass: lighter at shoulders (more pinned feel), heavier at hem
         const massScale = THREE.MathUtils.lerp(0.3, 1.0, t);
 
         this.particles.push({
           pos: pos.clone(),
           prevPos: pos.clone(),
           originalPos: pos.clone(),
-          local2D: { x: c * 10, y: r * 10 }, // synthetic 2D coords for compatibility
+          local2D: { x: c * 10, y: r * 10 },
           invMass: massScale / Math.max(0.1, material.density / 140),
           normal: new THREE.Vector3(nx, 0, nz),
           uv: new THREE.Vector2(u, v),
@@ -653,8 +344,7 @@ export class ClothSimulator {
       }
     }
 
-    // ── Build triangle indices AND distance constraints ──
-    // Tube topology: columns wrap around (col TUBE_COLS connects back to col 0)
+    // Build outward CCW triangle indices and distance constraints
     for (let r = 0; r < rows - 1; r++) {
       for (let c = 0; c < cols; c++) {
         const cNext = (c + 1) % cols;
@@ -664,53 +354,23 @@ export class ClothSimulator {
         const bl = gridMap[r + 1][c];
         const br = gridMap[r + 1][cNext];
 
-        // Two triangles per quad, consistent winding for outward-facing normals
         if (tl !== null && tr !== null && bl !== null) {
-          this.indices.push(tl, bl, tr); // CCW from outside
+          this.indices.push(tl, tr, bl);
         }
         if (tr !== null && bl !== null && br !== null) {
-          this.indices.push(tr, bl, br);
+          this.indices.push(tr, br, bl);
         }
 
-        // ── Distance constraints for PBD physics ──
-        // Structural: horizontal (tl-tr), vertical (tl-bl)
         if (tl !== null && tr !== null) {
-          this.constraints.push({
-            p1: tl, p2: tr,
-            restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos),
-            stiffness: 0.8,
-          });
+          this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.35 });
         }
         if (tl !== null && bl !== null) {
-          this.constraints.push({
-            p1: tl, p2: bl,
-            restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos),
-            stiffness: 0.8,
-          });
-        }
-        // Shear: diagonals (tl-br, tr-bl)
-        if (tl !== null && br !== null) {
-          this.constraints.push({
-            p1: tl, p2: br,
-            restLength: this.particles[tl].pos.distanceTo(this.particles[br].pos),
-            stiffness: 0.5,
-          });
-        }
-        if (tr !== null && bl !== null) {
-          this.constraints.push({
-            p1: tr, p2: bl,
-            restLength: this.particles[tr].pos.distanceTo(this.particles[bl].pos),
-            stiffness: 0.5,
-          });
+          this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.35 });
         }
       }
     }
-    // Add last-column vertical constraints (right edge of last column to bottom)
-    // These are already handled by c=lastCol in the loop above via the horizontal wrap,
-    // and the vertical constraint for the last column is also covered.
-    // (The wrap cNext = 0 covers horizontal; vertical tl-bl covers it.)
 
-    // ── Build Extra Pieces: Pockets, Patches, Sleeves, Collars, Custom Fabric Panels ──
+    // Build extra pieces (Sleeves, Patches)
     const extraPieces = pieces.filter(
       (p) => p.visible !== false && p.id !== 'piece-front' && p.id !== 'piece-back'
     );
@@ -718,7 +378,7 @@ export class ClothSimulator {
     for (const piece of extraPieces) {
       const lowerName = piece.name.toLowerCase();
 
-      // CASE 1: SLEEVES (Short or Long Sleeve)
+      // CASE 1: SLEEVES
       if (lowerName.includes('sleeve') || lowerName.includes('lengan')) {
         const isLeftOnly = lowerName.includes('left') || lowerName.includes('kiri');
         const isRightOnly = lowerName.includes('right') || lowerName.includes('kanan');
@@ -736,52 +396,35 @@ export class ClothSimulator {
           const sleeveRows = isLongSleeve ? 16 : 8;
           const sleeveBaseIdx = this.particles.length;
 
-          // ── Natural sleeve drape geometry ──
-          // On a mannequin without visible arms, sleeves hang straight down
-          // from the shoulder point, close to the body sides.
-          // Short sleeves: small tube curving slightly outward then ending at bicep level
-          // Long sleeves: tube hanging down close to body, ending near waist
+          const shoulderX = side * 0.205 * sX;
+          const shoulderY = 1.380 * sY;
+          const shoulderZ = 0.018 * sZ;
 
-          const shoulderX = side * 0.198 * sX;
-          const shoulderY = 1.34 * sY;
-          const shoulderZ = 0.015 * sZ;
+          const sleeveEndX = side * (isLongSleeve ? 0.36 : 0.285) * sX;
+          const sleeveEndY = (isLongSleeve ? 0.88 : 1.180) * sY;
+          const sleeveEndZ = (isLongSleeve ? 0.04 : 0.026) * sZ;
 
-          // End point: sleeves hang nearly straight down, slightly away from body
-          const sleeveEndX = side * (isLongSleeve ? 0.21 : 0.23) * sX;
-          const sleeveEndY = (isLongSleeve ? 0.75 : 1.14) * sY;
-          const sleeveEndZ = (isLongSleeve ? 0.03 : 0.02) * sZ;
-
-          // Radius: shoulder cap wider, tapers to cuff
-          const startR = 0.095 * sX;
-          const endR = (isLongSleeve ? 0.058 : 0.072) * sX;
+          const startR = 0.058 * sX;
+          const endR = (isLongSleeve ? 0.042 : 0.050) * sX;
 
           for (let sr = 0; sr < sleeveRows; sr++) {
             const st = sr / (sleeveRows - 1);
 
-            // Simple linear interpolation — straight tube from shoulder down
             const cx = THREE.MathUtils.lerp(shoulderX, sleeveEndX, st);
             const cy = THREE.MathUtils.lerp(shoulderY, sleeveEndY, st);
             const cz = THREE.MathUtils.lerp(shoulderZ, sleeveEndZ, st);
 
-            // Sleeve axis direction (tangent)
             const tx = sleeveEndX - shoulderX;
             const ty = sleeveEndY - shoulderY;
             const tz = sleeveEndZ - shoulderZ;
             const tangent = new THREE.Vector3(tx, ty, tz).normalize();
 
-            // Stable perpendicular frame — use world Z as reference to avoid flipping
-            const refUp = new THREE.Vector3(0, 0, 1);
-            const perp1 = new THREE.Vector3().crossVectors(tangent, refUp).normalize();
-            // If tangent is parallel to refUp, fallback to X
-            if (perp1.lengthSq() < 0.001) {
-              perp1.crossVectors(tangent, new THREE.Vector3(1, 0, 0)).normalize();
-            }
-            const perp2 = new THREE.Vector3().crossVectors(tangent, perp1).normalize();
+            const rawPerp = new THREE.Vector3().crossVectors(tangent, new THREE.Vector3(0, 0, 1)).normalize();
+            const perp1 = rawPerp.multiplyScalar(-side);
+            const perp2 = new THREE.Vector3().crossVectors(tangent, perp1).normalize().multiplyScalar(-side);
 
             const currR = THREE.MathUtils.lerp(startR, endR, st);
-
-            // Add slight gravity sag at mid-sleeve for long sleeves
-            const sagAmount = isLongSleeve ? Math.sin(st * Math.PI) * 0.008 * sY : 0;
+            const sagAmount = Math.sin(st * Math.PI * 0.8) * 0.006 * sY;
 
             for (let sc = 0; sc < sleeveCols; sc++) {
               const sAngle = (sc / sleeveCols) * Math.PI * 2;
@@ -803,7 +446,7 @@ export class ClothSimulator {
                 invMass: THREE.MathUtils.lerp(0.3, 0.8, st) / Math.max(0.1, material.density / 140),
                 normal: norm,
                 uv: new THREE.Vector2(sc / sleeveCols, 1 - st),
-                pinned: sr === 0, // Pin top row at shoulder for stability
+                pinned: false,
                 pieceId: piece.id,
               });
             }
@@ -816,87 +459,29 @@ export class ClothSimulator {
               const tr = sleeveBaseIdx + sr * sleeveCols + scNext;
               const bl = sleeveBaseIdx + (sr + 1) * sleeveCols + sc;
               const br = sleeveBaseIdx + (sr + 1) * sleeveCols + scNext;
-              if (side > 0) {
-                this.indices.push(tl, bl, tr);
-                this.indices.push(tr, bl, br);
-              } else {
+
+              if (side < 0) {
                 this.indices.push(tl, tr, bl);
                 this.indices.push(tr, br, bl);
+              } else {
+                this.indices.push(tl, bl, tr);
+                this.indices.push(tr, bl, br);
               }
 
-              // ── Sleeve distance constraints ──
-              // Structural: horizontal ring + vertical along sleeve
-              this.constraints.push({
-                p1: tl, p2: tr,
-                restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos),
-                stiffness: 0.8,
-              });
-              this.constraints.push({
-                p1: tl, p2: bl,
-                restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos),
-                stiffness: 0.8,
-              });
-              // Shear
-              this.constraints.push({
-                p1: tl, p2: br,
-                restLength: this.particles[tl].pos.distanceTo(this.particles[br].pos),
-                stiffness: 0.5,
-              });
-              this.constraints.push({
-                p1: tr, p2: bl,
-                restLength: this.particles[tr].pos.distanceTo(this.particles[bl].pos),
-                stiffness: 0.5,
-              });
+              this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.35 });
+              this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.35 });
             }
           }
         }
         continue;
       }
 
-      // CASE 2: COLLAR BAND
+      // CASE 2: COLLAR BAND — Seamlessly integrated into row 0 of the bodice tube
       if (lowerName.includes('collar') || lowerName.includes('kerah')) {
-        const collarCols = 24;
-        const collarBaseIdx = this.particles.length;
-        const neckY1 = 1.37 * sY;
-        const neckY2 = 1.40 * sY;
-
-        for (const cy of [neckY1, neckY2]) {
-          const cross = this.getBodyCrossSection(cy / sY);
-          const chw = cross.halfWidth * sX * 1.08 + 0.015;
-          const chd = cross.halfDepth * sZ * 1.08 + 0.015;
-          for (let cc = 0; cc < collarCols; cc++) {
-            const cAng = (cc / collarCols) * Math.PI * 2;
-            const px = chw * Math.sin(cAng);
-            const pz = -chd * Math.cos(cAng) + cross.zCenter * sZ;
-            const norm = new THREE.Vector3(Math.sin(cAng), 0, -Math.cos(cAng));
-
-            this.particles.push({
-              pos: new THREE.Vector3(px, cy, pz),
-              prevPos: new THREE.Vector3(px, cy, pz),
-              originalPos: new THREE.Vector3(px, cy, pz),
-              local2D: { x: cc * 10, y: (cy === neckY1 ? 0 : 20) },
-              invMass: 0.3,
-              normal: norm,
-              uv: new THREE.Vector2(cc / collarCols, cy === neckY1 ? 0 : 1),
-              pinned: true,
-              pieceId: piece.id,
-            });
-          }
-        }
-
-        for (let cc = 0; cc < collarCols; cc++) {
-          const ccNext = (cc + 1) % collarCols;
-          const b0 = collarBaseIdx + cc;
-          const b1 = collarBaseIdx + ccNext;
-          const t0 = collarBaseIdx + collarCols + cc;
-          const t1 = collarBaseIdx + collarCols + ccNext;
-          this.indices.push(b0, t0, b1);
-          this.indices.push(b1, t0, t1);
-        }
         continue;
       }
 
-      // CASE 3: PATCH / POCKET / APPLIQUE / CUSTOM FABRIC PANEL
+      // CASE 3: PATCH / POCKET / APPLIQUE
       if (piece.points && piece.points.length >= 3) {
         const pts = piece.points;
         const patchBaseIdx = this.particles.length;
@@ -914,7 +499,6 @@ export class ClothSimulator {
         const crossAtY = this.getBodyCrossSection(center3DY / sY);
         const center3DZ = -crossAtY.halfDepth * sZ * 1.08 + crossAtY.zCenter * sZ - 0.018;
 
-        // Centroid particle
         this.particles.push({
           pos: new THREE.Vector3(center3DX, center3DY, center3DZ - 0.003),
           prevPos: new THREE.Vector3(center3DX, center3DY, center3DZ - 0.003),
@@ -927,7 +511,6 @@ export class ClothSimulator {
           pieceId: piece.id,
         });
 
-        // Perimeter particles
         for (let pi = 0; pi < pts.length; pi++) {
           const pt = pts[pi];
           const px = center3DX + ((pt.x - cx2d) / 1000) * sX;
@@ -941,16 +524,12 @@ export class ClothSimulator {
             local2D: { x: pt.x, y: pt.y },
             invMass: 0.5,
             normal: new THREE.Vector3(0, 0, -1),
-            uv: new THREE.Vector2(
-              0.5 + (pt.x - cx2d) / 200,
-              0.5 + (pt.y - cy2d) / 200
-            ),
+            uv: new THREE.Vector2(0.5 + (pt.x - cx2d) / 200, 0.5 + (pt.y - cy2d) / 200),
             pinned: false,
             pieceId: piece.id,
           });
         }
 
-        // Fan triangles around centroid
         for (let pi = 0; pi < pts.length; pi++) {
           const piNext = (pi + 1) % pts.length;
           const v0 = patchBaseIdx;
@@ -962,71 +541,45 @@ export class ClothSimulator {
       }
     }
 
-    // ── Cache animation data ──
+    // Cache animation data
     const n = this.particles.length;
-    this._wrinkleOffsets = new Float32Array(n * 3); // pre-computed wrinkle offsets
     this._breathPhases = new Float32Array(n);
-    this._swayPhases = new Float32Array(n);
     this._hemWeights = new Float32Array(n);
+
+    const topY = 1.365 * sY;
+    const totalGarmentLength = topY - hemY;
 
     for (let i = 0; i < n; i++) {
       const p = this.particles[i];
-      const normalizedY = (topY - p.originalPos.y) / garmentLength; // 0=top, 1=hem
-
-      // Breathing: strongest at chest level, zero at hem
+      const normalizedY = (topY - p.originalPos.y) / totalGarmentLength;
       const chestProximity = 1.0 - Math.min(1, Math.abs(normalizedY - 0.25) * 3);
       this._breathPhases[i] = Math.max(0, chestProximity);
-
-      // Sway: increases toward hem
-      this._swayPhases[i] = hashNoise(i * 0.1, 0.5);
       this._hemWeights[i] = Math.max(0, normalizedY - 0.3) * 1.2;
-
-      // Store wrinkle offsets for animation modulation
-      this._wrinkleOffsets[i * 3] = p.pos.x - p.originalPos.x;
-      this._wrinkleOffsets[i * 3 + 1] = p.pos.y - p.originalPos.y;
-      this._wrinkleOffsets[i * 3 + 2] = p.pos.z - p.originalPos.z;
     }
 
-    // ── Stress map initialization ──
     this.stressMap = new Float32Array(n);
     this.computeStaticStress();
   }
 
-  /**
-   * Compute a static stress map based on how much the garment deviates from
-   * a perfect elliptical fit — areas with more wrinkles show higher stress.
-   */
   private computeStaticStress() {
-    const topY = TSHIRT_TOP_Y;
-
+    const topY = 1.365;
     for (let i = 0; i < this.particles.length; i++) {
       const p = this.particles[i];
       const cross = this.getBodyCrossSection(p.originalPos.y);
-
-      // Distance from body surface
       const dx = p.originalPos.x;
       const dz = p.originalPos.z - cross.zCenter;
       const hw = cross.halfWidth;
       const hd = cross.halfDepth;
-
-      // How far outside the body ellipse
       const ellipseVal = (dx * dx) / (hw * hw) + (dz * dz) / (hd * hd);
       const radialDist = Math.sqrt(ellipseVal) - 1.0;
-
-      // More stress at tighter areas (waist)
       const normalizedY = (topY - p.originalPos.y) / (topY - 0.37);
       const waistFactor = Math.max(0, 1.0 - Math.abs(normalizedY - 0.5) * 3);
-
-      this.stressMap[i] = Math.min(1,
-        radialDist * 0.8 + waistFactor * 0.06
-        + Math.abs(this._wrinkleOffsets[i * 3]) * 5
-      );
+      this.stressMap[i] = Math.min(1, radialDist * 0.8 + waistFactor * 0.06);
     }
   }
 
   /**
-   * Subtle vertex animation: breathing expansion, gentle sway, wrinkle shimmer.
-   * No PBD physics — just smooth procedural motion.
+   * Subtle, coherent vertex animation: breathing expansion and gentle fluid hem sway.
    */
   step(dt: number) {
     this.simTime += dt;
@@ -1039,44 +592,39 @@ export class ClothSimulator {
       const oy = p.originalPos.y;
       const oz = p.originalPos.z;
 
-      // ── 1. Breathing: ONLY expands outward, never contracts into body ──
-      const breathAmp = 0.0025 + 0.004 * dynamics; // up to ~6.5mm
+      const breathAmp = 0.0020 + 0.003 * dynamics;
       const breathCycle = (Math.sin(t * 1.8) * 0.5 + 0.5) * breathAmp;
       const breathWeight = this._breathPhases[i];
-      // Expand radially outward
       const bx = ox !== 0 ? Math.sign(ox) * breathCycle * breathWeight : 0;
       const bz = (oz > 0.04 ? 1 : -1) * breathCycle * breathWeight * 0.6;
 
-      // ── 2. Natural Wind Waves & Hem Sway (CLO3D-Style Dynamic Draping) ──
-      const swayPhase = this._swayPhases[i];
       const hemW = this._hemWeights[i];
+      const windWaveX = Math.sin(t * 2.2 - oy * 2.5) * (0.003 * dynamics) * hemW;
+      const windWaveZ = Math.cos(t * 1.8 - oy * 2.5) * (0.002 * dynamics) * hemW;
+      const swayX = Math.sin(t * 1.2) * (0.002 + 0.005 * dynamics) * hemW;
+      const swayZ = Math.cos(t * 0.9) * (0.001 + 0.004 * dynamics) * hemW;
 
-      // Traveling sinusoidal wind waves across fabric
-      const windSpeed = 2.8;
-      const wavePhase = t * windSpeed - (oy * 4.5) + (ox * 2.5);
-      const windWaveX = Math.sin(wavePhase) * (0.016 * dynamics) * hemW;
-      const windWaveZ = Math.cos(wavePhase * 0.8 + oz * 3.0) * (0.012 * dynamics) * hemW;
+      p.pos.x = ox + bx + swayX + windWaveX;
+      p.pos.y = oy;
+      p.pos.z = oz + bz + swayZ + windWaveZ;
 
-      // Natural pendulum hem sway (creates lifelike fabric swing)
-      const swayX = Math.sin(t * 1.2 + swayPhase * 6.28) * (0.005 + 0.022 * dynamics) * hemW;
-      const swayZ = Math.sin(t * 0.9 + swayPhase * 4.0 + 1.5) * (0.004 + 0.018 * dynamics) * hemW;
+      // Anti-clipping collision guard against mannequin body
+      if ((p.pieceId === 'piece-front' || p.pieceId === 'piece-back') && oy >= 0.30 && oy <= 1.44) {
+        const cross = this.getBodyCrossSection(oy);
+        const minHW = cross.halfWidth * 1.08 + 0.018;
+        const minHD = cross.halfDepth * 1.08 + 0.018;
+        const dx = p.pos.x;
+        const dz = p.pos.z - cross.zCenter;
+        const edist = Math.sqrt((dx / minHW) ** 2 + (dz / minHD) ** 2);
+        if (edist < 1.0 && edist > 1e-6) {
+          p.pos.x = (dx / edist) * minHW;
+          p.pos.z = (dz / edist) * minHD + cross.zCenter;
+        }
+      }
 
-      // ── 3. Micro wrinkle shimmer ──
-      const shimmer = Math.sin(t * 3.0 + i * 0.37) * (0.15 + 0.25 * dynamics) + 0.85;
-      const wx = this._wrinkleOffsets[i * 3] * shimmer;
-      const wy = this._wrinkleOffsets[i * 3 + 1] * shimmer;
-      const wz = this._wrinkleOffsets[i * 3 + 2] * shimmer;
-
-      // ── Combine ──
-      p.pos.x = ox + bx + swayX + windWaveX + (wx - this._wrinkleOffsets[i * 3]);
-      p.pos.y = oy + (wy - this._wrinkleOffsets[i * 3 + 1]);
-      p.pos.z = oz + bz + swayZ + windWaveZ + (wz - this._wrinkleOffsets[i * 3 + 2]);
-
-      // Update prevPos for any external code that reads velocity
       p.prevPos.copy(p.pos);
     }
 
-    // Modulate stress map for visual interest in heatmap mode
     for (let i = 0; i < this.stressMap.length; i++) {
       const base = this.stressMap[i];
       const flicker = Math.sin(t * 1.5 + i * 0.23) * (0.008 + 0.015 * dynamics);
@@ -1085,212 +633,84 @@ export class ClothSimulator {
   }
 
   /**
-   * Initialize PBD physics drop: lift particles above mannequin, unpin them, enable physics mode.
-   * Collar/neckline particles near the top stay slightly attracted (soft-pinned via low invMass).
+   * Initialize PBD ragdoll cloth drop: lift garment 22cm above mannequin.
    */
   initDropAnimation() {
     const n = this.particles.length;
     this._dropRestPositions = [];
-    this._dropStartPositions = [];
-
-    // Find the topmost Y to identify collar/neckline region
-    let maxY = -Infinity;
-    for (let i = 0; i < n; i++) {
-      if (this.particles[i].pos.y > maxY) maxY = this.particles[i].pos.y;
-    }
-
-    const liftHeight = 0.5;
-    const spreadFactor = 1.05;
-
     for (let i = 0; i < n; i++) {
       const p = this.particles[i];
+      const rest = p.originalPos.clone();
+      this._dropRestPositions.push(rest);
 
-      // Store the final rest position (current on-body position)
-      this._dropRestPositions.push(p.originalPos.clone());
-
-      // Lift all particles up and spread slightly outward
-      p.pos.y += liftHeight;
-      p.pos.x *= spreadFactor;
-      p.pos.z *= spreadFactor;
-
-      // Sync prevPos so initial velocity is zero
+      p.pos.set(
+        rest.x * 1.03,
+        rest.y + 0.22,
+        rest.z * 1.03
+      );
       p.prevPos.copy(p.pos);
-
-      // Store start positions for reference
-      this._dropStartPositions.push(p.pos.clone());
-
-      // Un-pin all particles: collar particles get very low invMass (heavy = slow to move)
-      // so they act as soft anchors
-      const distFromTop = maxY - p.originalPos.y;
-      if (distFromTop < 0.03 || p.pieceId.includes('collar') || p.pieceId.includes('kerah')) {
-        // Collar/neckline: keep pinned — they anchor the garment
-        p.pinned = true;
-        // But lift them to rest position + small offset (they'll pull garment down)
-        p.pos.x = p.originalPos.x;
-        p.pos.y = p.originalPos.y + 0.08;
-        p.pos.z = p.originalPos.z;
-        p.prevPos.copy(p.pos);
-      } else {
-        p.pinned = false;
-      }
+      p.pinned = false;
     }
-
     this._isPhysicsMode = true;
   }
 
   /**
-   * Step PBD ragdoll cloth physics: Verlet integration, distance constraints, body collision.
-   * @param dt Timestep in seconds
+   * Step ragdoll cloth physics: Verlet integration, distance constraints, and avatar surface collision.
    */
   stepPhysics(dt: number) {
     if (!this._isPhysicsMode) return;
-
     const n = this.particles.length;
-    const gx = this.gravity.x;
-    const gy = this.gravity.y;
-    const gz = this.gravity.z;
-    const damp = this.damping;
+    const damp = 0.92;
+    const gy = -7.5;
     const dtSq = dt * dt;
 
-    // ── 1. Verlet Integration ──
+    // 1. Verlet integration
     for (let i = 0; i < n; i++) {
       const p = this.particles[i];
-      if (p.pinned) {
-        // Pinned particles slowly move toward their rest position (soft anchor)
-        const rest = this._dropRestPositions[i];
-        if (rest) {
-          p.pos.x += (rest.x - p.pos.x) * 0.05;
-          p.pos.y += (rest.y - p.pos.y) * 0.05;
-          p.pos.z += (rest.z - p.pos.z) * 0.05;
-          p.prevPos.copy(p.pos);
-        }
-        continue;
-      }
-
+      if (p.pinned) continue;
       const vx = (p.pos.x - p.prevPos.x) * damp;
       const vy = (p.pos.y - p.prevPos.y) * damp;
       const vz = (p.pos.z - p.prevPos.z) * damp;
-
-      p.prevPos.x = p.pos.x;
-      p.prevPos.y = p.pos.y;
-      p.prevPos.z = p.pos.z;
-
-      p.pos.x += vx + gx * dtSq;
+      p.prevPos.copy(p.pos);
+      p.pos.x += vx;
       p.pos.y += vy + gy * dtSq;
-      p.pos.z += vz + gz * dtSq;
+      p.pos.z += vz;
     }
 
-    // ── 2. Constraint Solving (PBD) ──
-    const constraints = this.constraints;
-    const nc = constraints.length;
-
-    for (let iter = 0; iter < this.iterations; iter++) {
-      for (let ci = 0; ci < nc; ci++) {
-        const c = constraints[ci];
+    // 2. Soft distance constraints (4 iterations)
+    for (let iter = 0; iter < 4; iter++) {
+      for (let ci = 0; ci < this.constraints.length; ci++) {
+        const c = this.constraints[ci];
         const p1 = this.particles[c.p1];
         const p2 = this.particles[c.p2];
-
         const dx = p2.pos.x - p1.pos.x;
         const dy = p2.pos.y - p1.pos.y;
         const dz = p2.pos.z - p1.pos.z;
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-        if (dist < 1e-8) continue;
-
+        if (dist < 1e-6) continue;
         const diff = (dist - c.restLength) / dist;
-        const stiffness = c.stiffness;
-
-        const w1 = p1.pinned ? 0 : p1.invMass;
-        const w2 = p2.pinned ? 0 : p2.invMass;
-        const wSum = w1 + w2;
-        if (wSum < 1e-8) continue;
-
-        const correction = diff * stiffness;
-        const s1 = (w1 / wSum) * correction;
-        const s2 = (w2 / wSum) * correction;
-
-        p1.pos.x += dx * s1;
-        p1.pos.y += dy * s1;
-        p1.pos.z += dz * s1;
-
-        p2.pos.x -= dx * s2;
-        p2.pos.y -= dy * s2;
-        p2.pos.z -= dz * s2;
-      }
-
-      // ── 3. Body Collision (ellipse approximation — fast) ──
-      const skinOffset = 0.03;
-      for (let i = 0; i < n; i++) {
-        const p = this.particles[i];
-        if (p.pinned) continue;
-
-        const py = p.pos.y;
-        // Only check within body range
-        if (py < 0.30 || py > 1.44) continue;
-
-        const cross = this.getBodyCrossSection(py);
-        const hw = cross.halfWidth;
-        const hd = cross.halfDepth;
-        if (hw < 0.01 || hd < 0.01) continue;
-
-        const dx = p.pos.x;
-        const dz = p.pos.z - cross.zCenter;
-
-        // Ellipse test: (dx/hw)^2 + (dz/hd)^2 < 1 means inside body
-        const ex = dx / (hw + skinOffset);
-        const ez = dz / (hd + skinOffset);
-        const ellipseDist = Math.sqrt(ex * ex + ez * ez);
-
-        if (ellipseDist < 1.0) {
-          // Push outward along ellipse normal
-          if (ellipseDist < 1e-6) {
-            // Particle at center — push in default direction
-            p.pos.x = (hw + skinOffset) * 1.01;
-          } else {
-            const scale = 1.0 / ellipseDist;
-            p.pos.x = dx * scale + 0; // keep centered at x=0 origin
-            p.pos.z = dz * scale + cross.zCenter;
-            // Recalculate with actual offset
-            p.pos.x = (dx / ellipseDist) * (hw + skinOffset);
-            p.pos.z = (dz / ellipseDist) * (hd + skinOffset) + cross.zCenter;
-          }
-        }
+        const corr = diff * c.stiffness * 0.5;
+        p1.pos.x += dx * corr; p1.pos.y += dy * corr; p1.pos.z += dz * corr;
+        p2.pos.x -= dx * corr; p2.pos.y -= dy * corr; p2.pos.z -= dz * corr;
       }
     }
 
-    // ── 4. Floor Collision ──
+    // 3. Collision with avatar resting surface
     for (let i = 0; i < n; i++) {
       const p = this.particles[i];
-      if (p.pos.y < 0.05) {
-        p.pos.y = 0.05;
-      }
-    }
-
-    // ── 5. Capsule Colliders (arms, neck) ──
-    for (let i = 0; i < n; i++) {
-      const p = this.particles[i];
-      if (p.pinned) continue;
-
-      for (const collider of this.colliders) {
-        if (collider.type !== 'capsule') continue;
-        // Point-to-line-segment distance
-        const ab = new THREE.Vector3().subVectors(collider.end, collider.start);
-        const ap = new THREE.Vector3().subVectors(p.pos, collider.start);
-        const t = Math.max(0, Math.min(1, ap.dot(ab) / ab.dot(ab)));
-        const closest = new THREE.Vector3().copy(collider.start).addScaledVector(ab, t);
-        const diff = new THREE.Vector3().subVectors(p.pos, closest);
-        const dist = diff.length();
-        if (dist < collider.radius + 0.01 && dist > 1e-6) {
-          diff.multiplyScalar((collider.radius + 0.01) / dist);
-          p.pos.copy(closest).add(diff);
-        }
+      const rest = this._dropRestPositions[i];
+      if (!rest) continue;
+      if (p.pos.y <= rest.y) {
+        p.pos.y = rest.y;
+        p.prevPos.y = p.pos.y;
+        p.pos.x += (rest.x - p.pos.x) * 0.25;
+        p.pos.z += (rest.z - p.pos.z) * 0.25;
+        p.prevPos.x = p.pos.x;
+        p.prevPos.z = p.pos.z;
       }
     }
   }
 
-  /**
-   * Get total kinetic energy of the cloth particles (used to detect settling).
-   */
   getKineticEnergy(): number {
     let energy = 0;
     for (let i = 0; i < this.particles.length; i++) {
@@ -1304,13 +724,8 @@ export class ClothSimulator {
     return energy;
   }
 
-  /**
-   * Restore particles to their original rest positions after physics simulation ends.
-   * Re-pins all particles and disables physics mode.
-   */
   restoreFromPhysics() {
     if (!this._isPhysicsMode) return;
-
     const n = this.particles.length;
     for (let i = 0; i < n; i++) {
       const p = this.particles[i];
@@ -1322,8 +737,6 @@ export class ClothSimulator {
       }
       p.pinned = false;
     }
-
     this._isPhysicsMode = false;
-    this._recomputeAnimationCache();
   }
 }

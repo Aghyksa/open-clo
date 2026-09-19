@@ -18,6 +18,14 @@ import {
   ArrowDownToLine,
 } from 'lucide-react';
 
+const AVATAR_COLOR_PRESETS = [
+  { id: 'white', label: 'White', color: '#f8fafc' },
+  { id: 'grey', label: 'Grey', color: '#cbd5e1' },
+  { id: 'tan', label: 'Warm Tan', color: '#d7bca7' },
+  { id: 'charcoal', label: 'Charcoal', color: '#4a5568' },
+  { id: 'black', label: 'Black', color: '#18181b' },
+];
+
 export const StudioViewport: React.FC = () => {
   const mountRef = useRef<HTMLDivElement | null>(null);
 
@@ -46,6 +54,7 @@ export const StudioViewport: React.FC = () => {
   } = useCloStore();
 
   const [avatarMode, setAvatarMode] = useState<'mannequin' | 'realistic'>('mannequin');
+  const [avatarColorIndex, setAvatarColorIndex] = useState<number>(0);
   const [modelLoaded, setModelLoaded] = useState(false);
 
   const simulatorRef = useRef<ClothSimulator>(new ClothSimulator());
@@ -208,10 +217,10 @@ export const StudioViewport: React.FC = () => {
             mesh.castShadow = true;
             mesh.receiveShadow = true;
 
-            // Apply sleek CLO3D matte porcelain finish by default
+            // Apply sleek CLO3D matte porcelain finish by default (White porcelain for high contrast)
             const porcelainMat = new THREE.MeshStandardMaterial({
-              color: '#4a5568',
-              roughness: 0.55,
+              color: AVATAR_COLOR_PRESETS[0].color,
+              roughness: 0.45,
               metalness: 0.05,
             });
             // Store original material on userData for toggling
@@ -260,6 +269,9 @@ export const StudioViewport: React.FC = () => {
     clothMeshRef.current = clothMesh;
     scene.add(clothMesh);
 
+    (window as any).__CLOTH_SIM = simulatorRef.current;
+    (window as any).__CLOTH_GEOM = clothGeomRef.current;
+
     // Initialize Simulator particles with current avatar scale
     const initRefHeight = 169.5;
     const initHeightScale = avatar.height / initRefHeight;
@@ -292,7 +304,7 @@ export const StudioViewport: React.FC = () => {
 
       if (storeState.isDropAnimating) {
         // PBD ragdoll cloth physics mode
-        const DROP_TIMEOUT = 4.0; // seconds max for physics
+        const DROP_DURATION = 1.8; // seconds for natural cloth settling
         const elapsed = (now - dropStartTimeRef.current) / 1000;
 
         // Run PBD physics step (use fixed substep for stability)
@@ -302,12 +314,12 @@ export const StudioViewport: React.FC = () => {
           sim.stepPhysics(physicsDt);
         }
 
-        // Check if cloth has settled (low kinetic energy) or timed out
+        // Check if cloth has settled (low kinetic energy) or duration reached
         const energy = sim.getKineticEnergy();
-        const settled = elapsed > 1.0 && energy < 0.00001;
-        const timedOut = elapsed >= DROP_TIMEOUT;
+        const settled = elapsed > 1.2 && energy < 0.00005;
+        const timedOut = elapsed >= DROP_DURATION;
 
-        storeState.setDropAnimationProgress(Math.min(elapsed / DROP_TIMEOUT, 1.0));
+        storeState.setDropAnimationProgress(Math.min(elapsed / DROP_DURATION, 1.0));
 
         if (settled || timedOut) {
           // Restore cloth to original rest positions and resume normal animation
@@ -486,6 +498,27 @@ export const StudioViewport: React.FC = () => {
             mesh.material = mesh.userData.porcelainMaterial;
           } else if (nextMode === 'realistic' && mesh.userData.origMaterial) {
             mesh.material = mesh.userData.origMaterial;
+          }
+        }
+      });
+    }
+  };
+
+  // Cycle Mannequin Color (White, Grey, Tan, Charcoal, Black)
+  const cycleAvatarColor = () => {
+    const nextIdx = (avatarColorIndex + 1) % AVATAR_COLOR_PRESETS.length;
+    setAvatarColorIndex(nextIdx);
+    const newColor = AVATAR_COLOR_PRESETS[nextIdx].color;
+
+    if (gltfModelRef.current) {
+      gltfModelRef.current.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          if (mesh.userData.porcelainMaterial) {
+            mesh.userData.porcelainMaterial.color.set(newColor);
+          }
+          if (avatarMode === 'mannequin' && (mesh.material as THREE.MeshStandardMaterial).color) {
+            (mesh.material as THREE.MeshStandardMaterial).color.set(newColor);
           }
         }
       });
@@ -773,6 +806,21 @@ export const StudioViewport: React.FC = () => {
         >
           <UserCheck className="w-4 h-4 text-blue-400" />
           <span className="text-[11px] capitalize hidden sm:inline">{avatarMode}</span>
+        </button>
+
+        {/* Mannequin Color Selector */}
+        <button
+          onClick={cycleAvatarColor}
+          className="p-1.5 hover:bg-slate-700/60 rounded text-slate-300 hover:text-white transition-colors flex items-center gap-1.5 text-xs"
+          title={`Mannequin Color: ${AVATAR_COLOR_PRESETS[avatarColorIndex].label} (Click to cycle White / Grey / Tan / Charcoal / Black)`}
+        >
+          <span
+            className="w-3.5 h-3.5 rounded-full border border-slate-400/80 shadow-sm inline-block"
+            style={{ backgroundColor: AVATAR_COLOR_PRESETS[avatarColorIndex].color }}
+          />
+          <span className="text-[11px] hidden sm:inline">
+            {AVATAR_COLOR_PRESETS[avatarColorIndex].label}
+          </span>
         </button>
 
         <button
