@@ -14,6 +14,7 @@ import type {
   ViewportLayout,
   SeamEdge,
   GraphicLayer,
+  EdgeCurvature,
 } from '../types/cad';
 import {
   FABRIC_PRESETS,
@@ -124,6 +125,12 @@ interface CloState {
   activeTool: CadTool;
   pendingSeamEdge: SeamEdge | null;
 
+  // Free-Sew state (partial edge sewing)
+  pendingFreeSewEdge: (SeamEdge & { paramStart: number; paramEnd: number }) | null;
+
+  // Edit-Sew state
+  selectedSeamId: string | null;
+
   // Material & Stitching
   currentMaterial: FabricMaterial;
   customColor: string;
@@ -169,6 +176,7 @@ interface CloState {
   addVertexToEdge: (pieceId: string, edgeIndex: number, newPoint: { x: number; y: number }) => void;
   deleteVertex: (pieceId: string, vertexIndex: number) => void;
   curveEdge: (pieceId: string, edgeIndex: number, curvatureAmount: number) => void;
+  setEdgeCurvature: (pieceId: string, edgeIndex: number, curvature: EdgeCurvature | null) => void;
   duplicatePiece: (pieceId: string, mirrorX?: boolean) => void;
   deletePiece: (pieceId: string) => void;
   togglePieceLock: (pieceId: string) => void;
@@ -192,6 +200,12 @@ interface CloState {
   setDefaultStitchType: (type: StitchType) => void;
   setDefaultThreadColor: (color: string) => void;
   toggleShowStitches: () => void;
+
+  // Free-Sew & Edit-Sew actions
+  setPendingFreeSewEdge: (edge: (SeamEdge & { paramStart: number; paramEnd: number }) | null) => void;
+  setSelectedSeamId: (id: string | null) => void;
+  reverseSeam: (id: string) => void;
+  updateSeam: (id: string, partial: Partial<SeamConnection>) => void;
 
   // Material & Avatar
   setMaterial: (material: FabricMaterial) => void;
@@ -263,6 +277,8 @@ export const useCloStore = create<CloState>((set, get) => {
     selectedVertexIndex: null,
     activeTool: 'select',
     pendingSeamEdge: null,
+    pendingFreeSewEdge: null,
+    selectedSeamId: null,
 
     currentMaterial: active.currentMaterial || FABRIC_PRESETS[0],
     customColor: active.customColor || '#38bdf8',
@@ -578,7 +594,7 @@ export const useCloStore = create<CloState>((set, get) => {
     // ==========================================
     selectPiece: (id) => set({ selectedPieceId: id, selectedVertexIndex: null }),
     selectVertex: (index) => set({ selectedVertexIndex: index }),
-    setActiveTool: (tool) => set({ activeTool: tool, pendingSeamEdge: null }),
+    setActiveTool: (tool) => set({ activeTool: tool, pendingSeamEdge: null, pendingFreeSewEdge: null, selectedSeamId: null }),
 
     updatePiecePosition: (id, pos) => {
       const updatedPieces = get().pieces.map((p) => (p.id === id ? { ...p, position: pos } : p));
@@ -651,7 +667,24 @@ export const useCloStore = create<CloState>((set, get) => {
           y: Math.round(newPoint.y),
         };
         newPts.splice(edgeIndex + 1, 0, newVert);
-        return { ...p, points: newPts };
+
+        // Re-index edge curvatures: inserting a point splits the edge
+        // Edges after the insertion shift index by +1
+        const oldCurvatures = p.edgeCurvatures || {};
+        const newCurvatures: Record<number, import('../types/cad').EdgeCurvature> = {};
+        for (const [key, val] of Object.entries(oldCurvatures)) {
+          const idx = Number(key);
+          if (idx < edgeIndex) {
+            newCurvatures[idx] = val;
+          } else if (idx === edgeIndex) {
+            // The curved edge is being split - remove curvature from both halves
+            // (user can re-curve them individually)
+          } else {
+            newCurvatures[idx + 1] = val;
+          }
+        }
+
+        return { ...p, points: newPts, edgeCurvatures: Object.keys(newCurvatures).length > 0 ? newCurvatures : undefined };
       });
 
       set({
@@ -670,7 +703,28 @@ export const useCloStore = create<CloState>((set, get) => {
       const updatedPieces = get().pieces.map((p) => {
         if (p.id !== pieceId) return p;
         const newPts = p.points.filter((_, idx) => idx !== vertexIndex);
-        return { ...p, points: newPts };
+
+        // Re-index edge curvatures when a vertex is removed
+        const n = p.points.length;
+        const oldCurvatures = p.edgeCurvatures || {};
+        const newCurvatures: Record<number, import('../types/cad').EdgeCurvature> = {};
+        for (const [key, val] of Object.entries(oldCurvatures)) {
+          const idx = Number(key);
+          // Edge idx connects point[idx] to point[idx+1]
+          // Removing vertexIndex: edges vertexIndex-1 and vertexIndex are destroyed
+          const prevEdge = (vertexIndex - 1 + n) % n;
+          if (idx === prevEdge || idx === vertexIndex) {
+            continue; // skip edges touching the deleted vertex
+          }
+          // Re-index: edges after the removed vertex shift down by 1
+          if (idx > vertexIndex) {
+            newCurvatures[idx - 1] = val;
+          } else {
+            newCurvatures[idx] = val;
+          }
+        }
+
+        return { ...p, points: newPts, edgeCurvatures: Object.keys(newCurvatures).length > 0 ? newCurvatures : undefined };
       });
 
       set({
@@ -690,25 +744,43 @@ export const useCloStore = create<CloState>((set, get) => {
       const p1 = pts[edgeIndex];
       const p2 = pts[(edgeIndex + 1) % pts.length];
 
-      // Insert midpoint with perpendicular normal offset
-      const midX = (p1.x + p2.x) / 2;
-      const midY = (p1.y + p2.y) / 2;
+      // Compute perpendicular offset for the control point
       const dx = p2.x - p1.x;
       const dy = p2.y - p1.y;
       const len = Math.hypot(dx, dy) || 1;
       const nx = -dy / len;
       const ny = dx / len;
 
-      const curvePt = {
-        id: `cv-${Date.now()}`,
-        x: Math.round(midX + nx * curvatureAmount),
-        y: Math.round(midY + ny * curvatureAmount),
+      const newCurvatures = { ...(piece.edgeCurvatures || {}) };
+      newCurvatures[edgeIndex] = {
+        cpx: nx * curvatureAmount,
+        cpy: ny * curvatureAmount,
       };
 
-      const newPts = [...pts];
-      newPts.splice(edgeIndex + 1, 0, curvePt);
+      const updatedPieces = get().pieces.map((p) =>
+        p.id === pieceId ? { ...p, edgeCurvatures: newCurvatures } : p
+      );
+      set({
+        pieces: updatedPieces,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updatedPieces }),
+      });
+    },
 
-      const updatedPieces = get().pieces.map((p) => (p.id === pieceId ? { ...p, points: newPts } : p));
+    setEdgeCurvature: (pieceId, edgeIndex, curvature) => {
+      const piece = get().pieces.find((p) => p.id === pieceId);
+      if (!piece) return;
+
+      const newCurvatures = { ...(piece.edgeCurvatures || {}) };
+      if (curvature) {
+        newCurvatures[edgeIndex] = curvature;
+      } else {
+        delete newCurvatures[edgeIndex];
+      }
+
+      const updatedPieces = get().pieces.map((p) =>
+        p.id === pieceId ? { ...p, edgeCurvatures: newCurvatures } : p
+      );
       set({
         pieces: updatedPieces,
         simulationIteration: get().simulationIteration + 1,
@@ -1245,6 +1317,39 @@ export const useCloStore = create<CloState>((set, get) => {
     toggleShowStitches: () => {
       const updated = { ...get().stitchSettings, showStitches: !get().stitchSettings.showStitches };
       set({ stitchSettings: updated, ...syncToActiveProject({ stitchSettings: updated }) });
+    },
+
+    // ==========================================
+    // Free-Sew & Edit-Sew Actions
+    // ==========================================
+    setPendingFreeSewEdge: (edge) => set({ pendingFreeSewEdge: edge }),
+
+    setSelectedSeamId: (id) => set({ selectedSeamId: id }),
+
+    reverseSeam: (id) => {
+      get().pushHistory();
+      const updatedSeams = get().seams.map((s) => {
+        if (s.id !== id) return s;
+        return { ...s, reversed: !s.reversed };
+      });
+      set({
+        seams: updatedSeams,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ seams: updatedSeams }),
+      });
+    },
+
+    updateSeam: (id, partial) => {
+      get().pushHistory();
+      const updatedSeams = get().seams.map((s) => {
+        if (s.id !== id) return s;
+        return { ...s, ...partial };
+      });
+      set({
+        seams: updatedSeams,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ seams: updatedSeams }),
+      });
     },
 
     // ==========================================

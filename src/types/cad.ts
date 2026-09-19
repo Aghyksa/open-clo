@@ -4,9 +4,18 @@ export interface Point2D {
   y: number;
 }
 
+// Bezier curvature stored per edge (edge i = from point[i] to point[(i+1) % n])
+// Control point offsets are relative to the edge midpoint, in local piece coordinates
+export interface EdgeCurvature {
+  cpx: number; // control point X offset from edge midpoint
+  cpy: number; // control point Y offset from edge midpoint
+}
+
 export interface SeamEdge {
   pieceId: string;
   edgeIndex: number; // Index of the start point of the segment in points array
+  paramStart?: number; // 0-1 parameter along edge for partial seam start (free-sew)
+  paramEnd?: number;   // 0-1 parameter along edge for partial seam end (free-sew)
 }
 
 export type StitchType =
@@ -25,6 +34,7 @@ export interface SeamConnection {
   stitchType?: StitchType;
   threadColor?: string;
   seamAllowanceMm?: number;
+  reversed?: boolean; // Direction reversed (shown via notch direction)
 }
 
 export interface GraphicLayer {
@@ -51,6 +61,7 @@ export interface PatternPiece {
   id: string;
   name: string;
   points: Point2D[];
+  edgeCurvatures?: Record<number, EdgeCurvature>; // keyed by edge index
   position: { x: number; y: number };
   rotation: number; // In radians
   color?: string;
@@ -102,6 +113,8 @@ export type CadTool =
   | 'patch'     // K: Tambal Kain / Add Fabric Piece
   | 'polygon'   // N: Draw custom polygon pattern piece
   | 'sew'       // S: Virtual Sewing tool
+  | 'free-sew'  // F: Free Sewing (partial edge seams)
+  | 'edit-sew'  // B: Edit Sewing (select, modify, delete seams)
   | 'move'      // H: Pan Viewport
   | 'measure'   // M: Measure edge segment
   | 'graphic';  // T: Add artwork / graphic stamp

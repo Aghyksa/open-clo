@@ -14,6 +14,8 @@ import {
   PlusCircle,
   Undo2,
   Redo2,
+  Link,
+  Unlink,
 } from 'lucide-react';
 
 interface ToolItem {
@@ -80,6 +82,20 @@ const TOOLS: ToolItem[] = [
     hotkey: 'S',
     icon: Scissors,
     description: 'Click two pattern edge segments to generate a 3D sewing seam constraint',
+  },
+  {
+    id: 'free-sew',
+    name: 'Free Sewing (Partial Edge)',
+    hotkey: 'F',
+    icon: Link,
+    description: 'Click two points on edges to sew partial segments — for precise control over seam start/end',
+  },
+  {
+    id: 'edit-sew',
+    name: 'Edit Seams',
+    hotkey: 'B',
+    icon: Unlink,
+    description: 'Select, inspect, reverse direction, or delete existing seams. Press Delete to remove.',
   },
   {
     id: 'move',
