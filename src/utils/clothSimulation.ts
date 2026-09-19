@@ -393,7 +393,7 @@ export class ClothSimulator {
    * Angle convention: 0 = front center (-Z), π = back center (+Z).
    * Column wraps 0..TUBE_COLS around the full circle.
    */
-  private isInCutout(angle: number, y: number, topY: number, sY: number = 1.0): boolean {
+  private isInCutout(angle: number, y: number, topY: number, sY: number = 1.0, hasSleeves: boolean = false): boolean {
     const depthFromTop = (topY - y) / sY;
 
     // ── Neckline ──
@@ -403,9 +403,9 @@ export class ClothSimulator {
 
     if (depthFromTop < 0.12) {
       if (isFront) {
-        // Front neckline: natural scoop 9.5cm down, 33° arc
-        const neckWidth = 0.58;
-        const neckDepth = 0.095;
+        // Front neckline: natural scoop
+        const neckWidth = 0.54;
+        const neckDepth = 0.090;
         if (frontAngle < neckWidth) {
           const t = frontAngle / neckWidth;
           const cutDepth = neckDepth * (1 - t * t);
@@ -413,10 +413,10 @@ export class ClothSimulator {
         }
       }
       if (isBack) {
-        // Back neckline: shallow scoop 3.5cm down, 27° arc
+        // Back neckline: shallow scoop 3.2cm down
         const backAngle = Math.PI - frontAngle;
-        const neckWidth = 0.48;
-        const neckDepth = 0.035;
+        const neckWidth = 0.46;
+        const neckDepth = 0.032;
         if (backAngle < neckWidth) {
           const t = backAngle / neckWidth;
           const cutDepth = neckDepth * (1 - t * t);
@@ -426,13 +426,13 @@ export class ClothSimulator {
     }
 
     // ── Armholes ──
-    // Starts 2.5cm down from shoulder line, extends down to 20.5cm (armpit level)
-    const armholeStartDepth = 0.025;
+    // If garment has sleeves, shoulder stays covered all the way to arm joint (~7.5cm down)
+    const armholeStartDepth = hasSleeves ? 0.075 : 0.028;
     const armholeMaxDepth = 0.205;
     if (depthFromTop >= armholeStartDepth && depthFromTop < armholeMaxDepth) {
       const distFromRight = Math.abs(angle - Math.PI / 2);
       const distFromLeft = Math.abs(angle - 3 * Math.PI / 2);
-      const armholeAngularWidth = 0.55; // radians (~31.5°)
+      const armholeAngularWidth = hasSleeves ? 0.46 : 0.54; // radians
       const totalDepth = armholeMaxDepth - armholeStartDepth;
       const localDepth = depthFromTop - armholeStartDepth;
 
@@ -463,36 +463,49 @@ export class ClothSimulator {
     const garmentLength = topY - hemY;
     const normalizedY = (topY - y) / garmentLength; // 0=top, 1=hem
 
-    // Base wrinkle frequency and amplitude
-    // More wrinkles at waist (compression) and near hem (gravity gathering)
-    const waistProximity = 1.0 - Math.abs(normalizedY - 0.55) * 3.0;
+    // ── Realistic wrinkle zones ──
+    // 1. Chest/bust tension — outward pull at bust apex creating horizontal tension folds
+    const bustProximity = 1.0 - Math.abs(normalizedY - 0.22) * 4.0;
+    const bustFactor = Math.max(0, bustProximity);
+
+    // 2. Waist compression — fabric gathers where body narrows
+    const waistProximity = 1.0 - Math.abs(normalizedY - 0.52) * 3.0;
     const waistFactor = Math.max(0, waistProximity);
 
+    // 3. Hem drape — gravity gathering at bottom edge
     const hemProximity = Math.max(0, normalizedY - 0.7) / 0.3;
 
-    // Vertical fold lines (like real fabric compression)
-    const foldFreqHigh = 8.0;
-    const foldFreqLow = 3.0;
+    // 4. Side seam tension — subtle pull along side seams
+    const isSideAngle = Math.abs(Math.sin(angle)) > 0.85;
+    const sideTension = isSideAngle ? 0.4 : 0.0;
 
-    // High-frequency micro wrinkles
-    const microWrinkle = fbmNoise(col * 0.7, row * 0.5, 3) * 0.003;
+    // ── Fold frequencies (matching real cotton jersey behavior) ──
+    // High-freq micro wrinkles — tiny surface texture
+    const microWrinkle = fbmNoise(col * 0.8, row * 0.6, 3) * 0.0015;
 
-    // Medium vertical compression folds at waist
-    const waistFold = Math.sin(angle * foldFreqHigh + fbmNoise(row * 0.3, 0, 2) * 2.0)
-      * 0.004 * waistFactor;
+    // Medium vertical compression folds at waist (8-10 folds around)
+    const waistFold = Math.sin(angle * 8.0 + fbmNoise(row * 0.3, 0, 2) * 2.0)
+      * 0.0025 * waistFactor;
 
-    // Broad drape folds
-    const drapeFold = Math.sin(angle * foldFreqLow + 0.7)
-      * 0.003 * (0.3 + normalizedY * 0.7);
+    // Bust tension radiating folds — horizontal lines under bust
+    const bustFold = Math.sin(angle * 4.0 + 0.3) * 0.002 * bustFactor
+      * (1.0 - sideTension); // reduced at sides
 
-    // Hem gathering - gentle flare
-    const hemGather = Math.sin(angle * 5.0 + 1.3) * 0.005 * hemProximity;
+    // Broad drape folds — 3-4 major vertical fold lines
+    const drapeFold = Math.sin(angle * 3.0 + 0.7)
+      * 0.002 * (0.2 + normalizedY * 0.5);
+
+    // Hem gathering — gentle outward flare
+    const hemGather = Math.sin(angle * 5.0 + 1.3) * 0.003 * hemProximity;
+
+    // Side seam pull — slight inward at side seams
+    const seamPull = -0.001 * sideTension * (0.3 + normalizedY * 0.4);
 
     // Vertical displacement (fabric bunching)
     const verticalBunch = fbmNoise(col * 0.4 + 3.7, row * 0.3 + 1.2, 2)
-      * 0.002 * (waistFactor * 0.5 + hemProximity * 0.3);
+      * 0.0015 * (waistFactor * 0.4 + hemProximity * 0.2);
 
-    const radial = microWrinkle + waistFold + drapeFold + hemGather;
+    const radial = microWrinkle + waistFold + bustFold + drapeFold + hemGather + seamPull;
     const vertical = verticalBunch;
 
     return { radial, vertical };
@@ -518,6 +531,10 @@ export class ClothSimulator {
     const isDress = pieces.some(p =>
       p.name.toLowerCase().includes('dress') ||
       p.name.toLowerCase().includes('skirt')
+    );
+    const hasSleeves = pieces.some(p =>
+      p.name.toLowerCase().includes('sleeve') ||
+      p.name.toLowerCase().includes('lengan')
     );
 
     // Adapt 3D garment dimensions dynamically from 2D pattern piece bounds
@@ -567,15 +584,15 @@ export class ClothSimulator {
       const hd = ((cross.halfDepth * sZ) * stiffnessEase + 0.012) * widthFactor;
       const zCenter = cross.zCenter * sZ;
 
-      // Slight flare at hem for dress
-      const hemFlare = isDress ? Math.max(0, t - 0.6) * 0.08 * sX : Math.max(0, t - 0.8) * 0.02 * sX;
+      // Slight flare at hem for dress, minimal for T-shirt
+      const hemFlare = isDress ? Math.max(0, t - 0.6) * 0.06 * sX : Math.max(0, t - 0.85) * 0.01 * sX;
 
       for (let c = 0; c < cols; c++) {
         // Angle: 0 = front center (-Z), goes CW when viewed from top
         const angle = (c / cols) * Math.PI * 2;
 
         // Check for cutouts (neckline, armholes)
-        if (this.isInCutout(angle, y, topY, sY)) {
+        if (this.isInCutout(angle, y, topY, sY, hasSleeves)) {
           gridMap[r][c] = null;
           continue;
         }
@@ -660,39 +677,83 @@ export class ClothSimulator {
 
       // CASE 1: SLEEVES (Short or Long Sleeve)
       if (lowerName.includes('sleeve') || lowerName.includes('lengan')) {
-        const armSides = [-1, 1]; // Right (-1) and Left (+1)
+        const isLeftOnly = lowerName.includes('left') || lowerName.includes('kiri');
+        const isRightOnly = lowerName.includes('right') || lowerName.includes('kanan');
+        const armSides = isLeftOnly ? [1] : isRightOnly ? [-1] : [-1, 1];
+
+        const isLongSleeve =
+          lowerName.includes('long') ||
+          lowerName.includes('panjang') ||
+          lowerName.includes('hoodie') ||
+          lowerName.includes('bomber') ||
+          lowerName.includes('jacket');
+
         for (const side of armSides) {
-          const sleeveCols = 16;
-          const sleeveRows = 8;
+          const sleeveCols = 18;
+          const sleeveRows = isLongSleeve ? 16 : 8;
           const sleeveBaseIdx = this.particles.length;
 
-          const startX = side * 0.19 * sX;
-          const startY = 1.33 * sY;
-          const startZ = 0.04 * sZ;
+          // ── Natural sleeve drape geometry ──
+          // Sleeves should NOT go horizontal like T-pose.
+          // Real garments on a mannequin: sleeves hang down at ~70° from horizontal,
+          // curving slightly outward then dropping nearly straight down.
+          //
+          // We model this as a catenary-like curve:
+          //   Start: shoulder joint (slightly outboard of torso)
+          //   Control: slight outward extension at ~30° below horizontal
+          //   End: hanging nearly vertical (short sleeve = bicep level, long = wrist)
 
-          const endX = side * 0.35 * sX;
-          const endY = 1.15 * sY;
-          const endZ = 0.04 * sZ;
+          const shoulderX = side * 0.195 * sX;
+          const shoulderY = 1.34 * sY;
+          const shoulderZ = 0.015 * sZ;
 
-          const startR = 0.078 * sX;
-          const endR = 0.065 * sX;
+          // Short sleeve hangs just past armhole, barely extended outward
+          // Long sleeve drapes all the way to wrist level
+          const sleeveEndX = side * (isLongSleeve ? 0.22 : 0.25) * sX;
+          const sleeveEndY = (isLongSleeve ? 0.72 : 1.12) * sY;
+          const sleeveEndZ = (isLongSleeve ? 0.06 : 0.02) * sZ;
 
-          const armAxis = new THREE.Vector3(endX - startX, endY - startY, endZ - startZ).normalize();
-          const upVec = new THREE.Vector3(0, 0, 1);
-          const perp1 = new THREE.Vector3().crossVectors(armAxis, upVec).normalize();
-          const perp2 = new THREE.Vector3().crossVectors(armAxis, perp1).normalize();
+          // Control point: where the sleeve bows outward before gravity pulls it down
+          const ctrlX = side * (isLongSleeve ? 0.30 : 0.28) * sX;
+          const ctrlY = (isLongSleeve ? 1.10 : 1.22) * sY;
+          const ctrlZ = 0.02 * sZ;
+
+          // Radius: shoulder cap wider, tapers to cuff
+          const startR = 0.085 * sX;
+          const endR = (isLongSleeve ? 0.048 : 0.065) * sX;
 
           for (let sr = 0; sr < sleeveRows; sr++) {
             const st = sr / (sleeveRows - 1);
-            const cx = THREE.MathUtils.lerp(startX, endX, st);
-            const cy = THREE.MathUtils.lerp(startY, endY, st);
-            const cz = THREE.MathUtils.lerp(startZ, endZ, st);
+
+            // Quadratic Bézier for natural sleeve drape curve
+            const oneMinT = 1 - st;
+            const cx = oneMinT * oneMinT * shoulderX + 2 * oneMinT * st * ctrlX + st * st * sleeveEndX;
+            const cy = oneMinT * oneMinT * shoulderY + 2 * oneMinT * st * ctrlY + st * st * sleeveEndY;
+            const cz = oneMinT * oneMinT * shoulderZ + 2 * oneMinT * st * ctrlZ + st * st * sleeveEndZ;
+
+            // Tangent along curve for proper tube orientation
+            const tx = 2 * (oneMinT * (ctrlX - shoulderX) + st * (sleeveEndX - ctrlX));
+            const ty = 2 * (oneMinT * (ctrlY - shoulderY) + st * (sleeveEndY - ctrlY));
+            const tz = 2 * (oneMinT * (ctrlZ - shoulderZ) + st * (sleeveEndZ - ctrlZ));
+
+            const tangent = new THREE.Vector3(tx, ty, tz).normalize();
+
+            // Build perpendicular frame (Frenet frame)
+            const up = Math.abs(tangent.y) > 0.95
+              ? new THREE.Vector3(1, 0, 0)
+              : new THREE.Vector3(0, 1, 0);
+            const perp1 = new THREE.Vector3().crossVectors(tangent, up).normalize();
+            const perp2 = new THREE.Vector3().crossVectors(tangent, perp1).normalize();
+
             const currR = THREE.MathUtils.lerp(startR, endR, st);
+
+            // Add slight gravity sag at mid-sleeve for long sleeves
+            const sagAmount = isLongSleeve ? Math.sin(st * Math.PI) * 0.012 * sY : 0;
 
             for (let sc = 0; sc < sleeveCols; sc++) {
               const sAngle = (sc / sleeveCols) * Math.PI * 2;
               const px = cx + (perp1.x * Math.cos(sAngle) + perp2.x * Math.sin(sAngle)) * currR;
-              const py = cy + (perp1.y * Math.cos(sAngle) + perp2.y * Math.sin(sAngle)) * currR;
+              const py = cy + (perp1.y * Math.cos(sAngle) + perp2.y * Math.sin(sAngle)) * currR - sagAmount;
               const pz = cz + (perp1.z * Math.cos(sAngle) + perp2.z * Math.sin(sAngle)) * currR;
 
               const norm = new THREE.Vector3(
@@ -706,10 +767,10 @@ export class ClothSimulator {
                 prevPos: new THREE.Vector3(px, py, pz),
                 originalPos: new THREE.Vector3(px, py, pz),
                 local2D: { x: sc * 10, y: sr * 10 },
-                invMass: 0.6 / Math.max(0.1, material.density / 140),
+                invMass: THREE.MathUtils.lerp(0.3, 0.8, st) / Math.max(0.1, material.density / 140),
                 normal: norm,
                 uv: new THREE.Vector2(sc / sleeveCols, 1 - st),
-                pinned: false,
+                pinned: sr === 0, // Pin top row at shoulder for stability
                 pieceId: piece.id,
               });
             }
