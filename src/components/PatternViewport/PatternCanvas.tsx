@@ -24,6 +24,9 @@ export const PatternCanvas: React.FC = () => {
 
   const {
     setCanvasViewMode,
+    canvasTheme,
+    setCanvasTheme,
+    updatePieceColor,
     pieces,
     seams,
     selectedPieceId,
@@ -431,7 +434,7 @@ export const PatternCanvas: React.FC = () => {
   // ==========================================
   // Draw Anatomical 2D Avatar Silhouette (CLO3D Style)
   // ==========================================
-  const drawAvatar2DGuide = (
+  const drawAvatar2DGuide = useCallback((
     ctx: CanvasRenderingContext2D,
     av: AvatarConfig,
     av2d: Avatar2DConfig
@@ -596,7 +599,7 @@ export const PatternCanvas: React.FC = () => {
     });
 
     ctx.restore();
-  };
+  }, [worldToScreen]);
 
   // ==========================================
   // Main Canvas Render Loop
@@ -618,8 +621,9 @@ export const PatternCanvas: React.FC = () => {
     const width = rect.width;
     const height = rect.height;
 
-    // 1. Studio Background
-    ctx.fillStyle = '#111317';
+    // 1. Studio Artboard Background
+    const isWhite = canvasTheme === 'white';
+    ctx.fillStyle = isWhite ? '#ffffff' : '#111317';
     ctx.fillRect(0, 0, width, height);
 
     // 2. CAD Grid
@@ -627,7 +631,7 @@ export const PatternCanvas: React.FC = () => {
     const startX = ((viewState.offsetX % gridSize) + gridSize) % gridSize;
     const startY = ((viewState.offsetY % gridSize) + gridSize) % gridSize;
 
-    ctx.strokeStyle = '#181b22';
+    ctx.strokeStyle = isWhite ? '#f1f5f9' : '#181b22';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = startX; x < width; x += gridSize) {
@@ -635,6 +639,23 @@ export const PatternCanvas: React.FC = () => {
       ctx.lineTo(x, height);
     }
     for (let y = startY; y < height; y += gridSize) {
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+    }
+    ctx.stroke();
+
+    // Major CAD Grid lines (every 5 cells)
+    const majorGridSize = gridSize * 5;
+    const majorStartX = ((viewState.offsetX % majorGridSize) + majorGridSize) % majorGridSize;
+    const majorStartY = ((viewState.offsetY % majorGridSize) + majorGridSize) % majorGridSize;
+    ctx.strokeStyle = isWhite ? '#e2e8f0' : '#232834';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = majorStartX; x < width; x += majorGridSize) {
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+    }
+    for (let y = majorStartY; y < height; y += majorGridSize) {
       ctx.moveTo(0, y);
       ctx.lineTo(width, y);
     }
@@ -678,16 +699,26 @@ export const PatternCanvas: React.FC = () => {
       }
       ctx.closePath();
 
-      ctx.fillStyle = isSelected
+      ctx.fillStyle = piece.color
+        ? (isWhite ? `${piece.color}2e` : `${piece.color}44`)
+        : isSelected
         ? 'rgba(59, 130, 246, 0.22)'
         : piece.locked
         ? 'rgba(100, 116, 139, 0.08)'
+        : isWhite
+        ? '#f8fafc'
         : 'rgba(255, 255, 255, 0.06)';
       ctx.fill();
 
       // Stroke Outline
-      ctx.strokeStyle = isSelected ? '#3b82f6' : piece.locked ? '#475569' : '#64748b';
-      ctx.lineWidth = isSelected ? 2.5 : 1.5;
+      ctx.strokeStyle = isSelected
+        ? '#2563eb'
+        : piece.locked
+        ? '#94a3b8'
+        : isWhite
+        ? '#0f172a'
+        : '#64748b';
+      ctx.lineWidth = isSelected ? 2.5 : isWhite ? 1.8 : 1.5;
       ctx.lineJoin = 'round';
       ctx.stroke();
 
@@ -767,12 +798,29 @@ export const PatternCanvas: React.FC = () => {
 
       ctx.restore();
 
-      // Piece Label
-      ctx.font = '500 12px ui-sans-serif, system-ui';
-      ctx.fillStyle = isSelected ? '#93c5fd' : '#cbd5e1';
+      // Piece Label (Pill Badge)
+      ctx.save();
+      ctx.font = '600 12px ui-sans-serif, system-ui';
+      const labelText = piece.name;
+      const textW = ctx.measureText(labelText).width;
+      const pillW = textW + 16;
+      const pillH = 22;
+      const pillX = centerScreen.x - pillW / 2;
+      const pillY = centerScreen.y + 42 * viewState.scale;
+
+      ctx.fillStyle = isWhite ? '#ffffff' : '#1e293b';
+      ctx.beginPath();
+      ctx.roundRect(pillX, pillY, pillW, pillH, 6);
+      ctx.fill();
+      ctx.strokeStyle = isSelected ? '#2563eb' : (isWhite ? '#cbd5e1' : '#475569');
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.fillStyle = isSelected ? '#1e40af' : (isWhite ? '#0f172a' : '#cbd5e1');
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(piece.name, centerScreen.x, centerScreen.y + 48 * viewState.scale);
+      ctx.fillText(labelText, centerScreen.x, pillY + pillH / 2);
+      ctx.restore();
 
       // Edge Segment Dimensions (Metric labels) with curve arc length approximation
       for (let i = 0; i < pts.length; i++) {
@@ -783,10 +831,8 @@ export const PatternCanvas: React.FC = () => {
 
         let lengthCm: string;
         if (curv) {
-          // Quadratic Bezier arc length approximation (3-point method)
           const cpx = (p1.x + p2.x) / 2 + curv.cpx;
           const cpy = (p1.y + p2.y) / 2 + curv.cpy;
-          // Approximate with 8 line segments
           let arcLen = 0;
           let prevX = p1.x, prevY = p1.y;
           for (let t = 1; t <= 8; t++) {
@@ -803,27 +849,65 @@ export const PatternCanvas: React.FC = () => {
           lengthCm = (Math.hypot(p2.x - p1.x, p2.y - p1.y) / 10).toFixed(1);
         }
 
-        const sp1 = screenPts[i];
-        const sp2 = screenPts[nextIdx];
-        const midX = (sp1.x + sp2.x) / 2;
-        const midY = (sp1.y + sp2.y) / 2;
+        // Only draw segment dimension if piece is selected (or in measure tool) and segment >= 6 cm
+        const numCm = parseFloat(lengthCm);
+        const showDim = (isSelected || activeTool === 'measure') && numCm >= 6.0;
+        if (showDim) {
+          const sp1 = screenPts[i];
+          const sp2 = screenPts[nextIdx];
+          const midX = (sp1.x + sp2.x) / 2;
+          const midY = (sp1.y + sp2.y) / 2;
 
-        ctx.font = '10px ui-monospace, monospace';
-        ctx.fillStyle = '#64748b';
-        ctx.fillText(`${lengthCm} cm`, midX, midY - 6);
+          ctx.save();
+          ctx.font = '600 9.5px ui-monospace, monospace';
+          const dimText = `${lengthCm} cm`;
+          const dimW = ctx.measureText(dimText).width;
+          ctx.fillStyle = isWhite ? 'rgba(255, 255, 255, 0.95)' : 'rgba(15, 23, 42, 0.9)';
+          ctx.beginPath();
+          ctx.roundRect(midX - dimW / 2 - 4, midY - 14, dimW + 8, 14, 4);
+          ctx.fill();
+          ctx.strokeStyle = isWhite ? '#cbd5e1' : '#475569';
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+
+          ctx.fillStyle = isWhite ? '#1e293b' : '#e2e8f0';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(dimText, midX, midY - 7);
+          ctx.restore();
+        }
       }
 
-      // Draw Vertices handles (Direct Select tool)
-      if (isSelected && (activeTool === 'vertex' || activeTool === 'pen' || activeTool === 'curve')) {
+      // Draw Vertices handles (Direct Select tool A, Pen tool P, Curvature tool C)
+      const shouldDrawVertices = (activeTool === 'vertex' || activeTool === 'pen' || activeTool === 'curve') || isSelected;
+      if (shouldDrawVertices) {
         screenPts.forEach((sp, idx) => {
           const isVertSelected = isSelected && idx === selectedVertexIndex;
-          ctx.beginPath();
-          ctx.arc(sp.x, sp.y, isVertSelected ? 6 : 4.5, 0, Math.PI * 2);
-          ctx.fillStyle = isVertSelected ? '#38bdf8' : '#ffffff';
-          ctx.fill();
-          ctx.strokeStyle = '#0f172a';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
+          if (isVertSelected) {
+            ctx.save();
+            // Outer glow ring
+            ctx.beginPath();
+            ctx.arc(sp.x, sp.y, 8.5, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(37, 99, 235, 0.3)';
+            ctx.fill();
+            // Solid blue anchor with white border
+            ctx.beginPath();
+            ctx.arc(sp.x, sp.y, 5.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#2563eb';
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            ctx.restore();
+          } else {
+            ctx.beginPath();
+            ctx.arc(sp.x, sp.y, isSelected ? 4.5 : 3.5, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.strokeStyle = isSelected ? '#2563eb' : (isWhite ? '#0f172a' : '#64748b');
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          }
         });
 
         // Draw Bezier curve control handles (when curve tool or vertex tool is active)
@@ -1081,8 +1165,10 @@ export const PatternCanvas: React.FC = () => {
       ctx.stroke();
     }
 
-    // 6. Draw Virtual Seam Links — color-coded arcs, direction notches, labels
-    seams.forEach((seam, sIdx) => {
+    // 6. Draw Virtual Seam Links — color-coded arcs, direction notches, labels (only active in sewing tools)
+    const isSewingActive = activeTool === 'sew' || activeTool === 'edit-sew' || activeTool === 'free-sew' || selectedSeamId !== null;
+    if (isSewingActive) {
+      seams.forEach((seam, sIdx) => {
       const pieceA = pieces.find((p) => p.id === seam.edgeA.pieceId);
       const pieceB = pieces.find((p) => p.id === seam.edgeB.pieceId);
       if (!pieceA || !pieceB) return;
@@ -1263,6 +1349,7 @@ export const PatternCanvas: React.FC = () => {
         ctx.restore();
       }
     });
+    }
 
     // 6b. Draw Free-Sew hover point preview
     if (activeTool === 'free-sew' && freeSewHover) {
@@ -1403,6 +1490,8 @@ export const PatternCanvas: React.FC = () => {
     pendingFreeSewEdge,
     selectedSeamId,
     editSewHover,
+    canvasTheme,
+    drawAvatar2DGuide,
   ]);
 
   // ==========================================
@@ -1546,27 +1635,56 @@ export const PatternCanvas: React.FC = () => {
         return;
       }
 
-      // 2. Pen Tool: Split edge & insert point (Illustrator Pen Tool behavior)
+      // 2. Pen Tool: Split edge & insert point OR start drafting custom polygon
       if (activeTool === 'pen') {
-        // First check if we click on a vertex (to select it)
-        for (const piece of pieces) {
-          if (piece.id === selectedPieceId) {
-            const vIdx = findVertexAt(world.x, world.y, piece);
+        // First check if clicked on existing vertex to select across all pieces
+        for (let i = pieces.length - 1; i >= 0; i--) {
+          const piece = pieces[i];
+          if (piece.visible !== false) {
+            const vIdx = findVertexAt(world.x, world.y, piece, 18);
             if (vIdx !== null) {
+              selectPiece(piece.id);
               selectVertex(vIdx);
               return;
             }
           }
         }
-        // Then check edge click to add a point
-        for (const piece of pieces) {
-          const edgeHit = findEdgeAt(world.x, world.y, piece, 15);
-          if (edgeHit !== null) {
-            selectPiece(piece.id);
-            addVertexToEdge(piece.id, edgeHit.edgeIndex, edgeHit.point);
-            return;
+        // Then check if clicked on an edge to insert anchor point across all pieces
+        for (let i = pieces.length - 1; i >= 0; i--) {
+          const piece = pieces[i];
+          if (!piece.locked && piece.visible !== false) {
+            const edgeHit = findEdgeAt(world.x, world.y, piece, 18);
+            if (edgeHit !== null) {
+              selectPiece(piece.id);
+              pushHistory();
+              addVertexToEdge(piece.id, edgeHit.edgeIndex, edgeHit.point);
+              selectVertex(edgeHit.edgeIndex + 1);
+              setSeamToast(`Added anchor point on ${piece.name}`);
+              return;
+            }
           }
         }
+        // If clicked on empty space, start / continue drafting custom polygon piece
+        if (drawingPolygonPoints.length === 0) {
+          setDrawingPolygonPoints([{ x: Math.round(world.x), y: Math.round(world.y) }]);
+          setPolygonMousePos({ x: world.x, y: world.y });
+        } else {
+          const firstPt = drawingPolygonPoints[0];
+          const distToFirst = Math.hypot(world.x - firstPt.x, world.y - firstPt.y);
+          if (distToFirst < 25 && drawingPolygonPoints.length >= 3) {
+            pushHistory();
+            const cx = drawingPolygonPoints.reduce((s, p) => s + p.x, 0) / drawingPolygonPoints.length;
+            const cy = drawingPolygonPoints.reduce((s, p) => s + p.y, 0) / drawingPolygonPoints.length;
+            const localPoints = drawingPolygonPoints.map(p => ({ x: Math.round(p.x - cx), y: Math.round(p.y - cy) }));
+            addCustomPiece('Custom Pattern Piece', localPoints, { x: Math.round(cx), y: Math.round(cy) });
+            setDrawingPolygonPoints([]);
+            setPolygonMousePos(null);
+            setSeamToast('Created custom pattern piece!');
+          } else {
+            setDrawingPolygonPoints((prev) => [...prev, { x: Math.round(world.x), y: Math.round(world.y) }]);
+          }
+        }
+        return;
       }
 
       // 3. Curve Tool: Drag edge to bend (Illustrator-style click+drag)
@@ -1657,22 +1775,50 @@ export const PatternCanvas: React.FC = () => {
         }
       }
 
-      // 5. Check vertex click (Direct Select Tool A)
-      if (selectedPieceId && (activeTool === 'vertex' || activeTool === 'select')) {
-        const piece = pieces.find((p) => p.id === selectedPieceId);
-        if (piece && !piece.locked) {
-          const vIdx = findVertexAt(world.x, world.y, piece);
-          if (vIdx !== null) {
-            selectVertex(vIdx);
-            dragModeRef.current = 'vertex';
-            draggedPieceIdRef.current = piece.id;
-            draggedVertexRef.current = vIdx;
-            initialVertexPosRef.current = {
-              x: piece.points[vIdx].x,
-              y: piece.points[vIdx].y,
-            };
-            return;
+      // 5. Check vertex click (Direct Select Tool A / Node Tool) across ALL pieces
+      if (activeTool === 'vertex' || activeTool === 'select') {
+        let hitPiece: PatternPiece | null = null;
+        let vIdx: number | null = null;
+
+        // Check currently selected piece first
+        if (selectedPieceId) {
+          const p = pieces.find((item) => item.id === selectedPieceId);
+          if (p && !p.locked && p.visible !== false) {
+            const hit = findVertexAt(world.x, world.y, p, 18);
+            if (hit !== null) {
+              hitPiece = p;
+              vIdx = hit;
+            }
           }
+        }
+
+        // If not found on selected piece, search ALL pieces
+        if (vIdx === null) {
+          for (let i = pieces.length - 1; i >= 0; i--) {
+            const p = pieces[i];
+            if (!p.locked && p.visible !== false) {
+              const hit = findVertexAt(world.x, world.y, p, 18);
+              if (hit !== null) {
+                hitPiece = p;
+                vIdx = hit;
+                break;
+              }
+            }
+          }
+        }
+
+        if (hitPiece && vIdx !== null) {
+          selectPiece(hitPiece.id);
+          selectVertex(vIdx);
+          pushHistory();
+          dragModeRef.current = 'vertex';
+          draggedPieceIdRef.current = hitPiece.id;
+          draggedVertexRef.current = vIdx;
+          initialVertexPosRef.current = {
+            x: hitPiece.points[vIdx].x,
+            y: hitPiece.points[vIdx].y,
+          };
+          return;
         }
       }
 
@@ -2008,9 +2154,8 @@ export const PatternCanvas: React.FC = () => {
     setSeamContextMenu(null);
   };
 
-  // Double-click: Photoshop-style enter vertex editing mode from select tool
+  // Double-click: Add anchor point to edge OR enter vertex mode (Illustrator / CorelDraw behavior)
   const handleDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (activeTool !== 'select') return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -2018,11 +2163,30 @@ export const PatternCanvas: React.FC = () => {
     const sy = e.clientY - rect.top;
     const world = screenToWorld(sx, sy);
 
+    // 1. Check if double-clicked on any edge -> insert anchor point!
     for (let i = pieces.length - 1; i >= 0; i--) {
-      if (isPointInPiece(world.x, world.y, pieces[i])) {
-        selectPiece(pieces[i].id);
+      const piece = pieces[i];
+      if (piece.locked || piece.visible === false) continue;
+      const edgeHit = findEdgeAt(world.x, world.y, piece, 20);
+      if (edgeHit !== null) {
+        selectPiece(piece.id);
+        pushHistory();
+        addVertexToEdge(piece.id, edgeHit.edgeIndex, edgeHit.point);
+        selectVertex(edgeHit.edgeIndex + 1);
         setActiveTool('vertex');
+        setSeamToast(`Added anchor point to ${piece.name}`);
         return;
+      }
+    }
+
+    // 2. Double click inside piece in select tool -> switch to Direct Select (Vertex) tool
+    if (activeTool === 'select') {
+      for (let i = pieces.length - 1; i >= 0; i--) {
+        if (isPointInPiece(world.x, world.y, pieces[i])) {
+          selectPiece(pieces[i].id);
+          setActiveTool('vertex');
+          return;
+        }
       }
     }
   };
@@ -2152,7 +2316,7 @@ export const PatternCanvas: React.FC = () => {
   }, [selectedPieceId, selectedVertexIndex, activeTool, deleteVertex, deletePiece, duplicatePiece, undo, redo, setActiveTool, selectPiece, selectedSeamId, removeSeam, setSelectedSeamId]);
 
   return (
-    <div className="relative w-full h-full bg-[#111317] overflow-hidden flex flex-col select-none">
+    <div className={`relative w-full h-full ${canvasTheme === 'white' ? 'bg-[#f8fafc]' : 'bg-[#111317]'} overflow-hidden flex flex-col select-none`}>
       {/* 2D Canvas Top Control Strip */}
       <div className="absolute top-3 left-4 z-10 flex items-center gap-2 bg-[#171a23]/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/70 shadow-xl text-xs text-slate-300">
         <Layers className="w-4 h-4 text-blue-400" />
@@ -2178,6 +2342,21 @@ export const PatternCanvas: React.FC = () => {
 
         <span className="text-slate-600">|</span>
 
+        {/* Theme Toggle (White Artboard / Dark CAD) */}
+        <button
+          onClick={() => setCanvasTheme(canvasTheme === 'white' ? 'dark' : 'white')}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors text-[11px] font-semibold ${
+            canvasTheme === 'white'
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+              : 'text-slate-400 hover:text-white bg-slate-800/60'
+          }`}
+          title="Toggle White Artboard / Dark CAD Theme"
+        >
+          <span>{canvasTheme === 'white' ? '☀️ White Artboard' : '🌙 Dark CAD'}</span>
+        </button>
+
+        <span className="text-slate-600">|</span>
+
         {/* 2D Avatar Guide Toggle */}
         <button
           onClick={() => updateAvatar2D({ visible: !avatar2D.visible })}
@@ -2189,40 +2368,11 @@ export const PatternCanvas: React.FC = () => {
           title="Toggle Anatomical 2D Avatar Silhouette Guide"
         >
           <User className="w-3.5 h-3.5" />
-          <span>2D Avatar: {avatar2D.visible ? 'ON' : 'OFF'}</span>
+          <span>Avatar Guide: {avatar2D.visible ? 'ON' : 'OFF'}</span>
         </button>
 
-        {avatar2D.visible && (
-          <div className="flex items-center bg-slate-800/80 rounded-md p-0.5 border border-slate-700/60 text-[10px]">
-            <button
-              onClick={() => updateAvatar2D({ view: 'front' })}
-              className={`px-2 py-0.5 rounded transition-colors ${
-                avatar2D.view === 'front' ? 'bg-blue-600 text-white font-medium' : 'text-slate-400'
-              }`}
-            >
-              Front
-            </button>
-            <button
-              onClick={() => updateAvatar2D({ view: 'back' })}
-              className={`px-2 py-0.5 rounded transition-colors ${
-                avatar2D.view === 'back' ? 'bg-blue-600 text-white font-medium' : 'text-slate-400'
-              }`}
-            >
-              Back
-            </button>
-            <button
-              onClick={() => updateAvatar2D({ view: 'both' })}
-              className={`px-2 py-0.5 rounded transition-colors ${
-                avatar2D.view === 'both' ? 'bg-blue-600 text-white font-medium' : 'text-slate-400'
-              }`}
-            >
-              Both
-            </button>
-          </div>
-        )}
-
         <span className="text-slate-600">|</span>
-        <span className="text-slate-400">{(viewState.scale * 100).toFixed(0)}%</span>
+        <span className="text-slate-400 font-mono">{(viewState.scale * 100).toFixed(0)}%</span>
 
         {/* Pending Seam Indicator */}
         {pendingSeamEdge && (
@@ -2241,6 +2391,67 @@ export const PatternCanvas: React.FC = () => {
           </span>
         )}
       </div>
+
+      {/* Secondary Context Toolbar (Active when piece is selected) */}
+      {selectedPieceId && (() => {
+        const piece = pieces.find((p) => p.id === selectedPieceId);
+        if (!piece) return null;
+        const swatches = ['#262626', '#f5f5f0', '#4a5340', '#1a2436', '#d4d4d8', '#38bdf8', '#dc2626', '#f59e0b', '#8b5cf6', '#10b981'];
+        return (
+          <div className="absolute top-12 left-4 z-10 flex items-center gap-2 bg-[#171a23]/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-blue-500/50 shadow-2xl text-xs text-slate-200 animate-in fade-in slide-in-from-top-1 duration-150">
+            <span className="text-[11px] text-blue-400 font-bold">{piece.name}</span>
+            <span className="text-slate-600">|</span>
+            <div className="flex items-center gap-1">
+              {swatches.map((col) => (
+                <button
+                  key={col}
+                  onClick={() => updatePieceColor(piece.id, col)}
+                  className="w-4 h-4 rounded-full border border-white/40 hover:scale-125 transition-transform"
+                  style={{ backgroundColor: col }}
+                  title={`Fill with ${col}`}
+                />
+              ))}
+              <input
+                type="color"
+                value={piece.color || '#38bdf8'}
+                onChange={(e) => updatePieceColor(piece.id, e.target.value)}
+                className="w-4 h-4 rounded cursor-pointer border-0 p-0 bg-transparent"
+                title="Pick Custom Color"
+              />
+            </div>
+            <span className="text-slate-600">|</span>
+            <button
+              onClick={() => duplicatePiece(piece.id)}
+              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold transition-colors"
+              title="Duplicate Piece (Ctrl+D)"
+            >
+              Duplicate
+            </button>
+            <button
+              onClick={() => deletePiece(piece.id)}
+              className="px-2 py-0.5 rounded bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-[10px] font-semibold transition-colors"
+              title="Delete Piece (Del)"
+            >
+              Delete
+            </button>
+
+            {/* Selected Vertex Action */}
+            {selectedVertexIndex !== null && (
+              <>
+                <span className="text-slate-600">|</span>
+                <span className="text-[11px] text-amber-300 font-bold">Point #{selectedVertexIndex + 1}</span>
+                <button
+                  onClick={() => deleteVertex(selectedPieceId, selectedVertexIndex)}
+                  className="px-2 py-0.5 rounded bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-[10px] font-semibold transition-colors"
+                  title="Delete Vertex (Del/Backspace)"
+                >
+                  Remove Point
+                </button>
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Floating Action Buttons: Layers Panel & Avatar Quick Sizer */}
       <div className="absolute top-3 right-4 z-10 flex items-center gap-2">

@@ -19,6 +19,7 @@ import type {
   CanvasViewMode,
   StudioLightingPreset,
   GraphicDecal,
+  CanvasTheme,
 } from '../types/cad';
 import {
   FABRIC_PRESETS,
@@ -26,7 +27,7 @@ import {
   STITCH_PRESETS,
 } from '../utils/patternPresets';
 
-const STORAGE_KEY_PROJECTS = 'openclo_projects_v2';
+const STORAGE_KEY_PROJECTS = 'openclo_projects_v7';
 const STORAGE_KEY_ACTIVE = 'openclo_active_project_id';
 
 function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string): CloProject {
@@ -73,7 +74,8 @@ function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string): 
       },
     ],
     mockupScene: 'ghost',
-    canvasViewMode: 'assembled',
+    canvasViewMode: 'pieces',
+    canvasTheme: 'white',
     avatar: {
       gender: 'female',
       height: 175,
@@ -84,10 +86,10 @@ function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string): 
       showSkin: true,
     },
     avatar2D: {
-      visible: true,
+      visible: false,
       view: 'front',
-      opacity: 0.35,
-      showGuides: true,
+      opacity: 0.25,
+      showGuides: false,
       position: { x: 300, y: 260 },
     },
     stitchSettings: {
@@ -208,6 +210,7 @@ interface CloState {
   selectVertex: (index: number | null) => void;
   setActiveTool: (tool: CadTool) => void;
   updatePiecePosition: (id: string, pos: { x: number; y: number }) => void;
+  updatePieceColor: (id: string, color: string) => void;
   setPieceRotation: (id: string, radians: number) => void;
   updatePieceVertex: (pieceId: string, vertexIndex: number, newPoint: { x: number; y: number }) => void;
   scalePiece: (pieceId: string, factorX: number, factorY?: number) => void;
@@ -266,6 +269,7 @@ interface CloState {
   canvasViewMode: CanvasViewMode;
   mockupScene: MockupSceneMode;
   lightingPreset: StudioLightingPreset;
+  canvasTheme: CanvasTheme;
   colorZones: Record<string, string>;
   decals: GraphicDecal[];
   selectedDecalId: string | null;
@@ -274,6 +278,7 @@ interface CloState {
   setCanvasViewMode: (mode: CanvasViewMode) => void;
   setMockupScene: (scene: MockupSceneMode) => void;
   setLightingPreset: (preset: StudioLightingPreset) => void;
+  setCanvasTheme: (theme: CanvasTheme) => void;
   setColorZone: (zone: string, color: string) => void;
   setColorZones: (zones: Record<string, string>) => void;
   setSelectedDecalId: (id: string | null) => void;
@@ -324,6 +329,7 @@ export const useCloStore = create<CloState>((set, get) => {
         decals: updatedState.decals ?? (p.decals || state.decals),
         mockupScene: updatedState.mockupScene ?? (p.mockupScene || state.mockupScene),
         canvasViewMode: updatedState.canvasViewMode ?? (p.canvasViewMode || state.canvasViewMode),
+        canvasTheme: updatedState.canvasTheme ?? (p.canvasTheme || state.canvasTheme),
         updatedAt: now,
       };
     });
@@ -353,7 +359,8 @@ export const useCloStore = create<CloState>((set, get) => {
     selectedSeamId: null,
 
     // Fashion CAD & 3D Showroom State
-    canvasViewMode: active.canvasViewMode || 'assembled',
+    canvasViewMode: active.canvasViewMode || 'pieces',
+    canvasTheme: active.canvasTheme || 'white',
     mockupScene: active.mockupScene || 'ghost',
     lightingPreset: 'ecommerce-white',
     colorZones: active.colorZones || {
@@ -702,7 +709,11 @@ export const useCloStore = create<CloState>((set, get) => {
     // ==========================================
     // 2D Pattern CAD & Photoshop-like Editing
     // ==========================================
-    selectPiece: (id) => set({ selectedPieceId: id, selectedVertexIndex: null }),
+    selectPiece: (id) =>
+      set((state) => ({
+        selectedPieceId: id,
+        selectedVertexIndex: state.selectedPieceId === id ? state.selectedVertexIndex : null,
+      })),
     selectVertex: (index) => set({ selectedVertexIndex: index }),
     setActiveTool: (tool) => set({ activeTool: tool, pendingSeamEdge: null, pendingFreeSewEdge: null, selectedSeamId: null }),
 
@@ -710,6 +721,16 @@ export const useCloStore = create<CloState>((set, get) => {
       const updatedPieces = get().pieces.map((p) => (p.id === id ? { ...p, position: pos } : p));
       set({
         pieces: updatedPieces,
+        ...syncToActiveProject({ pieces: updatedPieces }),
+      });
+    },
+
+    updatePieceColor: (id, color) => {
+      get().pushHistory();
+      const updatedPieces = get().pieces.map((p) => (p.id === id ? { ...p, color } : p));
+      set({
+        pieces: updatedPieces,
+        simulationIteration: get().simulationIteration + 1,
         ...syncToActiveProject({ pieces: updatedPieces }),
       });
     },
@@ -1531,6 +1552,10 @@ export const useCloStore = create<CloState>((set, get) => {
 
     setLightingPreset: (preset) => {
       set({ lightingPreset: preset });
+    },
+
+    setCanvasTheme: (theme) => {
+      set({ canvasTheme: theme, ...syncToActiveProject({ canvasTheme: theme }) });
     },
 
     setColorZone: (zone, color) => {

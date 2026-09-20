@@ -162,6 +162,7 @@ export interface CloProject {
   decals?: GraphicDecal[];
   mockupScene?: MockupSceneMode;
   canvasViewMode?: CanvasViewMode;
+  canvasTheme?: CanvasTheme;
 }
 
 export type ViewportLayout = 'dual' | 'pattern-only' | '3d-only';
@@ -206,3 +207,5 @@ export interface GraphicDecal {
   height: number;
   fontProps?: DecalFontProps;
 }
+
+export type CanvasTheme = 'white' | 'dark';
