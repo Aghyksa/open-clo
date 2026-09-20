@@ -56,7 +56,6 @@ export const StudioViewport: React.FC = () => {
   const [avatarMode, setAvatarMode] = useState<'mannequin' | 'realistic'>('mannequin');
   const [avatarColorIndex, setAvatarColorIndex] = useState<number>(0);
   const [modelLoaded, setModelLoaded] = useState(false);
-  const [turntableActive, setTurntableActive] = useState(false);
 
   const simulatorRef = useRef<ClothSimulator>(new ClothSimulator());
   const clothMeshRef = useRef<THREE.Mesh | null>(null);
@@ -65,7 +64,6 @@ export const StudioViewport: React.FC = () => {
   const gltfModelRef = useRef<THREE.Group | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
-  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
 
   // Dragging cloth in 3D
   const selectedParticleIdxRef = useRef<number | null>(null);
@@ -101,7 +99,6 @@ export const StudioViewport: React.FC = () => {
     renderer.toneMappingExposure = 1.15;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    rendererRef.current = renderer;
     container.appendChild(renderer.domElement);
 
     // 4. OrbitControls
@@ -292,24 +289,50 @@ export const StudioViewport: React.FC = () => {
 
     // Animation Render Loop
     let animationFrameId: number;
+    let lastTime = performance.now();
 
     const animate = () => {
       animationFrameId = requestAnimationFrame(animate);
 
-      const storeState = useCloStore.getState();
-      // Skip heavy 3D rendering & physics computations when user is in 2D Pattern workspace
-      if (storeState.layout === 'pattern-only') {
-        return;
-      }
+      const now = performance.now();
+      const dt = Math.min((now - lastTime) / 1000, 0.04);
+      lastTime = now;
 
-      // Smooth 360 Turntable rotation for fashion product showcase
-      controls.autoRotate = turntableActive;
-      controls.autoRotateSpeed = 2.0;
       controls.update();
 
       const sim = simulatorRef.current;
+      const storeState = useCloStore.getState();
 
-      // Update 3D Garment Mesh Buffers from tailored pattern geometry
+      if (storeState.isDropAnimating) {
+        // PBD ragdoll cloth physics mode
+        const DROP_DURATION = 1.8; // seconds for natural cloth settling
+        const elapsed = (now - dropStartTimeRef.current) / 1000;
+
+        // Run PBD physics step (4 substeps per frame for smooth cloth dynamics)
+        const physicsDt = Math.min(dt, 0.016);
+        const substeps = 4;
+        const subDt = physicsDt / substeps;
+        for (let s = 0; s < substeps; s++) {
+          sim.stepPhysics(subDt);
+        }
+
+        // Check if cloth has settled (low kinetic energy) or duration reached
+        const energy = sim.getKineticEnergy();
+        const settled = elapsed > 1.4 && energy < 0.0001;
+        const timedOut = elapsed >= DROP_DURATION;
+
+        storeState.setDropAnimationProgress(Math.min(elapsed / DROP_DURATION, 1.0));
+
+        if (settled || timedOut) {
+          // Restore cloth to original rest positions and resume normal animation
+          sim.restoreFromPhysics();
+          storeState.stopDropAnimation();
+        }
+      } else if (storeState.isSimulating) {
+        sim.step(dt);
+      }
+
+      // Update Cloth Mesh Buffers
       if (clothGeomRef.current && sim.particles.length > 0) {
         const particleCount = sim.particles.length;
         const positions = new Float32Array(particleCount * 3);
@@ -319,11 +342,9 @@ export const StudioViewport: React.FC = () => {
 
         for (let i = 0; i < particleCount; i++) {
           const p = sim.particles[i];
-          // Use tailored anatomical rest position (crisp static 3D garment form)
-          const sourcePos = p.originalPos || p.pos;
-          positions[i * 3] = sourcePos.x;
-          positions[i * 3 + 1] = sourcePos.y;
-          positions[i * 3 + 2] = sourcePos.z;
+          positions[i * 3] = p.pos.x;
+          positions[i * 3 + 1] = p.pos.y;
+          positions[i * 3 + 2] = p.pos.z;
 
           if (isHeatmap) {
             // Strain heatmap: 0% = SkyBlue, 5% = Green, 15%+ = Red
@@ -723,18 +744,6 @@ export const StudioViewport: React.FC = () => {
               <Play className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Drape</span>
             </>
           )}
-        </button>
-
-        <button
-          onClick={() => setTurntableActive(!turntableActive)}
-          className={`p-1.5 rounded transition-colors ${
-            turntableActive
-              ? 'bg-blue-600 text-white'
-              : 'hover:bg-slate-700/60 text-slate-300'
-          }`}
-          title="Toggle 360 Turntable Auto-Rotate"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
         </button>
 
         <button

@@ -26,9 +26,7 @@ export interface SeamConstraint {
   p1: number;
   p2: number;
   restLength: number;
-  stiffness: number;
-  isBending?: boolean;
-  restAngle?: number;
+  strength: number;
 }
 
 export interface AvatarCollider {
@@ -257,10 +255,10 @@ export class ClothSimulator {
       if (hasSplitFront) {
         pWidth *= 2; // Split left/right panels represent half the bodice each
       }
-      const refHeight = isSkirt ? 760 : isCropTop ? 460 : isDress ? 940 : 720;
-      const refWidth = isTankTop ? 500 : 580;
-      lengthFactor = THREE.MathUtils.clamp(pHeight / refHeight, 0.5, 2.0);
-      widthFactor = THREE.MathUtils.clamp(pWidth / refWidth, 0.5, 2.0);
+      const refHeight = isSkirt ? 320 : isCropTop ? 280 : isDress ? 580 : 400;
+      const refWidth = 270;
+      lengthFactor = THREE.MathUtils.clamp(pHeight / refHeight, 0.45, 2.5);
+      widthFactor = THREE.MathUtils.clamp(pWidth / refWidth, 0.65, 2.0);
     }
 
     const easeFactor = isOversized ? 1.22 : isHoodie ? 1.18 : isTankTop ? 1.08 : GARMENT_EASE;
@@ -334,8 +332,8 @@ export class ClothSimulator {
           this.indices.push(tl, tr, bl);
           this.indices.push(tr, br, bl);
 
-          this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.6 });
-          this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.6 });
+          this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.8 });
+          this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.8 });
           this.constraints.push({ p1: tl, p2: br, restLength: this.particles[tl].pos.distanceTo(this.particles[br].pos), stiffness: 0.5 });
         }
       }
@@ -529,9 +527,9 @@ export class ClothSimulator {
         this.indices.push(tl, tr, bl);
         this.indices.push(tr, br, bl);
 
-        this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.6 });
-        this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.6 });
-        this.constraints.push({ p1: tl, p2: br, restLength: this.particles[tl].pos.distanceTo(this.particles[br].pos), stiffness: 0.35 });
+        this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.8 });
+        this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.8 });
+        this.constraints.push({ p1: tl, p2: br, restLength: this.particles[tl].pos.distanceTo(this.particles[br].pos), stiffness: 0.5 });
       }
     }
 
@@ -627,9 +625,9 @@ export class ClothSimulator {
               this.indices.push(tr, br, bl);
             }
 
-            this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.6 });
-            this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.6 });
-            this.constraints.push({ p1: tl, p2: br, restLength: this.particles[tl].pos.distanceTo(this.particles[br].pos), stiffness: 0.35 });
+            this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.8 });
+            this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.8 });
+            this.constraints.push({ p1: tl, p2: br, restLength: this.particles[tl].pos.distanceTo(this.particles[br].pos), stiffness: 0.5 });
           }
         }
       }
@@ -682,8 +680,8 @@ export class ClothSimulator {
           this.indices.push(tl, tr, bl);
           this.indices.push(tr, br, bl);
 
-          this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.6 });
-          this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.6 });
+          this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.8 });
+          this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.8 });
         }
       }
     }
@@ -735,8 +733,8 @@ export class ClothSimulator {
             this.indices.push(tl, tr, bl);
             this.indices.push(tr, br, bl);
 
-            this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.6 });
-                      this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.6 });
+            this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.8 });
+            this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.8 });
           }
         }
       }
@@ -788,8 +786,8 @@ export class ClothSimulator {
           this.indices.push(tl, tr, bl);
           this.indices.push(tr, br, bl);
 
-          this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.6 });
-          this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.6 });
+          this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.8 });
+          this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.8 });
         }
       }
 
@@ -834,267 +832,12 @@ export class ClothSimulator {
         const br = placketBaseIdx + (pr + 1) * 2 + 1;
         this.indices.push(tl, tr, bl);
         this.indices.push(tr, br, bl);
-        this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.6 });
-                  this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.6 });
+        this.constraints.push({ p1: tl, p2: tr, restLength: this.particles[tl].pos.distanceTo(this.particles[tr].pos), stiffness: 0.8 });
+        this.constraints.push({ p1: tl, p2: bl, restLength: this.particles[tl].pos.distanceTo(this.particles[bl].pos), stiffness: 0.8 });
       }
     }
-
-    // Build attachment constraints between garment components
-    this.buildAttachmentConstraints(isHoodie, isPolo, isBomber, isTankTop, isDress, isSkirt, isOversized, sY, sZ);
 
     this.finishMeshSetup();
-  }
-
-  /** Build seam/attachment constraints between garment components (sleeves, collar, hood, pocket, placket) */
-  private buildAttachmentConstraints(
-    isHoodie: boolean,
-    isPolo: boolean,
-    _isBomber: boolean,
-    isTankTop: boolean,
-    isDress: boolean,
-    isSkirt: boolean,
-    _isOversized: boolean,
-    _sY: number,
-    _sZ: number
-  ) {
-    // Helper: find particle index by pieceId and UV/position criteria
-    const findParticles = (pieceId: string, filter?: (p: ClothParticle) => boolean) => {
-      return this.particles
-        .map((p, idx) => ({ p, idx }))
-        .filter(({ p }) => p.pieceId === pieceId && (!filter || filter(p)))
-        .map(({ idx }) => idx);
-    };
-
-    // 1. SLEEVE ATTACHMENT: Connect sleeve top row (sr=0) to bodice armscye region
-    if (!isTankTop && !isSkirt) {
-      const bodiceRows = isDress ? 26 : 22;
-      const cols = 36;
-
-      // Left sleeve (piece-sleeve-l or piece-bomber-sleeve-l)
-      const leftSleeveIds = ['piece-sleeve-l', 'piece-bomber-sleeve-l'];
-      const rightSleeveIds = ['piece-sleeve-r', 'piece-bomber-sleeve-r'];
-
-      for (const sleeveId of leftSleeveIds) {
-        const sleeveTopIndices = findParticles(sleeveId, p => p.uv.y < 0.1); // Top row (uv.y near 0 = shoulder)
-        if (sleeveTopIndices.length === 0) continue;
-
-        // Bodice armscye particles (left side, rows 0-3, angles ~PI/4 to PI/2)
-        const armscyeIndices: number[] = [];
-        for (let r = 0; r < Math.min(4, bodiceRows); r++) {
-          for (let c = Math.floor(cols * 0.2); c < Math.floor(cols * 0.3); c++) {
-            const idx = r * cols + c;
-            if (idx < this.particles.length && this.particles[idx].pieceId.startsWith('piece-')) {
-              armscyeIndices.push(idx);
-            }
-          }
-        }
-
-        // Attach each sleeve top particle to nearest armscye particle
-        for (const si of sleeveTopIndices) {
-          const sp = this.particles[si];
-          let bestIdx = -1;
-          let bestDist = Infinity;
-          for (const bi of armscyeIndices) {
-            const bp = this.particles[bi];
-            const d = sp.pos.distanceTo(bp.pos);
-            if (d < bestDist) {
-              bestDist = d;
-              bestIdx = bi;
-            }
-          }
-          if (bestIdx >= 0 && bestDist < 0.15) {
-            this.seamConstraints.push({ p1: si, p2: bestIdx, restLength: bestDist, stiffness: 0.8 });
-          }
-        }
-      }
-
-      for (const sleeveId of rightSleeveIds) {
-        const sleeveTopIndices = findParticles(sleeveId, p => p.uv.y < 0.1);
-        if (sleeveTopIndices.length === 0) continue;
-
-        // Bodice armscye particles (right side, rows 0-3, angles ~3PI/2 to 5PI/4)
-        const armscyeIndices: number[] = [];
-        for (let r = 0; r < Math.min(4, bodiceRows); r++) {
-          for (let c = Math.floor(cols * 0.7); c < Math.floor(cols * 0.8); c++) {
-            const idx = r * cols + c;
-            if (idx < this.particles.length && this.particles[idx].pieceId.startsWith('piece-')) {
-              armscyeIndices.push(idx);
-            }
-          }
-        }
-
-        for (const si of sleeveTopIndices) {
-          const sp = this.particles[si];
-          let bestIdx = -1;
-          let bestDist = Infinity;
-          for (const bi of armscyeIndices) {
-            const bp = this.particles[bi];
-            const d = sp.pos.distanceTo(bp.pos);
-            if (d < bestDist) {
-              bestDist = d;
-              bestIdx = bi;
-            }
-          }
-          if (bestIdx >= 0 && bestDist < 0.15) {
-            this.seamConstraints.push({ p1: si, p2: bestIdx, restLength: bestDist, stiffness: 0.8 });
-          }
-        }
-      }
-    }
-
-    // 2. COLLAR ATTACHMENT: Connect collar bottom edge to bodice neckline (row 0)
-    if (isPolo || (!isTankTop && !isDress && !isSkirt)) {
-      const collarIndices = findParticles('piece-collar', p => p.uv.y < 0.2); // Bottom of collar
-      const necklineIndices = findParticles('piece-front', p => p.uv.y < 0.05) // Top of bodice front (uv.y near 0)
-        .concat(findParticles('piece-back', p => p.uv.y < 0.05))
-        .concat(findParticles('piece-bomber-front-l', p => p.uv.y < 0.05))
-        .concat(findParticles('piece-bomber-front-r', p => p.uv.y < 0.05))
-        .concat(findParticles('piece-bomber-back', p => p.uv.y < 0.05));
-
-      for (const ci of collarIndices) {
-        const cp = this.particles[ci];
-        let bestIdx = -1;
-        let bestDist = Infinity;
-        for (const ni of necklineIndices) {
-          const np = this.particles[ni];
-          const d = cp.pos.distanceTo(np.pos);
-          if (d < bestDist) {
-            bestDist = d;
-            bestIdx = ni;
-          }
-        }
-        if (bestIdx >= 0 && bestDist < 0.1) {
-          this.seamConstraints.push({ p1: ci, p2: bestIdx, restLength: bestDist, stiffness: 0.8 });
-        }
-      }
-    }
-
-    // 3. HOOD ATTACHMENT: Connect hood bottom edge to back neckline
-    if (isHoodie) {
-      const hoodBottomIndices = findParticles('piece-hood', p => p.uv.y < 0.15);
-      const backNeckIndices = findParticles('piece-back', p => p.uv.y > 0.9 && Math.abs(p.pos.x) < 0.12);
-
-      for (const hi of hoodBottomIndices) {
-        const hp = this.particles[hi];
-        let bestIdx = -1;
-        let bestDist = Infinity;
-        for (const bni of backNeckIndices) {
-          const bnp = this.particles[bni];
-          const d = hp.pos.distanceTo(bnp.pos);
-          if (d < bestDist) {
-            bestDist = d;
-            bestIdx = bni;
-          }
-        }
-        if (bestIdx >= 0 && bestDist < 0.15) {
-          this.seamConstraints.push({ p1: hi, p2: bestIdx, restLength: bestDist, stiffness: 0.75 });
-        }
-      }
-    }
-
-    // 4. POCKET ATTACHMENT: Connect pocket to front bodice
-    if (isHoodie) {
-      const pocketIndices = findParticles('piece-pocket');
-      const frontBodiceIndices = findParticles('piece-front', p => p.pos.y >= 1.06 && p.pos.y <= 1.25 && Math.abs(p.pos.x) < 0.15);
-
-      for (const pi of pocketIndices) {
-        const pp = this.particles[pi];
-        let bestIdx = -1;
-        let bestDist = Infinity;
-        for (const fbi of frontBodiceIndices) {
-          const fbp = this.particles[fbi];
-          const d = pp.pos.distanceTo(fbp.pos);
-          if (d < bestDist) {
-            bestDist = d;
-            bestIdx = fbi;
-          }
-        }
-        if (bestIdx >= 0 && bestDist < 0.12) {
-          this.seamConstraints.push({ p1: pi, p2: bestIdx, restLength: bestDist, stiffness: 0.7 });
-        }
-      }
-    }
-
-    // 5. PLACKET ATTACHMENT: Connect placket to front bodice center
-    if (isPolo) {
-      const placketIndices = findParticles('piece-collar', p => Math.abs(p.pos.x) < 0.03 && p.pos.y < 1.4);
-      const frontCenterIndices = findParticles('piece-front', p => Math.abs(p.pos.x) < 0.05);
-
-      for (const pi of placketIndices) {
-        const pp = this.particles[pi];
-        let bestIdx = -1;
-        let bestDist = Infinity;
-        for (const fci of frontCenterIndices) {
-          const fcp = this.particles[fci];
-          const d = pp.pos.distanceTo(fcp.pos);
-          if (d < bestDist) {
-            bestDist = d;
-            bestIdx = fci;
-          }
-        }
-        if (bestIdx >= 0 && bestDist < 0.05) {
-          this.seamConstraints.push({ p1: pi, p2: bestIdx, restLength: bestDist, stiffness: 0.95 });
-        }
-      }
-    }
-
-    // 6. Add bending constraints (dihedral angle) for cloth-like behavior
-    this.buildBendingConstraints();
-  }
-
-  /** Build bending constraints (dihedral angle) for realistic cloth draping */
-  private buildBendingConstraints() {
-    // For each interior edge in the mesh, add a bending constraint between the two opposite vertices
-    const edgeMap = new Map<string, { triangles: number[]; vertices: [number, number] }>();
-
-    // Build edge -> triangles map
-    for (let i = 0; i < this.indices.length; i += 3) {
-      const a = this.indices[i];
-      const b = this.indices[i + 1];
-      const c = this.indices[i + 2];
-
-      const edges = [
-        { v1: a, v2: b, opp: c },
-        { v1: b, v2: c, opp: a },
-        { v1: c, v2: a, opp: b },
-      ];
-
-      for (const e of edges) {
-        const key = e.v1 < e.v2 ? `${e.v1}_${e.v2}` : `${e.v2}_${e.v1}`;
-        if (!edgeMap.has(key)) {
-          edgeMap.set(key, { triangles: [], vertices: [e.v1, e.v2] });
-        }
-        edgeMap.get(key)!.triangles.push(e.opp);
-      }
-    }
-
-    // Add bending constraints for edges shared by 2 triangles
-    for (const [, data] of edgeMap) {
-      if (data.triangles.length === 2) {
-        const opp1 = data.triangles[0];
-        const opp2 = data.triangles[1];
-        const v1 = data.vertices[0];
-        const v2 = data.vertices[1];
-
-        // Skip if particles belong to different garment components (different pieceId)
-        const p1 = this.particles[v1];
-        const p2 = this.particles[v2];
-        const p3 = this.particles[opp1];
-        const p4 = this.particles[opp2];
-
-        if (p1.pieceId !== p2.pieceId || p1.pieceId !== p3.pieceId || p1.pieceId !== p4.pieceId) continue;
-
-        const restAngle = 0; // Flat rest state
-        this.seamConstraints.push({
-          p1: opp1,
-          p2: opp2,
-          restLength: this.particles[opp1].pos.distanceTo(this.particles[opp2].pos),
-          stiffness: 0.15, // Low stiffness for gentle bending resistance
-          isBending: true,
-          restAngle,
-        } as any);
-      }
-    }
   }
 
   private finishMeshSetup() {
@@ -1225,7 +968,7 @@ export class ClothSimulator {
       p.pos.z += vz;
     }
 
-    // 2. Soft distance constraints with mass-weighted correction (8 iterations)
+    // 2. Soft distance constraints (8 iterations for stability and cloth structure)
     for (let iter = 0; iter < 8; iter++) {
       for (let ci = 0; ci < this.constraints.length; ci++) {
         const c = this.constraints[ci];
@@ -1237,54 +980,37 @@ export class ClothSimulator {
         const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (dist < 1e-6) continue;
         const diff = (dist - c.restLength) / dist;
-        const w1 = p1.invMass;
-        const w2 = p2.invMass;
-        const wSum = w1 + w2;
-        if (wSum < 1e-6) continue;
-        const corr = diff * c.stiffness;
-        p1.pos.x += dx * corr * (w1 / wSum);
-        p1.pos.y += dy * corr * (w1 / wSum);
-        p1.pos.z += dz * corr * (w1 / wSum);
-        p2.pos.x -= dx * corr * (w2 / wSum);
-        p2.pos.y -= dy * corr * (w2 / wSum);
-        p2.pos.z -= dz * corr * (w2 / wSum);
-      }
-      // 2b. Seam/attachment constraints (mass-weighted, higher stiffness)
-      for (let si = 0; si < this.seamConstraints.length; si++) {
-        const sc = this.seamConstraints[si];
-        const p1 = this.particles[sc.p1];
-        const p2 = this.particles[sc.p2];
-        const dx = p2.pos.x - p1.pos.x;
-        const dy = p2.pos.y - p1.pos.y;
-        const dz = p2.pos.z - p1.pos.z;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-        if (dist < 1e-6) continue;
-        const diff = (dist - sc.restLength) / dist;
-        const w1 = p1.invMass;
-        const w2 = p2.invMass;
-        const wSum = w1 + w2;
-        if (wSum < 1e-6) continue;
-        const corr = diff * sc.stiffness;
-        p1.pos.x += dx * corr * (w1 / wSum);
-        p1.pos.y += dy * corr * (w1 / wSum);
-        p1.pos.z += dz * corr * (w1 / wSum);
-        p2.pos.x -= dx * corr * (w2 / wSum);
-        p2.pos.y -= dy * corr * (w2 / wSum);
-        p2.pos.z -= dz * corr * (w2 / wSum);
+        const corr = diff * c.stiffness * 0.5;
+        p1.pos.x += dx * corr; p1.pos.y += dy * corr; p1.pos.z += dz * corr;
+        p2.pos.x -= dx * corr; p2.pos.y -= dy * corr; p2.pos.z -= dz * corr;
       }
     }
 
-    // 3. Avatar Surface Collision & Contact Friction (increased clearance)
+    // 3. Avatar Surface Collision & Contact Friction
     for (let i = 0; i < n; i++) {
       const p = this.particles[i];
       const rest = this._dropRestPositions[i];
       if (!rest) continue;
 
-      // Torso & Pelvis Ellipse Collision (generous 8% clearance + 2cm offset)
+      // Shoulder Catch for upper-body garment particles
+      if (p.pos.y >= 1.30 && p.pos.y <= 1.46) {
+        const absX = Math.abs(p.pos.x);
+        if (absX < 0.22) {
+          const shoulderSlopeY = 1.44 - 0.06 * Math.min(1.0, absX / 0.207);
+          if (p.pos.y < shoulderSlopeY + 0.012 && Math.abs(p.pos.z - 0.02) < 0.09) {
+            p.pos.y = shoulderSlopeY + 0.012;
+            p.prevPos.y = p.pos.y;
+            p.pos.x += (p.prevPos.x - p.pos.x) * 0.4;
+            p.pos.z += (p.prevPos.z - p.pos.z) * 0.4;
+          }
+        }
+      }
+
+      // Torso & Pelvis Ellipse Collision
       if (p.pos.y >= 0.35 && p.pos.y <= 1.45) {
         const cross = this.getBodyCrossSection(p.pos.y);
-        const minHW = cross.halfWidth * 1.08 + 0.020;
-        const minHD = cross.halfDepth * 1.08 + 0.020;
+        const minHW = cross.halfWidth * 1.05 + 0.015;
+        const minHD = cross.halfDepth * 1.05 + 0.015;
         const dx = p.pos.x;
         const dz = p.pos.z - cross.zCenter;
         const edist = Math.sqrt((dx / minHW) ** 2 + (dz / minHD) ** 2);
@@ -1292,34 +1018,19 @@ export class ClothSimulator {
           const scale = 1.0 / edist;
           p.pos.x = dx * scale;
           p.pos.z = dz * scale + cross.zCenter;
-          // Vertical friction against body surface
-          p.pos.y += (p.prevPos.y - p.pos.y) * 0.15;
+          // Vertical friction against body surface prevents endless downward sliding
+          p.pos.y += (p.prevPos.y - p.pos.y) * 0.25;
           p.prevPos.x = p.pos.x;
           p.prevPos.z = p.pos.z;
         }
       }
 
-      // Shoulder catch only for particles near natural shoulder seam (y ~ 1.36-1.44)
-      if (p.pos.y >= 1.34 && p.pos.y <= 1.44) {
-        const absX = Math.abs(p.pos.x);
-        if (absX < 0.24) {
-          const shoulderSlopeY = 1.42 - 0.04 * Math.min(1.0, absX / 0.21);
-          if (p.pos.y < shoulderSlopeY + 0.015 && Math.abs(p.pos.z - 0.025) < 0.12) {
-            p.pos.y = shoulderSlopeY + 0.015;
-            p.prevPos.y = p.pos.y;
-            // Gentle horizontal friction
-            p.pos.x += (p.prevPos.x - p.pos.x) * 0.2;
-            p.pos.z += (p.prevPos.z - p.pos.z) * 0.2;
-          }
-        }
-      }
-
-      // Solid resting surface contact
+      // Solid resting surface contact: fabric catches on resting pose, decelerating into fitted rest shape
       if (p.pos.y <= rest.y) {
         p.pos.y = rest.y;
         p.prevPos.y = p.pos.y;
-        p.pos.x += (rest.x - p.pos.x) * 0.15;
-        p.pos.z += (rest.z - p.pos.z) * 0.15;
+        p.pos.x += (rest.x - p.pos.x) * 0.20;
+        p.pos.z += (rest.z - p.pos.z) * 0.20;
         p.prevPos.x = p.pos.x;
         p.prevPos.z = p.pos.z;
       }

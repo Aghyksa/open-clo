@@ -160,6 +160,4 @@ export interface CloProject {
   stitchSettings: StitchSettings;
 }
 
-export type CanvasTheme = 'white' | 'dark';
-
 export type ViewportLayout = 'dual' | 'pattern-only' | '3d-only';

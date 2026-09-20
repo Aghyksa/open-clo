@@ -17,7 +17,6 @@ import {
   Plus,
   Compass,
   Shapes,
-  Box,
 } from 'lucide-react';
 
 export const PatternCanvas: React.FC = () => {
@@ -34,9 +33,6 @@ export const PatternCanvas: React.FC = () => {
     avatar2D,
     stitchSettings,
     layout,
-    setLayout,
-    canvasTheme,
-    toggleCanvasTheme,
     selectPiece,
     selectVertex,
     updatePiecePosition,
@@ -73,60 +69,12 @@ export const PatternCanvas: React.FC = () => {
   // Container dimensions for non-stretching high-DPI canvas
   const [canvasDims, setCanvasDims] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
 
-  // Viewport Pan & Zoom state (Auto-scaled for real garment cutting markers)
+  // Viewport Pan & Zoom state
   const [viewState, setViewState] = useState({
-    scale: 0.48,
-    offsetX: 50,
-    offsetY: 40,
+    scale: 0.75,
+    offsetX: 120,
+    offsetY: 70,
   });
-
-  // Dynamic Fit-To-Screen framing all visible pattern pieces
-  const handleFitToScreen = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || pieces.length === 0) return;
-    const rect = canvas.getBoundingClientRect();
-    const pad = 60;
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    pieces.forEach((p) => {
-      if (p.visible === false) return;
-      p.points.forEach((pt) => {
-        const rot = rotatePoint(pt.x, pt.y, p.rotation);
-        const wx = p.position.x + rot.x;
-        const wy = p.position.y + rot.y;
-        if (wx < minX) minX = wx;
-        if (wy < minY) minY = wy;
-        if (wx > maxX) maxX = wx;
-        if (wy > maxY) maxY = wy;
-      });
-    });
-
-    if (minX === Infinity || maxX <= minX || maxY <= minY) {
-      setViewState({ scale: 0.48, offsetX: 50, offsetY: 40 });
-      return;
-    }
-
-    const bboxW = maxX - minX;
-    const bboxH = maxY - minY;
-    const availW = Math.max(100, rect.width - pad * 2);
-    const availH = Math.max(100, rect.height - pad * 2);
-
-    const scale = Math.max(0.2, Math.min(1.2, Math.min(availW / bboxW, availH / bboxH)));
-    const midX = (minX + maxX) / 2;
-    const midY = (minY + maxY) / 2;
-    const offsetX = rect.width / 2 - midX * scale;
-    const offsetY = rect.height / 2 - midY * scale;
-
-    setViewState({ scale, offsetX, offsetY });
-  }, [pieces]);
-
-  // Fit to screen on initial mount and when pattern template changes
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      handleFitToScreen();
-    }, 120);
-    return () => clearTimeout(timer);
-  }, [pieces.length, handleFitToScreen]);
 
   // Layers panel overlay toggle
   const [showLayersOverlay, setShowLayersOverlay] = useState(false);
@@ -485,13 +433,12 @@ export const PatternCanvas: React.FC = () => {
   const drawAvatar2DGuide = (
     ctx: CanvasRenderingContext2D,
     av: AvatarConfig,
-    av2d: Avatar2DConfig,
-    showSizingGuides: boolean
+    av2d: Avatar2DConfig
   ) => {
     if (!av2d.visible) return;
 
     ctx.save();
-    ctx.globalAlpha = Math.min(av2d.opacity, 0.22); // subtle ghost reference
+    ctx.globalAlpha = av2d.opacity;
 
     // Body dimensions scaled to pattern units (10 units = 1 cm)
     // Front view center
@@ -581,22 +528,22 @@ export const PatternCanvas: React.FC = () => {
       ctx.lineWidth = 1.5;
       ctx.stroke();
 
-      // 2. Guidelines (Shoulder, Bust Apex, Waist, Hips) — only show when Body Sizing is open or explicitly enabled
-      if (showSizingGuides) {
+      // 2. Guidelines (Shoulder, Bust Apex, Waist, Hips)
+      if (av2d.showGuides) {
         ctx.setLineDash([4, 4]);
         ctx.lineWidth = 1;
         ctx.font = '10px ui-monospace, monospace';
+        ctx.fillStyle = '#64748b';
 
         // Center Front / Center Back Axis
         const cfTop = worldToScreen(offsetX, centerY - 320);
         const cfBottom = worldToScreen(offsetX, centerY + 380);
-        ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
         ctx.beginPath();
         ctx.moveTo(cfTop.x, cfTop.y);
         ctx.lineTo(cfBottom.x, cfBottom.y);
         ctx.stroke();
 
-        ctx.fillStyle = '#64748b';
         ctx.fillText(
           viewType === 'front' ? 'CF (Center Front)' : 'CB (Center Back)',
           cfTop.x + 5,
@@ -604,44 +551,44 @@ export const PatternCanvas: React.FC = () => {
         );
 
         // Shoulder Line
-        const shL = worldToScreen(offsetX - shoulderHalfW, centerY - 220);
-        const shR = worldToScreen(offsetX + shoulderHalfW, centerY - 220);
+        const shL = worldToScreen(offsetX - shoulderHalfW - 20, centerY - 220);
+        const shR = worldToScreen(offsetX + shoulderHalfW + 20, centerY - 220);
         ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
         ctx.beginPath();
         ctx.moveTo(shL.x, shL.y);
         ctx.lineTo(shR.x, shR.y);
         ctx.stroke();
-        ctx.fillText(`Shoulder: ${av.shoulderWidth || 40} cm`, (shL.x + shR.x) / 2, shL.y - 4);
+        ctx.fillText(`Shoulder: ${av.shoulderWidth || 40} cm`, shR.x + 6, shR.y + 3);
 
         // Bust Line
-        const bustL = worldToScreen(offsetX - bustHalfW, centerY - 130);
-        const bustR = worldToScreen(offsetX + bustHalfW, centerY - 130);
+        const bustL = worldToScreen(offsetX - bustHalfW - 20, centerY - 130);
+        const bustR = worldToScreen(offsetX + bustHalfW + 20, centerY - 130);
         ctx.strokeStyle = 'rgba(244, 63, 94, 0.35)';
         ctx.beginPath();
         ctx.moveTo(bustL.x, bustL.y);
         ctx.lineTo(bustR.x, bustR.y);
         ctx.stroke();
-        ctx.fillText(`Bust: ${av.chestCircumference} cm`, (bustL.x + bustR.x) / 2, bustL.y - 4);
+        ctx.fillText(`Bust / Chest: ${av.chestCircumference} cm`, bustR.x + 6, bustR.y + 3);
 
         // Waist Line
-        const wL = worldToScreen(offsetX - waistHalfW, centerY);
-        const wR = worldToScreen(offsetX + waistHalfW, centerY);
+        const wL = worldToScreen(offsetX - waistHalfW - 20, centerY);
+        const wR = worldToScreen(offsetX + waistHalfW + 20, centerY);
         ctx.strokeStyle = 'rgba(245, 158, 11, 0.4)';
         ctx.beginPath();
         ctx.moveTo(wL.x, wL.y);
         ctx.lineTo(wR.x, wR.y);
         ctx.stroke();
-        ctx.fillText(`Waist: ${av.waistCircumference} cm`, (wL.x + wR.x) / 2, wL.y - 4);
+        ctx.fillText(`Waist: ${av.waistCircumference} cm`, wR.x + 6, wR.y + 3);
 
         // High Hip Line
-        const hipGuideL = worldToScreen(offsetX - hipHalfW, centerY + 100);
-        const hipGuideR = worldToScreen(offsetX + hipHalfW, centerY + 100);
+        const hipGuideL = worldToScreen(offsetX - hipHalfW - 20, centerY + 100);
+        const hipGuideR = worldToScreen(offsetX + hipHalfW + 20, centerY + 100);
         ctx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
         ctx.beginPath();
         ctx.moveTo(hipGuideL.x, hipGuideL.y);
         ctx.lineTo(hipGuideR.x, hipGuideR.y);
         ctx.stroke();
-        ctx.fillText(`Hips: ${av.hipsCircumference} cm`, (hipGuideL.x + hipGuideR.x) / 2, hipGuideL.y - 4);
+        ctx.fillText(`Hips: ${av.hipsCircumference} cm`, hipGuideR.x + 6, hipGuideR.y + 3);
 
         ctx.setLineDash([]);
       }
@@ -669,10 +616,9 @@ export const PatternCanvas: React.FC = () => {
 
     const width = rect.width;
     const height = rect.height;
-    const isWhiteTheme = canvasTheme === 'white';
 
-    // 1. Studio Background (White Tech Pack or Dark Studio)
-    ctx.fillStyle = isWhiteTheme ? '#ffffff' : '#111317';
+    // 1. Studio Background
+    ctx.fillStyle = '#111317';
     ctx.fillRect(0, 0, width, height);
 
     // 2. CAD Grid
@@ -680,7 +626,7 @@ export const PatternCanvas: React.FC = () => {
     const startX = ((viewState.offsetX % gridSize) + gridSize) % gridSize;
     const startY = ((viewState.offsetY % gridSize) + gridSize) % gridSize;
 
-    ctx.strokeStyle = isWhiteTheme ? '#f1f5f9' : '#181b22';
+    ctx.strokeStyle = '#181b22';
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = startX; x < width; x += gridSize) {
@@ -694,7 +640,7 @@ export const PatternCanvas: React.FC = () => {
     ctx.stroke();
 
     // 3. Draw 2D Avatar Silhouette Background (CLO3D feature)
-    drawAvatar2DGuide(ctx, avatar, avatar2D, showAvatarControls);
+    drawAvatar2DGuide(ctx, avatar, avatar2D);
 
     // 4. Draw Pattern Pieces
     pieces.forEach((piece) => {
@@ -731,34 +677,16 @@ export const PatternCanvas: React.FC = () => {
       }
       ctx.closePath();
 
-      ctx.fillStyle = isWhiteTheme
-        ? isSelected
-          ? 'rgba(37, 99, 235, 0.12)'
-          : piece.locked
-          ? 'rgba(241, 245, 249, 0.6)'
-          : piece.color
-          ? `${piece.color}15`
-          : '#f8fafc'
-        : isSelected
+      ctx.fillStyle = isSelected
         ? 'rgba(59, 130, 246, 0.22)'
         : piece.locked
         ? 'rgba(100, 116, 139, 0.08)'
         : 'rgba(255, 255, 255, 0.06)';
       ctx.fill();
 
-      // Stroke Outline (Crisp vector technical pen lines)
-      ctx.strokeStyle = isWhiteTheme
-        ? isSelected
-          ? '#2563eb'
-          : piece.locked
-          ? '#94a3b8'
-          : '#0f172a'
-        : isSelected
-        ? '#3b82f6'
-        : piece.locked
-        ? '#475569'
-        : '#64748b';
-      ctx.lineWidth = isSelected ? 2.5 : isWhiteTheme ? 1.8 : 1.5;
+      // Stroke Outline
+      ctx.strokeStyle = isSelected ? '#3b82f6' : piece.locked ? '#475569' : '#64748b';
+      ctx.lineWidth = isSelected ? 2.5 : 1.5;
       ctx.lineJoin = 'round';
       ctx.stroke();
 
@@ -838,39 +766,26 @@ export const PatternCanvas: React.FC = () => {
 
       ctx.restore();
 
-      // Piece Label (smart offset based on piece dimensions & graphics)
-      const bounds = getPieceLocalBounds(piece);
-      const pieceHeightMm = bounds.maxY - bounds.minY;
-      const labelYOffset = pieceHeightMm < 60
-        ? 0
-        : (piece.graphics && piece.graphics.length > 0)
-        ? 48 * viewState.scale
-        : 22 * viewState.scale;
-
-      ctx.font = '600 12px ui-sans-serif, system-ui';
-      ctx.fillStyle = isWhiteTheme
-        ? isSelected
-          ? '#1d4ed8'
-          : '#0f172a'
-        : isSelected
-        ? '#93c5fd'
-        : '#cbd5e1';
+      // Piece Label
+      ctx.font = '500 12px ui-sans-serif, system-ui';
+      ctx.fillStyle = isSelected ? '#93c5fd' : '#cbd5e1';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(piece.name, centerScreen.x, centerScreen.y + labelYOffset);
+      ctx.fillText(piece.name, centerScreen.x, centerScreen.y + 48 * viewState.scale);
 
-      // Edge Segment Dimensions (Metric labels) with clean normal offset & pill background
+      // Edge Segment Dimensions (Metric labels) with curve arc length approximation
       for (let i = 0; i < pts.length; i++) {
         const nextIdx = (i + 1) % pts.length;
         const p1 = pts[i];
         const p2 = pts[nextIdx];
         const curv = curvatures[i];
 
-        let lengthCmNum = 0;
+        let lengthCm: string;
         if (curv) {
-          // Quadratic Bezier arc length approximation (8-segment sampling)
+          // Quadratic Bezier arc length approximation (3-point method)
           const cpx = (p1.x + p2.x) / 2 + curv.cpx;
           const cpy = (p1.y + p2.y) / 2 + curv.cpy;
+          // Approximate with 8 line segments
           let arcLen = 0;
           let prevX = p1.x, prevY = p1.y;
           for (let t = 1; t <= 8; t++) {
@@ -882,67 +797,19 @@ export const PatternCanvas: React.FC = () => {
             prevX = bx;
             prevY = by;
           }
-          lengthCmNum = arcLen / 10;
+          lengthCm = (arcLen / 10).toFixed(1);
         } else {
-          lengthCmNum = Math.hypot(p2.x - p1.x, p2.y - p1.y) / 10;
+          lengthCm = (Math.hypot(p2.x - p1.x, p2.y - p1.y) / 10).toFixed(1);
         }
-
-        // Avoid visual noise on tiny micro-segments unless piece is actively selected
-        if (lengthCmNum < 1.8 && !isSelected) continue;
 
         const sp1 = screenPts[i];
         const sp2 = screenPts[nextIdx];
-        const edx = sp2.x - sp1.x;
-        const edy = sp2.y - sp1.y;
-        const screenLen = Math.hypot(edx, edy) || 1;
-        if (screenLen < 16 && !isSelected) continue;
-
         const midX = (sp1.x + sp2.x) / 2;
         const midY = (sp1.y + sp2.y) / 2;
 
-        // Calculate screen-space outward normal for clean placement
-        const nx = -edy / screenLen;
-        const ny = edx / screenLen;
-        const labelX = midX + nx * 9;
-        const labelY = midY + ny * 9;
-
-        const text = `${lengthCmNum.toFixed(1)} cm`;
-        ctx.font = '9px ui-monospace, monospace';
-        const tw = ctx.measureText(text).width;
-
-        // Subtle pill background so numbers never clash with lines or grid
-        ctx.save();
-        ctx.fillStyle = isWhiteTheme
-          ? isSelected
-            ? '#eff6ff'
-            : '#ffffff'
-          : isSelected
-          ? 'rgba(15, 23, 42, 0.88)'
-          : 'rgba(15, 23, 42, 0.70)';
-        ctx.strokeStyle = isWhiteTheme
-          ? isSelected
-            ? '#2563eb'
-            : '#cbd5e1'
-          : isSelected
-          ? '#3b82f6'
-          : '#334155';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.roundRect(labelX - tw / 2 - 4, labelY - 7, tw + 8, 14, 3);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.fillStyle = isWhiteTheme
-          ? isSelected
-            ? '#1d4ed8'
-            : '#1e293b'
-          : isSelected
-          ? '#93c5fd'
-          : '#94a3b8';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(text, labelX, labelY);
-        ctx.restore();
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(`${lengthCm} cm`, midX, midY - 6);
       }
 
       // Draw Vertices handles (Direct Select tool)
@@ -1180,7 +1047,7 @@ export const PatternCanvas: React.FC = () => {
           const diff = Math.abs(Math.round((lenA - lenB) * 10) / 10);
           const isMatching = diff <= 1.5;
 
-          const pillText = `${lenA} cm ⟷ ${lenB} cm ${isMatching ? '(✓ Matched)' : `(Diff: ${diff} cm)`}`;
+          const pillText = `${lenA} cm ⟷ ${lenB} cm ${isMatching ? '(✓ Cocok)' : `(Beda: ${diff} cm)`}`;
           ctx.font = 'bold 11px system-ui, -apple-system, sans-serif';
           const tw = ctx.measureText(pillText).width;
           const px = (midA.x + targetPos.x) / 2 - tw / 2 - 8;
@@ -1260,19 +1127,11 @@ export const PatternCanvas: React.FC = () => {
       const midA = { x: (sA1.x + sA2.x) / 2, y: (sA1.y + sA2.y) / 2 };
       const midB = { x: (sB1.x + sB2.x) / 2, y: (sB1.y + sB2.y) / 2 };
 
-      // Only show full connector arc & badges when actively in sewing mode or hovered/selected
-      const shouldDrawConnector =
-        activeTool === 'sew' ||
-        activeTool === 'free-sew' ||
-        activeTool === 'edit-sew' ||
-        isSelected ||
-        isHovered;
-
-      // Highlight edges with subtle or active tint
+      // Highlight edges with colored glow
       ctx.save();
       ctx.strokeStyle = seamColor;
-      ctx.lineWidth = isSelected ? 4 : isHovered ? 3.5 : shouldDrawConnector ? 2.5 : 1.8;
-      ctx.globalAlpha = isSelected ? 1 : isHovered ? 0.9 : shouldDrawConnector ? 0.6 : 0.35;
+      ctx.lineWidth = isSelected ? 4 : isHovered ? 3.5 : 2.5;
+      ctx.globalAlpha = isSelected ? 1 : isHovered ? 0.9 : 0.6;
       // Edge A
       ctx.beginPath();
       ctx.moveTo(sA1.x, sA1.y);
@@ -1297,7 +1156,29 @@ export const PatternCanvas: React.FC = () => {
       }
       ctx.restore();
 
-      // Direction notches — small neat triangles at 25% of each edge
+      // Curved dashed arc connector (Figma-style connector line)
+      ctx.save();
+      const arcDist = Math.hypot(midB.x - midA.x, midB.y - midA.y);
+      const arcBow = Math.min(arcDist * 0.25, 60);
+      const cpX = (midA.x + midB.x) / 2;
+      const perpX = -(midB.y - midA.y);
+      const perpY = midB.x - midA.x;
+      const perpLen = Math.hypot(perpX, perpY) || 1;
+      const cpArcX = cpX + (perpX / perpLen) * arcBow;
+      const cpArcY = (midA.y + midB.y) / 2 + (perpY / perpLen) * arcBow;
+      ctx.beginPath();
+      ctx.moveTo(midA.x, midA.y);
+      ctx.quadraticCurveTo(cpArcX, cpArcY, midB.x, midB.y);
+      ctx.strokeStyle = seamColor;
+      ctx.lineWidth = isSelected ? 2.5 : isHovered ? 2 : 1.5;
+      ctx.setLineDash(isSelected ? [8, 4] : [5, 5]);
+      ctx.globalAlpha = isSelected ? 1 : 0.7;
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      // Direction notches — small triangles at 25% of each edge
       const drawNotch = (s1: {x:number;y:number}, s2: {x:number;y:number}, reversed: boolean) => {
         const t = reversed ? 0.75 : 0.25;
         const nx = s1.x + (s2.x - s1.x) * t;
@@ -1310,14 +1191,14 @@ export const PatternCanvas: React.FC = () => {
         // Perpendicular outward
         const px = -uy;
         const py = ux;
-        const size = 5;
+        const size = 6;
         ctx.beginPath();
         ctx.moveTo(nx + ux * size, ny + uy * size);
-        ctx.lineTo(nx + px * size * 1.1, ny + py * size * 1.1);
+        ctx.lineTo(nx + px * size * 1.2, ny + py * size * 1.2);
         ctx.lineTo(nx - ux * size, ny - uy * size);
         ctx.closePath();
         ctx.fillStyle = seamColor;
-        ctx.globalAlpha = shouldDrawConnector ? 0.85 : 0.45;
+        ctx.globalAlpha = 0.85;
         ctx.fill();
         ctx.globalAlpha = 1;
       };
@@ -1325,62 +1206,38 @@ export const PatternCanvas: React.FC = () => {
       drawNotch(sA1, sA2, reversed);
       drawNotch(sB1, sB2, reversed);
 
-      // Only draw long crossing connector arcs & S1..Sn pills in sewing modes
-      if (shouldDrawConnector) {
-        ctx.save();
-        const arcDist = Math.hypot(midB.x - midA.x, midB.y - midA.y);
-        const arcBow = Math.min(arcDist * 0.25, 60);
-        const cpX = (midA.x + midB.x) / 2;
-        const perpX = -(midB.y - midA.y);
-        const perpY = midB.x - midA.x;
-        const perpLen = Math.hypot(perpX, perpY) || 1;
-        const cpArcX = cpX + (perpX / perpLen) * arcBow;
-        const cpArcY = (midA.y + midB.y) / 2 + (perpY / perpLen) * arcBow;
-        ctx.beginPath();
-        ctx.moveTo(midA.x, midA.y);
-        ctx.quadraticCurveTo(cpArcX, cpArcY, midB.x, midB.y);
-        ctx.strokeStyle = seamColor;
-        ctx.lineWidth = isSelected ? 2.5 : isHovered ? 2 : 1.5;
-        ctx.setLineDash(isSelected ? [8, 4] : [5, 5]);
-        ctx.globalAlpha = isSelected ? 1 : 0.7;
-        ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.globalAlpha = 1;
-        ctx.restore();
+      // Seam label badges (S1, S2...) at connector midpoint
+      const labelX = (cpArcX + cpX) / 2;
+      const labelY = (cpArcY + (midA.y + midB.y) / 2) / 2;
+      const label = `S${sIdx + 1}`;
+      ctx.save();
+      ctx.font = 'bold 9px ui-sans-serif, system-ui';
+      const tw = ctx.measureText(label).width;
+      // Pill background
+      ctx.fillStyle = isSelected ? seamColor : 'rgba(15, 23, 42, 0.85)';
+      ctx.beginPath();
+      ctx.roundRect(labelX - tw / 2 - 6, labelY - 8, tw + 12, 16, 8);
+      ctx.fill();
+      ctx.strokeStyle = seamColor;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Label text
+      ctx.fillStyle = isSelected ? '#0f172a' : seamColor;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, labelX, labelY);
+      ctx.restore();
 
-        // Seam label badges (S1, S2...) at connector midpoint
-        const labelX = (cpArcX + cpX) / 2;
-        const labelY = (cpArcY + (midA.y + midB.y) / 2) / 2;
-        const label = `S${sIdx + 1}`;
-        ctx.save();
-        ctx.font = 'bold 9px ui-sans-serif, system-ui';
-        const tw = ctx.measureText(label).width;
-        // Pill background
-        ctx.fillStyle = isSelected ? seamColor : 'rgba(15, 23, 42, 0.85)';
+      // Endpoint badges on edges
+      [midA, midB].forEach((m) => {
+        ctx.fillStyle = seamColor;
         ctx.beginPath();
-        ctx.roundRect(labelX - tw / 2 - 6, labelY - 8, tw + 12, 16, 8);
+        ctx.arc(m.x, m.y, isSelected ? 6 : 5, 0, Math.PI * 2);
         ctx.fill();
-        ctx.strokeStyle = seamColor;
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
-        // Label text
-        ctx.fillStyle = isSelected ? '#0f172a' : seamColor;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(label, labelX, labelY);
-        ctx.restore();
-
-        // Endpoint badges on edges
-        [midA, midB].forEach((m) => {
-          ctx.fillStyle = seamColor;
-          ctx.beginPath();
-          ctx.arc(m.x, m.y, isSelected ? 6 : 5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.strokeStyle = '#0f172a';
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        });
-      }
+      });
 
       // Edit-sew selected seam tooltip
       if (isSelected && activeTool === 'edit-sew') {
@@ -1611,17 +1468,17 @@ export const PatternCanvas: React.FC = () => {
             const edge: SeamEdge = { pieceId: piece.id, edgeIndex: edgeHit.edgeIndex };
             if (!pendingSeamEdge) {
               setPendingSeamEdge(edge);
-              setSeamToast(`Segment 1 selected (${piece.name}). Click target edge to connect seam.`);
+              setSeamToast(`Garis 1 terpilih (${piece.name}). Sekarang klik garis target di pola pasangan.`);
             } else {
               if (
                 pendingSeamEdge.pieceId !== edge.pieceId ||
                 pendingSeamEdge.edgeIndex !== edge.edgeIndex
               ) {
                 addSeam(pendingSeamEdge, edge);
-                setSeamToast(`✓ Seam connected successfully!`);
+                setSeamToast(`✓ Jahitan berhasil dihubungkan!`);
               } else {
                 setPendingSeamEdge(null);
-                setSeamToast(`Seam selection cancelled.`);
+                setSeamToast(`Pilihan jahitan dibatalkan.`);
               }
             }
             return;
@@ -1629,7 +1486,7 @@ export const PatternCanvas: React.FC = () => {
         }
         if (pendingSeamEdge) {
           setPendingSeamEdge(null);
-          setSeamToast(`Seam selection cancelled.`);
+          setSeamToast(`Pilihan jahitan dibatalkan.`);
         }
         return;
       }
@@ -2108,7 +1965,7 @@ export const PatternCanvas: React.FC = () => {
     e.preventDefault();
     if (pendingSeamEdge) {
       setPendingSeamEdge(null);
-      setSeamToast('Seam selection cancelled.');
+      setSeamToast('Pilihan jahitan dibatalkan.');
       return;
     }
     if (pendingFreeSewEdge) {
@@ -2346,37 +2203,6 @@ export const PatternCanvas: React.FC = () => {
 
         <span className="text-slate-600">|</span>
         <span className="text-slate-400">{(viewState.scale * 100).toFixed(0)}%</span>
-
-        <span className="text-slate-600">|</span>
-
-        {/* 3D Mockup Option Button */}
-        <button
-          onClick={() => setLayout(layout === 'pattern-only' ? 'dual' : 'pattern-only')}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
-            layout === 'dual'
-              ? 'bg-indigo-600 text-white shadow-sm'
-              : 'bg-[#1e2230] hover:bg-slate-700/70 text-slate-300 hover:text-white border border-slate-700/60'
-          }`}
-          title="Toggle 3D Fashion Mockup Preview alongside 2D Pattern"
-        >
-          <Box className="w-3.5 h-3.5 text-indigo-400" />
-          <span>3D Preview {layout === 'dual' ? 'ON' : 'Option'}</span>
-        </button>
-
-        <span className="text-slate-600">|</span>
-
-        {/* Canvas Theme Toggle (Tech Pack White vs Dark Studio) */}
-        <button
-          onClick={toggleCanvasTheme}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
-            canvasTheme === 'white'
-              ? 'bg-white text-slate-900 border border-slate-300 shadow-sm'
-              : 'bg-[#1e2230] text-slate-300 hover:text-white border border-slate-700/60'
-          }`}
-          title="Toggle Canvas Theme (Tech Pack White / CAD Dark)"
-        >
-          <span>{canvasTheme === 'white' ? '⚪ Tech Pack White' : '⚫ Dark CAD'}</span>
-        </button>
 
         {/* Pending Seam Indicator */}
         {pendingSeamEdge && (

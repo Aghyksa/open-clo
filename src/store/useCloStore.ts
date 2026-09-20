@@ -15,7 +15,6 @@ import type {
   SeamEdge,
   GraphicLayer,
   EdgeCurvature,
-  CanvasTheme,
 } from '../types/cad';
 import {
   FABRIC_PRESETS,
@@ -53,9 +52,9 @@ function createDefaultProject(templateId = 'tshirt', name?: string): CloProject 
     avatar2D: {
       visible: true,
       view: 'front',
-      opacity: 0.15,
-      showGuides: false,
-      position: { x: 180, y: 260 },
+      opacity: 0.35,
+      showGuides: true,
+      position: { x: 300, y: 260 },
     },
     stitchSettings: {
       defaultType: 'single-needle',
@@ -150,16 +149,11 @@ interface CloState {
   showHeatmap: boolean;
   showAvatar: boolean;
   layout: ViewportLayout;
-  canvasTheme: CanvasTheme;
   cameraPreset: 'front' | 'back' | 'side' | 'perspective';
 
   // Drop Animation
   isDropAnimating: boolean;
   dropAnimationProgress: number; // 0-1
-
-  // Canvas Theme
-  setCanvasTheme: (theme: CanvasTheme) => void;
-  toggleCanvasTheme: () => void;
 
   // History (Undo / Redo)
   undoStack: HistoryStep[];
@@ -321,28 +315,23 @@ export const useCloStore = create<CloState>((set, get) => {
     avatar2D: active.avatar2D || {
       visible: true,
       view: 'front',
-      opacity: 0.15,
-      showGuides: false,
-      position: { x: 180, y: 260 },
+      opacity: 0.35,
+      showGuides: true,
+      position: { x: 300, y: 260 },
     },
 
-    isSimulating: false,
+    isSimulating: true,
     simulationDynamics: 0.6,
     simulationIteration: 0,
     showWireframe: false,
     showHeatmap: false,
     showAvatar: true,
-    layout: 'pattern-only',
-    canvasTheme: 'white',
+    layout: 'dual',
     cameraPreset: 'perspective',
 
     // Drop Animation
     isDropAnimating: false,
     dropAnimationProgress: 0,
-
-    // Canvas Theme
-    setCanvasTheme: (theme) => set({ canvasTheme: theme }),
-    toggleCanvasTheme: () => set((state) => ({ canvasTheme: state.canvasTheme === 'white' ? 'dark' : 'white' })),
 
     undoStack: [],
     redoStack: [],

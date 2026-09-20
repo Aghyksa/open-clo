@@ -132,21 +132,8 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
 
         <div className="w-[1px] h-5 bg-slate-800 mx-1 hidden md:block" />
 
-        {/* Viewport Toggles: 2D Pattern primary, 3D optional */}
+        {/* Viewport Toggles */}
         <div className="hidden md:flex items-center bg-[#191c24] p-1 rounded-lg border border-slate-700/60 text-xs">
-          <button
-            onClick={() => setLayout('pattern-only')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
-              layout === 'pattern-only'
-                ? 'bg-blue-600 text-white font-medium shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-            title="2D Pattern Workspace (Primary CAD Editor)"
-          >
-            <Square className="w-3.5 h-3.5" />
-            <span>2D Pattern</span>
-          </button>
-
           <button
             onClick={() => setLayout('dual')}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
@@ -154,10 +141,23 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
                 ? 'bg-blue-600 text-white font-medium shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="Dual View (2D Pattern + 3D Option)"
+            title="Dual Studio (2D Pattern + 3D Studio)"
           >
             <Columns className="w-3.5 h-3.5" />
-            <span>Dual View</span>
+            <span>Dual Studio</span>
+          </button>
+
+          <button
+            onClick={() => setLayout('pattern-only')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
+              layout === 'pattern-only'
+                ? 'bg-blue-600 text-white font-medium shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="2D Pattern Workspace"
+          >
+            <Square className="w-3.5 h-3.5" />
+            <span>2D Pattern</span>
           </button>
 
           <button
@@ -167,10 +167,10 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
                 ? 'bg-blue-600 text-white font-medium shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="3D Studio (Optional Preview)"
+            title="3D Draping Studio"
           >
             <Box className="w-3.5 h-3.5" />
-            <span>3D Studio (Option)</span>
+            <span>3D Studio</span>
           </button>
         </div>
       </div>
@@ -196,7 +196,7 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
         <select
           value={activeTemplateId}
           onChange={(e) => loadPreset(e.target.value)}
-          className="bg-[#1a1d26] text-slate-200 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700/80 focus:outline-none focus:border-blue-500 font-medium cursor-pointer max-w-[190px]"
+          className="bg-[#1a1d26] text-slate-200 text-xs px-2 py-1.5 rounded-lg border border-slate-700/80 focus:outline-none focus:border-blue-500 font-medium cursor-pointer max-w-[120px]"
           title="Switch Garment Template"
         >
           {GARMENT_TEMPLATES.map((tmpl) => (
