@@ -4,12 +4,13 @@ import { TopNav } from './components/UI/TopNav';
 import { ToolSidebar } from './components/UI/ToolSidebar';
 import { PropertyInspector } from './components/UI/PropertyInspector';
 import { PatternCanvas } from './components/PatternViewport/PatternCanvas';
+import { AssembledFlatCanvas } from './components/PatternViewport/AssembledFlatCanvas';
 import { StudioViewport } from './components/Studio3D/StudioViewport';
 import { ControlPanelModal } from './components/UI/ControlPanelModal';
 import { Activity, Scissors, Compass } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const { layout, activeTool, setActiveTool, isSimulating, setIsSimulating, pieces, seams, undo, redo } =
+  const { layout, canvasViewMode, activeTool, setActiveTool, undo, redo, activeTemplateId, decals } =
     useCloStore();
 
   const [splitRatio, setSplitRatio] = useState(0.48); // 48% 2D Pattern, 52% 3D Studio
@@ -84,7 +85,7 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTool, isSimulating, setActiveTool, setIsSimulating, undo, redo]);
+  }, [activeTool, setActiveTool, undo, redo]);
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-[#0c0e12] text-slate-100 font-sans">
@@ -106,7 +107,7 @@ export const App: React.FC = () => {
             }}
             className="h-full relative overflow-hidden flex-shrink-0"
           >
-            <PatternCanvas />
+            {canvasViewMode === 'assembled' ? <AssembledFlatCanvas /> : <PatternCanvas />}
           </div>
 
           {/* Interactive Resizable Divider (like CLO3D) */}
@@ -121,15 +122,16 @@ export const App: React.FC = () => {
           )}
 
           {/* 3D Studio & Simulation Viewport */}
-          <div
-            style={{
-              display: layout === 'pattern-only' ? 'none' : 'block',
-              width: layout === 'dual' ? `${(1 - splitRatio) * 100}%` : '100%',
-            }}
-            className="h-full relative overflow-hidden flex-1"
-          >
-            <StudioViewport />
-          </div>
+          {layout !== 'pattern-only' && (
+            <div
+              style={{
+                width: layout === 'dual' ? `${(1 - splitRatio) * 100}%` : '100%',
+              }}
+              className="h-full relative overflow-hidden flex-1"
+            >
+              <StudioViewport />
+            </div>
+          )}
         </main>
 
         {/* Right Property Inspector Panel */}
@@ -145,25 +147,25 @@ export const App: React.FC = () => {
           </span>
           <span className="text-slate-600">|</span>
           <span className="flex items-center gap-1.5">
-            <Scissors className="w-3.5 h-3.5 text-indigo-400" /> Active Seams:{' '}
-            <strong className="text-slate-200">{seams.length}</strong>
+            <Scissors className="w-3.5 h-3.5 text-indigo-400" /> Template:{' '}
+            <strong className="text-slate-200">{activeTemplateId}</strong>
           </span>
           <span className="text-slate-600">|</span>
           <span>
-            Pattern Pieces: <strong className="text-slate-200">{pieces.length}</strong>
+            Decals Placed: <strong className="text-slate-200">{decals.length}</strong>
           </span>
         </div>
 
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-1.5">
-            <Activity className="w-3.5 h-3.5 text-emerald-400" /> Physics Engine:{' '}
+            <Activity className="w-3.5 h-3.5 text-emerald-400" /> 3D Engine:{' '}
             <span className="text-emerald-400 font-medium">
-              {isSimulating ? 'Active (XPBD 60fps)' : 'Paused'}
+              Three.js PBR Studio (60fps)
             </span>
           </span>
           <span className="text-slate-600">|</span>
           <span className="text-slate-500">
-            Shortcuts: [V] Select [A] Vertex [S] Sew [Space] Drape
+            Shortcuts: [V] Select [T] Decals & Text [A] Vertex [Ctrl+Z] Undo
           </span>
         </div>
       </footer>

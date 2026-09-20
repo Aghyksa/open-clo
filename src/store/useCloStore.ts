@@ -15,6 +15,10 @@ import type {
   SeamEdge,
   GraphicLayer,
   EdgeCurvature,
+  MockupSceneMode,
+  CanvasViewMode,
+  StudioLightingPreset,
+  GraphicDecal,
 } from '../types/cad';
 import {
   FABRIC_PRESETS,
@@ -25,10 +29,11 @@ import {
 const STORAGE_KEY_PROJECTS = 'openclo_projects_v1';
 const STORAGE_KEY_ACTIVE = 'openclo_active_project_id';
 
-function createDefaultProject(templateId = 'tshirt', name?: string): CloProject {
+function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string): CloProject {
   const tmpl = GARMENT_TEMPLATES.find((t) => t.id === templateId) || GARMENT_TEMPLATES[0];
   const data = tmpl.generator();
   const fabric = FABRIC_PRESETS.find((f) => f.id === tmpl.recommendedFabric) || FABRIC_PRESETS[0];
+  const defaultCol = tmpl.recommendedColor || '#262626';
 
   return {
     id: `proj-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
@@ -39,7 +44,36 @@ function createDefaultProject(templateId = 'tshirt', name?: string): CloProject 
     pieces: data.pieces,
     seams: data.seams,
     currentMaterial: fabric,
-    customColor: tmpl.recommendedColor,
+    customColor: defaultCol,
+    colorZones: {
+      body: defaultCol,
+      collar: defaultCol,
+      sleeves: defaultCol,
+      leftSleeve: defaultCol,
+      rightSleeve: defaultCol,
+      pocket: defaultCol,
+      hem: defaultCol,
+      cuffs: defaultCol,
+      hood: defaultCol,
+    },
+    decals: [
+      {
+        id: 'decal-tokyo-default',
+        type: 'preset',
+        name: 'Tokyo Archive Box Stamp',
+        content: 'tokyo-box-logo',
+        position: { x: 0, y: -25 },
+        scale: 1,
+        rotation: 0,
+        viewTarget: 'front',
+        blendMode: 'multiply',
+        opacity: 0.95,
+        width: 140,
+        height: 42,
+      },
+    ],
+    mockupScene: 'ghost',
+    canvasViewMode: 'assembled',
     avatar: {
       gender: 'female',
       height: 175,
@@ -82,7 +116,7 @@ function loadProjectsFromStorage(): { projects: CloProject[]; activeProject: Clo
     console.warn('Failed to load projects from localStorage:', e);
   }
 
-  const def = createDefaultProject('tshirt', 'Classic T-Shirt Studio');
+  const def = createDefaultProject('uniqlo-u-boxy-tee', 'Uniqlo U AIRism Studio');
   try {
     localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify([def]));
     localStorage.setItem(STORAGE_KEY_ACTIVE, def.id);
@@ -228,6 +262,27 @@ interface CloState {
   resetSimulation: () => void;
   loadPreset: (id: string) => void;
 
+  // Fashion CAD & 3D Showroom additions
+  canvasViewMode: CanvasViewMode;
+  mockupScene: MockupSceneMode;
+  lightingPreset: StudioLightingPreset;
+  colorZones: Record<string, string>;
+  decals: GraphicDecal[];
+  selectedDecalId: string | null;
+  decalTextureRevision: number;
+
+  setCanvasViewMode: (mode: CanvasViewMode) => void;
+  setMockupScene: (scene: MockupSceneMode) => void;
+  setLightingPreset: (preset: StudioLightingPreset) => void;
+  setColorZone: (zone: string, color: string) => void;
+  setColorZones: (zones: Record<string, string>) => void;
+  setSelectedDecalId: (id: string | null) => void;
+  addDecal: (decal: Omit<GraphicDecal, 'id'>) => string;
+  updateDecal: (id: string, partial: Partial<GraphicDecal>) => void;
+  removeDecal: (id: string) => void;
+  reorderDecal: (id: string, direction: 'up' | 'down') => void;
+  bumpDecalTextureRevision: () => void;
+
   // Drop Animation Actions
   startDropAnimation: () => void;
   setDropAnimationProgress: (progress: number) => void;
@@ -265,6 +320,10 @@ export const useCloStore = create<CloState>((set, get) => {
         avatar: updatedState.avatar ?? state.avatar,
         avatar2D: updatedState.avatar2D ?? state.avatar2D,
         stitchSettings: updatedState.stitchSettings ?? state.stitchSettings,
+        colorZones: updatedState.colorZones ?? (p.colorZones || state.colorZones),
+        decals: updatedState.decals ?? (p.decals || state.decals),
+        mockupScene: updatedState.mockupScene ?? (p.mockupScene || state.mockupScene),
+        canvasViewMode: updatedState.canvasViewMode ?? (p.canvasViewMode || state.canvasViewMode),
         updatedAt: now,
       };
     });
@@ -293,9 +352,43 @@ export const useCloStore = create<CloState>((set, get) => {
     pendingFreeSewEdge: null,
     selectedSeamId: null,
 
+    // Fashion CAD & 3D Showroom State
+    canvasViewMode: active.canvasViewMode || 'assembled',
+    mockupScene: active.mockupScene || 'ghost',
+    lightingPreset: 'ecommerce-white',
+    colorZones: active.colorZones || {
+      body: active.customColor || '#262626',
+      collar: active.customColor || '#262626',
+      sleeves: active.customColor || '#262626',
+      leftSleeve: active.customColor || '#262626',
+      rightSleeve: active.customColor || '#262626',
+      pocket: active.customColor || '#262626',
+      hem: active.customColor || '#262626',
+      cuffs: active.customColor || '#262626',
+      hood: active.customColor || '#262626',
+    },
+    decals: active.decals || [
+      {
+        id: 'decal-tokyo-default',
+        type: 'preset',
+        name: 'Tokyo Archive Box Stamp',
+        content: 'tokyo-box-logo',
+        position: { x: 0, y: -25 },
+        scale: 1,
+        rotation: 0,
+        viewTarget: 'front',
+        blendMode: 'multiply',
+        opacity: 0.95,
+        width: 140,
+        height: 42,
+      },
+    ],
+    selectedDecalId: null,
+    decalTextureRevision: 0,
+
     currentMaterial: active.currentMaterial || FABRIC_PRESETS[0],
-    customColor: active.customColor || '#38bdf8',
-    activeTemplateId: active.templateId || 'tshirt',
+    customColor: active.customColor || '#262626',
+    activeTemplateId: active.templateId || 'uniqlo-u-boxy-tee',
     stitchSettings: active.stitchSettings || {
       defaultType: 'single-needle',
       defaultColor: '#f8fafc',
@@ -320,13 +413,13 @@ export const useCloStore = create<CloState>((set, get) => {
       position: { x: 300, y: 260 },
     },
 
-    isSimulating: true,
+    isSimulating: false,
     simulationDynamics: 0.6,
     simulationIteration: 0,
     showWireframe: false,
     showHeatmap: false,
     showAvatar: true,
-    layout: 'dual',
+    layout: 'pattern-only', // 2D-First by default!
     cameraPreset: 'perspective',
 
     // Drop Animation
@@ -1425,6 +1518,103 @@ export const useCloStore = create<CloState>((set, get) => {
     setDropAnimationProgress: (progress) => set({ dropAnimationProgress: progress }),
     stopDropAnimation: () => set({ isDropAnimating: false, dropAnimationProgress: 0 }),
 
+    // ==========================================
+    // Fashion CAD & 3D Showroom Actions
+    // ==========================================
+    setCanvasViewMode: (mode) => {
+      set({ canvasViewMode: mode, ...syncToActiveProject({ canvasViewMode: mode }) });
+    },
+
+    setMockupScene: (scene) => {
+      set({ mockupScene: scene, ...syncToActiveProject({ mockupScene: scene }) });
+    },
+
+    setLightingPreset: (preset) => {
+      set({ lightingPreset: preset });
+    },
+
+    setColorZone: (zone, color) => {
+      const current = get().colorZones || {};
+      const updated = { ...current, [zone]: color };
+      const customColor = zone === 'body' ? color : get().customColor;
+      set((state) => ({
+        colorZones: updated,
+        customColor,
+        decalTextureRevision: state.decalTextureRevision + 1,
+        ...syncToActiveProject({ colorZones: updated, customColor }),
+      }));
+    },
+
+    setColorZones: (zones) => {
+      set((state) => ({
+        colorZones: zones,
+        customColor: zones.body || state.customColor,
+        decalTextureRevision: state.decalTextureRevision + 1,
+        ...syncToActiveProject({ colorZones: zones, customColor: zones.body || state.customColor }),
+      }));
+    },
+
+    setSelectedDecalId: (id) => set({ selectedDecalId: id }),
+
+    addDecal: (decalData) => {
+      const id = `decal-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+      const newDecal: GraphicDecal = { ...decalData, id };
+      set((state) => {
+        const updated = [...state.decals, newDecal];
+        return {
+          decals: updated,
+          selectedDecalId: id,
+          decalTextureRevision: state.decalTextureRevision + 1,
+          ...syncToActiveProject({ decals: updated }),
+        };
+      });
+      return id;
+    },
+
+    updateDecal: (id, partial) => {
+      set((state) => {
+        const updated = state.decals.map((d) => (d.id === id ? { ...d, ...partial } : d));
+        return {
+          decals: updated,
+          decalTextureRevision: state.decalTextureRevision + 1,
+          ...syncToActiveProject({ decals: updated }),
+        };
+      });
+    },
+
+    removeDecal: (id) => {
+      set((state) => {
+        const updated = state.decals.filter((d) => d.id !== id);
+        return {
+          decals: updated,
+          selectedDecalId: state.selectedDecalId === id ? null : state.selectedDecalId,
+          decalTextureRevision: state.decalTextureRevision + 1,
+          ...syncToActiveProject({ decals: updated }),
+        };
+      });
+    },
+
+    reorderDecal: (id, direction) => {
+      set((state) => {
+        const idx = state.decals.findIndex((d) => d.id === id);
+        if (idx === -1) return state;
+        const targetIdx = direction === 'up' ? idx + 1 : idx - 1;
+        if (targetIdx < 0 || targetIdx >= state.decals.length) return state;
+        const copy = [...state.decals];
+        const [moved] = copy.splice(idx, 1);
+        copy.splice(targetIdx, 0, moved);
+        return {
+          decals: copy,
+          decalTextureRevision: state.decalTextureRevision + 1,
+          ...syncToActiveProject({ decals: copy }),
+        };
+      });
+    },
+
+    bumpDecalTextureRevision: () => {
+      set((state) => ({ decalTextureRevision: state.decalTextureRevision + 1 }));
+    },
+
     loadPreset: (id: string) => {
       const template = GARMENT_TEMPLATES.find((t) => t.id === id);
       if (template) {
@@ -1434,15 +1624,30 @@ export const useCloStore = create<CloState>((set, get) => {
           FABRIC_PRESETS.find((f) => f.id === template.recommendedFabric) ||
           FABRIC_PRESETS[0];
 
+        const defaultCol = template.recommendedColor || '#262626';
+        const newColorZones = {
+          body: defaultCol,
+          collar: defaultCol,
+          sleeves: defaultCol,
+          leftSleeve: defaultCol,
+          rightSleeve: defaultCol,
+          pocket: defaultCol,
+          hem: defaultCol,
+          cuffs: defaultCol,
+          hood: defaultCol,
+        };
+
         const updatedState = {
           activeTemplateId: id,
           pieces: p.pieces,
           seams: p.seams,
           currentMaterial: recFabric,
-          customColor: template.recommendedColor,
+          customColor: defaultCol,
+          colorZones: newColorZones,
           selectedPieceId: null,
           selectedVertexIndex: null,
           simulationIteration: get().simulationIteration + 1,
+          decalTextureRevision: get().decalTextureRevision + 1,
         };
 
         set({

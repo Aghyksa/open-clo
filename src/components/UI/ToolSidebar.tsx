@@ -16,6 +16,7 @@ import {
   Redo2,
   Link,
   Unlink,
+  Sparkles,
 } from 'lucide-react';
 
 interface ToolItem {
@@ -32,7 +33,14 @@ const TOOLS: ToolItem[] = [
     name: 'Transform & Move',
     hotkey: 'V',
     icon: MousePointer,
-    description: 'Select, scale, rotate and move pattern pieces (Photoshop Free Transform)',
+    description: 'Select, scale, rotate and move pattern pieces and decals',
+  },
+  {
+    id: 'graphic',
+    name: 'Decal & Text Studio',
+    hotkey: 'T',
+    icon: Sparkles,
+    description: 'Place streetwear graphics, typography, or upload transparent logos',
   },
   {
     id: 'vertex',

@@ -9,9 +9,6 @@ import {
   Box,
   Check,
   ChevronDown,
-  Play,
-  Pause,
-  RotateCcw,
   FolderKanban,
   Save,
   Palette,
@@ -27,9 +24,6 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
     setLayout,
     pieces,
     loadPreset,
-    isSimulating,
-    setIsSimulating,
-    resetSimulation,
     activeTemplateId,
     currentMaterial,
     setMaterial,
@@ -97,80 +91,47 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
         </div>
       </div>
 
-      {/* Center: Simulation + Viewport Switcher */}
+      {/* Center: Layout & Mode Switcher */}
       <div className="flex items-center gap-2">
-        {/* Simulation Play/Pause */}
-        <button
-          onClick={() => setIsSimulating(!isSimulating)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-md transition-all ${
-            isSimulating
-              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
-              : 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
-          }`}
-          title="Toggle Simulation (Space)"
-        >
-          {isSimulating ? (
-            <>
-              <Pause className="w-3.5 h-3.5" />
-              <span>Simulate: ON</span>
-            </>
-          ) : (
-            <>
-              <Play className="w-3.5 h-3.5" />
-              <span>Simulate: PAUSED</span>
-            </>
-          )}
-        </button>
-
-        <button
-          onClick={resetSimulation}
-          className="p-1.5 bg-[#1a1d26] hover:bg-slate-700/60 rounded-lg text-slate-300 hover:text-white transition-colors border border-slate-700/60"
-          title="Reset Drape"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
-
-        <div className="w-[1px] h-5 bg-slate-800 mx-1 hidden md:block" />
-
-        {/* Viewport Toggles */}
-        <div className="hidden md:flex items-center bg-[#191c24] p-1 rounded-lg border border-slate-700/60 text-xs">
+        {/* Viewport Layout Switcher */}
+        <div className="flex items-center bg-[#191c24] p-1 rounded-xl border border-slate-700/60 text-xs">
           <button
-            onClick={() => setLayout('dual')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
-              layout === 'dual'
-                ? 'bg-blue-600 text-white font-medium shadow-sm'
+            onClick={() => setLayout('pattern-only')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-colors ${
+              layout === 'pattern-only'
+                ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="Dual Studio (2D Pattern + 3D Studio)"
+            title="2D Fashion CAD Canvas"
+          >
+            <Square className="w-3.5 h-3.5" />
+            <span>2D CAD Flat</span>
+          </button>
+
+          <button
+            onClick={() => setLayout('dual')}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-colors ${
+              layout === 'dual'
+                ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Dual Studio (2D CAD + 3D Showroom)"
           >
             <Columns className="w-3.5 h-3.5" />
             <span>Dual Studio</span>
           </button>
 
           <button
-            onClick={() => setLayout('pattern-only')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
-              layout === 'pattern-only'
-                ? 'bg-blue-600 text-white font-medium shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-            title="2D Pattern Workspace"
-          >
-            <Square className="w-3.5 h-3.5" />
-            <span>2D Pattern</span>
-          </button>
-
-          <button
             onClick={() => setLayout('3d-only')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-colors ${
               layout === '3d-only'
-                ? 'bg-blue-600 text-white font-medium shadow-sm'
+                ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="3D Draping Studio"
+            title="3D Multi-Scene Showroom"
           >
             <Box className="w-3.5 h-3.5" />
-            <span>3D Studio</span>
+            <span>3D Showroom</span>
           </button>
         </div>
       </div>

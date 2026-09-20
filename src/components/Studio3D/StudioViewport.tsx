@@ -1,907 +1,404 @@
 import React, { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { useCloStore } from '../../store/useCloStore';
-import { ClothSimulator } from '../../utils/clothSimulation';
+import { getAssembledSpec } from '../../utils/patternPresets';
 import {
-  RotateCcw,
-  Play,
-  Pause,
-  Eye,
-  Camera,
-  Layers,
-  Thermometer,
-  Sparkles,
-  UserCheck,
-  Wind,
-  ArrowDownToLine,
-} from 'lucide-react';
-
-const AVATAR_COLOR_PRESETS = [
-  { id: 'white', label: 'White', color: '#f8fafc' },
-  { id: 'grey', label: 'Grey', color: '#cbd5e1' },
-  { id: 'tan', label: 'Warm Tan', color: '#d7bca7' },
-  { id: 'charcoal', label: 'Charcoal', color: '#4a5568' },
-  { id: 'black', label: 'Black', color: '#18181b' },
-];
+  generateGarmentTextureCanvas,
+  createGarment3DModel,
+} from '../../utils/studio3DGarmentBuilder';
+import type { MockupSceneMode, StudioLightingPreset } from '../../types/cad';
+import { Download } from 'lucide-react';
 
 export const StudioViewport: React.FC = () => {
   const mountRef = useRef<HTMLDivElement | null>(null);
 
   const {
-    pieces,
-    seams,
-    currentMaterial,
+    activeTemplateId,
+    colorZones,
+    decals,
     customColor,
-    isSimulating,
-    simulationDynamics,
-    simulationIteration,
-    showWireframe,
-    showHeatmap,
-    showAvatar,
-    cameraPreset,
-    avatar,
-    isDropAnimating,
-    setIsSimulating,
-    setSimulationDynamics,
-    resetSimulation,
-    toggleWireframe,
-    toggleHeatmap,
-    toggleAvatar,
-    setCameraPreset,
-    startDropAnimation,
+    mockupScene,
+    setMockupScene,
+    lightingPreset,
+    setLightingPreset,
+    decalTextureRevision,
   } = useCloStore();
 
-  const [avatarMode, setAvatarMode] = useState<'mannequin' | 'realistic'>('mannequin');
-  const [avatarColorIndex, setAvatarColorIndex] = useState<number>(0);
-  const [modelLoaded, setModelLoaded] = useState(false);
+  const [downloadSuccess, setDownloadSuccess] = useState(false);
 
-  const simulatorRef = useRef<ClothSimulator>(new ClothSimulator());
-  const clothMeshRef = useRef<THREE.Mesh | null>(null);
-  const clothGeomRef = useRef<THREE.BufferGeometry | null>(null);
-  const avatarGroupRef = useRef<THREE.Group | null>(null);
-  const gltfModelRef = useRef<THREE.Group | null>(null);
-  const controlsRef = useRef<OrbitControls | null>(null);
+  // References for Three.js instance
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+  const garmentGroupRef = useRef<THREE.Group | null>(null);
+  const canvasTextureRef = useRef<THREE.CanvasTexture | null>(null);
+  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const lightsRef = useRef<{
+    ambient: THREE.AmbientLight;
+    key: THREE.DirectionalLight;
+    fill: THREE.DirectionalLight;
+    rim: THREE.DirectionalLight;
+  } | null>(null);
 
-  // Dragging cloth in 3D
-  const selectedParticleIdxRef = useRef<number | null>(null);
-  const dragPlaneRef = useRef<THREE.Plane>(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0));
-  const raycasterRef = useRef<THREE.Raycaster>(new THREE.Raycaster());
-  const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2());
+  const spec = getAssembledSpec(activeTemplateId);
 
-  // Drop animation timing
-  const dropStartTimeRef = useRef<number>(0);
-
-  // Initialize Three.js Scene
+  // 1. Initialize Three.js Scene, Camera, Renderer, Lighting & Floor
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
-    const width = container.clientWidth;
-    const height = container.clientHeight;
+    const width = container.clientWidth || 800;
+    const height = container.clientHeight || 600;
 
-    // 1. Scene with subtle studio vignette background
+    // Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#0c0e12');
+    scene.background = new THREE.Color(lightingPreset === 'ecommerce-white' ? '#f8fafc' : '#0c0e12');
+    sceneRef.current = scene;
 
-    // 2. Camera with fashion studio framing
+    // Camera (40° fashion portrait lens)
     const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-    camera.position.set(0, 1.25, 2.7);
+    camera.position.set(0, 0.45, 2.2);
     cameraRef.current = camera;
 
-    // 3. Renderer with ACES Tone Mapping & Soft Shadows
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
+    // Renderer
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      preserveDrawingBuffer: true, // Needed for 4K snapshots
+      powerPreference: 'high-performance',
+    });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     container.appendChild(renderer.domElement);
+    rendererRef.current = renderer;
 
-    // 4. OrbitControls
+    // OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
-    controls.target.set(0, 1.15, 0);
-    controls.maxPolarAngle = Math.PI / 2 + 0.02; // Prevent camera dipping below floor
-    controls.minDistance = 0.7;
-    controls.maxDistance = 6.0;
+    controls.target.set(0, 0.45, 0);
+    controls.maxPolarAngle = Math.PI / 2 + 0.05;
+    controls.minDistance = 0.6;
+    controls.maxDistance = 5.0;
     controlsRef.current = controls;
 
-    // 5. Fashion Studio 3-Point Lighting
-    const ambientLight = new THREE.AmbientLight('#ffffff', 0.65);
-    scene.add(ambientLight);
+    // Studio 3-Point Lighting
+    const ambient = new THREE.AmbientLight('#ffffff', 1.0);
+    scene.add(ambient);
 
-    // Key Light (warm soft highlight)
-    const keyLight = new THREE.DirectionalLight('#fffaf0', 1.6);
-    keyLight.position.set(2.0, 3.8, 2.8);
-    keyLight.castShadow = true;
-    keyLight.shadow.mapSize.width = 2048;
-    keyLight.shadow.mapSize.height = 2048;
-    keyLight.shadow.bias = -0.0001;
-    keyLight.shadow.camera.near = 0.5;
-    keyLight.shadow.camera.far = 8;
-    keyLight.shadow.camera.left = -1.2;
-    keyLight.shadow.camera.right = 1.2;
-    keyLight.shadow.camera.top = 2.2;
-    keyLight.shadow.camera.bottom = -0.2;
-    scene.add(keyLight);
+    const key = new THREE.DirectionalLight('#ffffff', 1.5);
+    key.position.set(2.0, 3.8, 2.8);
+    key.castShadow = true;
+    key.shadow.mapSize.width = 2048;
+    key.shadow.mapSize.height = 2048;
+    key.shadow.bias = -0.0001;
+    scene.add(key);
 
-    // Fill Light (cool soft fill)
-    const fillLight = new THREE.DirectionalLight('#93c5fd', 0.7);
-    fillLight.position.set(-2.5, 2.2, 1.8);
-    scene.add(fillLight);
+    const fill = new THREE.DirectionalLight('#93c5fd', 0.7);
+    fill.position.set(-2.5, 2.2, 1.8);
+    scene.add(fill);
 
-    // Rim Light (back contour highlight on mannequin & drape silhouette)
-    const rimLight = new THREE.DirectionalLight('#fbcfe8', 0.85);
-    rimLight.position.set(0, 3.0, -2.8);
-    scene.add(rimLight);
+    const rim = new THREE.DirectionalLight('#fbcfe8', 0.85);
+    rim.position.set(0, 3.0, -2.8);
+    scene.add(rim);
 
-    // 6. Studio Floor & Contact Shadow
-    const floorGeo = new THREE.PlaneGeometry(12, 12);
-    const floorMat = new THREE.MeshStandardMaterial({
-      color: '#080a0d',
-      roughness: 0.85,
-      metalness: 0.15,
-    });
+    lightsRef.current = { ambient, key, fill, rim };
+
+    // Studio Floor & Contact Shadow
+    const floorGeo = new THREE.PlaneGeometry(10, 10);
+    const floorMat = new THREE.ShadowMaterial({ opacity: 0.18 });
     const floor = new THREE.Mesh(floorGeo, floorMat);
     floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0;
     floor.receiveShadow = true;
     scene.add(floor);
 
-    // Subtle studio circle platform
-    const platformGeo = new THREE.CylinderGeometry(0.75, 0.78, 0.015, 64);
-    const platformMat = new THREE.MeshStandardMaterial({
-      color: '#13161c',
-      roughness: 0.6,
-      metalness: 0.2,
+    // Initial Offscreen Canvas & CanvasTexture
+    const offscreen = generateGarmentTextureCanvas({
+      colorZones,
+      decals,
+      activeTemplateId,
+      customColor,
     });
-    const platform = new THREE.Mesh(platformGeo, platformMat);
-    platform.position.y = 0.0075;
-    platform.receiveShadow = true;
-    scene.add(platform);
+    offscreenCanvasRef.current = offscreen;
 
-    const grid = new THREE.GridHelper(5, 20, '#222733', '#141720');
-    grid.position.y = 0.016;
-    scene.add(grid);
+    const texture = new THREE.CanvasTexture(offscreen);
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.generateMipmaps = true;
+    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    canvasTextureRef.current = texture;
 
-    // 7. Avatar Group
-    const avatarGroup = new THREE.Group();
-    avatarGroupRef.current = avatarGroup;
-    scene.add(avatarGroup);
+    // Build 3D Model
+    const garment = createGarment3DModel(spec, mockupScene, texture);
+    scene.add(garment);
+    garmentGroupRef.current = garment;
 
-    // Stand base & pole
-    const standGroup = new THREE.Group();
-    const standMat = new THREE.MeshStandardMaterial({
-      color: '#1e293b',
-      metalness: 0.85,
-      roughness: 0.2,
+    // Track interaction for gentle 360 rotation
+    let isInteracting = false;
+    controls.addEventListener('start', () => {
+      isInteracting = true;
     });
-    const standBase = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.02, 32), standMat);
-    standBase.position.y = 0.01;
-    standBase.receiveShadow = true;
-    standGroup.add(standBase);
-    avatarGroup.add(standGroup);
-
-    // Load High-Quality GLTF Female Mannequin
-    const loader = new GLTFLoader();
-    loader.load(
-      '/models/femaleMannequin.glb',
-      (gltf) => {
-        const model = gltf.scene;
-        gltfModelRef.current = model;
-
-        // Position model on floor
-        model.position.set(0, 0, 0);
-
-        // Apply avatar scale to model immediately
-        const refHeight = 169.5;
-        const heightScale = avatar.height / refHeight;
-        const refChest = 88;
-        const refWaist = 62;
-        const refHips = 92;
-        const avgWidthScale = (
-          (avatar.chestCircumference / refChest) +
-          (avatar.waistCircumference / refWaist) +
-          (avatar.hipsCircumference / refHips)
-        ) / 3;
-        model.scale.set(avgWidthScale, heightScale, avgWidthScale);
-        model.updateMatrixWorld(true);
-
-        model.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh;
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-
-            // Apply sleek CLO3D matte porcelain finish by default (White porcelain for high contrast)
-            const porcelainMat = new THREE.MeshStandardMaterial({
-              color: AVATAR_COLOR_PRESETS[0].color,
-              roughness: 0.45,
-              metalness: 0.05,
-            });
-            // Store original material on userData for toggling
-            mesh.userData.origMaterial = mesh.material;
-            mesh.userData.porcelainMaterial = porcelainMat;
-            mesh.material = porcelainMat;
-          }
-        });
-
-        avatarGroup.add(model);
-        setModelLoaded(true);
-
-        // Build cloth tailored to the scaled mannequin and resolve collisions
-        const currentScale = { scaleX: avgWidthScale, scaleY: heightScale, scaleZ: avgWidthScale };
-        simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial, currentScale);
-        simulatorRef.current.resolveCollisionsWithMesh(model, 0.025);
-        if (clothGeomRef.current) {
-          clothGeomRef.current.setIndex(simulatorRef.current.indices);
-        }
-      },
-      undefined,
-      (error) => {
-        console.warn('GLTF avatar fallback active:', error);
-        // Build anatomical fallback
-        buildSculptedMannequin(avatarGroup);
-        setModelLoaded(true);
-      }
-    );
-
-    // 8. Cloth Mesh Container
-    const clothGeom = new THREE.BufferGeometry();
-    clothGeomRef.current = clothGeom;
-
-    const clothMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      vertexColors: true,
-      roughness: currentMaterial.roughness,
-      metalness: currentMaterial.metalness,
-      side: THREE.DoubleSide,
-      shadowSide: THREE.DoubleSide,
-      flatShading: false,
+    controls.addEventListener('end', () => {
+      isInteracting = false;
     });
 
-    const clothMesh = new THREE.Mesh(clothGeom, clothMat);
-    clothMesh.castShadow = true;
-    clothMesh.receiveShadow = true;
-    clothMeshRef.current = clothMesh;
-    scene.add(clothMesh);
-
-    (window as any).__CLOTH_SIM = simulatorRef.current;
-    (window as any).__CLOTH_GEOM = clothGeomRef.current;
-
-    // Initialize Simulator particles with current avatar scale
-    const initRefHeight = 169.5;
-    const initHeightScale = avatar.height / initRefHeight;
-    const initAvgWidthScale = (
-      (avatar.chestCircumference / 88) +
-      (avatar.waistCircumference / 62) +
-      (avatar.hipsCircumference / 92)
-    ) / 3;
-    simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial, {
-      scaleX: initAvgWidthScale,
-      scaleY: initHeightScale,
-      scaleZ: initAvgWidthScale,
-    });
-
-    // Animation Render Loop
-    let animationFrameId: number;
-    let lastTime = performance.now();
-
+    // Animation Loop
+    let animId: number;
     const animate = () => {
-      animationFrameId = requestAnimationFrame(animate);
-
-      const now = performance.now();
-      const dt = Math.min((now - lastTime) / 1000, 0.04);
-      lastTime = now;
-
+      animId = requestAnimationFrame(animate);
       controls.update();
 
-      const sim = simulatorRef.current;
-      const storeState = useCloStore.getState();
-
-      if (storeState.isDropAnimating) {
-        // PBD ragdoll cloth physics mode
-        const DROP_DURATION = 1.8; // seconds for natural cloth settling
-        const elapsed = (now - dropStartTimeRef.current) / 1000;
-
-        // Run PBD physics step (4 substeps per frame for smooth cloth dynamics)
-        const physicsDt = Math.min(dt, 0.016);
-        const substeps = 4;
-        const subDt = physicsDt / substeps;
-        for (let s = 0; s < substeps; s++) {
-          sim.stepPhysics(subDt);
-        }
-
-        // Check if cloth has settled (low kinetic energy) or duration reached
-        const energy = sim.getKineticEnergy();
-        const settled = elapsed > 1.4 && energy < 0.0001;
-        const timedOut = elapsed >= DROP_DURATION;
-
-        storeState.setDropAnimationProgress(Math.min(elapsed / DROP_DURATION, 1.0));
-
-        if (settled || timedOut) {
-          // Restore cloth to original rest positions and resume normal animation
-          sim.restoreFromPhysics();
-          storeState.stopDropAnimation();
-        }
-      } else if (storeState.isSimulating) {
-        sim.step(dt);
-      }
-
-      // Update Cloth Mesh Buffers
-      if (clothGeomRef.current && sim.particles.length > 0) {
-        const particleCount = sim.particles.length;
-        const positions = new Float32Array(particleCount * 3);
-        const colors = new Float32Array(particleCount * 3);
-
-        const isHeatmap = storeState.showHeatmap;
-
-        for (let i = 0; i < particleCount; i++) {
-          const p = sim.particles[i];
-          positions[i * 3] = p.pos.x;
-          positions[i * 3 + 1] = p.pos.y;
-          positions[i * 3 + 2] = p.pos.z;
-
-          if (isHeatmap) {
-            // Strain heatmap: 0% = SkyBlue, 5% = Green, 15%+ = Red
-            const strain = sim.stressMap[i] || 0;
-            const hue = Math.max(0, (1.0 - Math.min(strain * 7.0, 1.0)) * 0.4);
-            const color = new THREE.Color().setHSL(hue, 0.95, 0.5);
-            colors[i * 3] = color.r;
-            colors[i * 3 + 1] = color.g;
-            colors[i * 3 + 2] = color.b;
-          } else {
-            const c = p.color || new THREE.Color(customColor);
-            colors[i * 3] = c.r;
-            colors[i * 3 + 1] = c.g;
-            colors[i * 3 + 2] = c.b;
-          }
-        }
-
-        clothGeomRef.current.setAttribute(
-          'position',
-          new THREE.BufferAttribute(positions, 3)
-        );
-
-        clothGeomRef.current.setAttribute(
-          'color',
-          new THREE.BufferAttribute(colors, 3)
-        );
-
-        if (clothGeomRef.current.index === null || clothGeomRef.current.index.count !== sim.indices.length) {
-          clothGeomRef.current.setIndex(new THREE.BufferAttribute(new Uint32Array(sim.indices), 1));
-          clothGeomRef.current.setDrawRange(0, sim.indices.length);
-        }
-
-        clothGeomRef.current.computeVertexNormals();
-        clothGeomRef.current.attributes.position.needsUpdate = true;
-        if (isHeatmap && clothGeomRef.current.attributes.color) {
-          clothGeomRef.current.attributes.color.needsUpdate = true;
-        }
+      // Gentle rotation if in floating 360 mode and user isn't actively dragging
+      if (mockupScene === 'floating-360' && garmentGroupRef.current && !isInteracting) {
+        garmentGroupRef.current.rotation.y += 0.003;
       }
 
       renderer.render(scene, camera);
     };
-
     animate();
 
+    // Resize Observer
     const handleResize = () => {
       if (!container) return;
       const w = container.clientWidth;
       const h = container.clientHeight;
+      if (w <= 0 || h <= 0) return;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
     };
+
+    const ro = new ResizeObserver(handleResize);
+    ro.observe(container);
     window.addEventListener('resize', handleResize);
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
+      cancelAnimationFrame(animId);
+      ro.disconnect();
       window.removeEventListener('resize', handleResize);
       renderer.dispose();
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
 
-  // Rebuild simulation when pieces/seams or materials change
+  // 2. Re-bake Texture whenever 2D colors or decals change
   useEffect(() => {
-    // Cancel any active drop animation when pieces/material change
-    const sim = simulatorRef.current;
-    if (sim._isPhysicsMode) {
-      sim._isPhysicsMode = false;
-      useCloStore.getState().stopDropAnimation();
-    }
+    if (!canvasTextureRef.current) return;
 
-    const refHeight = 169.5;
-    const heightScale = avatar.height / refHeight;
-    const avgWidthScale = (
-      (avatar.chestCircumference / 88) +
-      (avatar.waistCircumference / 62) +
-      (avatar.hipsCircumference / 92)
-    ) / 3;
-    const avatarScale = { scaleX: avgWidthScale, scaleY: heightScale, scaleZ: avgWidthScale };
+    generateGarmentTextureCanvas(
+      { colorZones, decals, activeTemplateId, customColor },
+      offscreenCanvasRef.current || undefined
+    );
+    canvasTextureRef.current.needsUpdate = true;
+  }, [colorZones, decals, activeTemplateId, customColor, decalTextureRevision]);
 
-    sim.buildFromPieces(pieces, seams, currentMaterial, avatarScale);
-    if (clothGeomRef.current) {
-      clothGeomRef.current.setIndex(new THREE.BufferAttribute(new Uint32Array(sim.indices), 1));
-      clothGeomRef.current.setDrawRange(0, sim.indices.length);
-      clothGeomRef.current.computeVertexNormals();
-    }
-    // Resolve collisions with mannequin mesh if loaded
-    if (gltfModelRef.current) {
-      gltfModelRef.current.updateMatrixWorld(true);
-      sim.resolveCollisionsWithMesh(gltfModelRef.current, 0.025);
-    }
-  }, [pieces, seams, currentMaterial, simulationIteration]);
-
-  // Update Cloth Material / Visual settings
+  // 3. Rebuild 3D Model whenever mockupScene or template changes
   useEffect(() => {
-    if (!clothMeshRef.current) return;
-    const mat = clothMeshRef.current.material as THREE.MeshStandardMaterial;
-    mat.color.set(0xffffff);
-    mat.wireframe = showWireframe;
-    mat.roughness = currentMaterial.roughness;
-    mat.metalness = currentMaterial.metalness;
-    mat.vertexColors = true;
-    mat.needsUpdate = true;
-  }, [customColor, showWireframe, showHeatmap, currentMaterial]);
+    const scene = sceneRef.current;
+    if (!scene || !canvasTextureRef.current) return;
 
-  // Update Avatar Visibility
+    if (garmentGroupRef.current) {
+      scene.remove(garmentGroupRef.current);
+    }
+
+    const newGarment = createGarment3DModel(spec, mockupScene, canvasTextureRef.current);
+    scene.add(newGarment);
+    garmentGroupRef.current = newGarment;
+
+    // Reset rotation if not floating-360
+    if (mockupScene !== 'floating-360') {
+      newGarment.rotation.y = 0;
+    }
+  }, [mockupScene, activeTemplateId, spec]);
+
+  // 4. Update Studio Lighting Preset
   useEffect(() => {
-    if (avatarGroupRef.current) {
-      avatarGroupRef.current.visible = showAvatar;
+    const scene = sceneRef.current;
+    const lights = lightsRef.current;
+    if (!scene || !lights) return;
+
+    if (lightingPreset === 'ecommerce-white') {
+      scene.background = new THREE.Color('#f8fafc');
+      lights.ambient.color.set('#ffffff');
+      lights.ambient.intensity = 1.1;
+      lights.key.color.set('#ffffff');
+      lights.key.intensity = 1.5;
+      lights.fill.color.set('#e2e8f0');
+      lights.fill.intensity = 0.8;
+      lights.rim.color.set('#ffffff');
+      lights.rim.intensity = 0.5;
+    } else if (lightingPreset === 'moody-dark') {
+      scene.background = new THREE.Color('#0c0e12');
+      lights.ambient.color.set('#1e293b');
+      lights.ambient.intensity = 0.4;
+      lights.key.color.set('#ffffff');
+      lights.key.intensity = 2.2;
+      lights.fill.color.set('#3b82f6');
+      lights.fill.intensity = 0.5;
+      lights.rim.color.set('#ec4899');
+      lights.rim.intensity = 1.4;
+    } else if (lightingPreset === 'warm-editorial') {
+      scene.background = new THREE.Color('#181412');
+      lights.ambient.color.set('#451a03');
+      lights.ambient.intensity = 0.5;
+      lights.key.color.set('#fef08a');
+      lights.key.intensity = 2.0;
+      lights.fill.color.set('#fdba74');
+      lights.fill.intensity = 0.7;
+      lights.rim.color.set('#fed7aa');
+      lights.rim.intensity = 1.0;
     }
-  }, [showAvatar]);
+  }, [lightingPreset]);
 
-  // Scale mannequin model based on avatar measurements
-  useEffect(() => {
-    if (!gltfModelRef.current) return;
-    const model = gltfModelRef.current;
-
-    // Reference mannequin is 169.5cm (from GLB analysis: bounding box height 1.695m)
-    const refHeight = 169.5;
-    const heightScale = avatar.height / refHeight;
-
-    // Width scaling based on chest/waist/hip circumference
-    // Reference body: chest=88cm, waist=62cm, hips=92cm (from GLB cross-sections)
-    const refChest = 88;
-    const refWaist = 62;
-    const refHips = 92;
-    const avgWidthScale = (
-      (avatar.chestCircumference / refChest) +
-      (avatar.waistCircumference / refWaist) +
-      (avatar.hipsCircumference / refHips)
-    ) / 3;
-
-    // Apply non-uniform scale: height on Y, width on X/Z
-    model.scale.set(avgWidthScale, heightScale, avgWidthScale);
-    model.updateMatrixWorld(true);
-
-    // Rebuild cloth simulation tailored to new body proportions
-    const avatarScale = { scaleX: avgWidthScale, scaleY: heightScale, scaleZ: avgWidthScale };
-    simulatorRef.current.buildFromPieces(pieces, seams, currentMaterial, avatarScale);
-    if (clothGeomRef.current) {
-      clothGeomRef.current.setIndex(simulatorRef.current.indices);
-    }
-    // Resolve collisions with scaled mannequin mesh
-    simulatorRef.current.resolveCollisionsWithMesh(model, 0.025);
-  }, [avatar.height, avatar.chestCircumference, avatar.waistCircumference, avatar.hipsCircumference]);
-
-  // Toggle Avatar Material Style (CLO3D Porcelain vs Realistic Skin)
-  const toggleAvatarStyle = () => {
-    const nextMode = avatarMode === 'mannequin' ? 'realistic' : 'mannequin';
-    setAvatarMode(nextMode);
-
-    if (gltfModelRef.current) {
-      gltfModelRef.current.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh;
-          if (nextMode === 'mannequin' && mesh.userData.porcelainMaterial) {
-            mesh.material = mesh.userData.porcelainMaterial;
-          } else if (nextMode === 'realistic' && mesh.userData.origMaterial) {
-            mesh.material = mesh.userData.origMaterial;
-          }
-        }
-      });
-    }
-  };
-
-  // Cycle Mannequin Color (White, Grey, Tan, Charcoal, Black)
-  const cycleAvatarColor = () => {
-    const nextIdx = (avatarColorIndex + 1) % AVATAR_COLOR_PRESETS.length;
-    setAvatarColorIndex(nextIdx);
-    const newColor = AVATAR_COLOR_PRESETS[nextIdx].color;
-
-    if (gltfModelRef.current) {
-      gltfModelRef.current.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh;
-          if (mesh.userData.porcelainMaterial) {
-            mesh.userData.porcelainMaterial.color.set(newColor);
-          }
-          if (avatarMode === 'mannequin' && (mesh.material as THREE.MeshStandardMaterial).color) {
-            (mesh.material as THREE.MeshStandardMaterial).color.set(newColor);
-          }
-        }
-      });
-    }
-  };
-
-  // Handle Drop Animation
-  const handleDropAnimation = () => {
-    if (isDropAnimating) return; // Don't restart if already animating
-    const sim = simulatorRef.current;
-    sim.initDropAnimation();
-    dropStartTimeRef.current = performance.now();
-    startDropAnimation();
-  };
-
-  // Camera Presets
-  useEffect(() => {
+  // Camera Quick Preset Angles
+  const setCameraAngle = (angle: 'front' | 'back' | 'angle' | 'closeup') => {
     const camera = cameraRef.current;
     const controls = controlsRef.current;
     if (!camera || !controls) return;
 
-    if (cameraPreset === 'front') {
-      camera.position.set(0, 1.2, 2.5);
-      controls.target.set(0, 1.15, 0);
-    } else if (cameraPreset === 'back') {
-      camera.position.set(0, 1.2, -2.5);
-      controls.target.set(0, 1.15, 0);
-    } else if (cameraPreset === 'side') {
-      camera.position.set(2.5, 1.2, 0);
-      controls.target.set(0, 1.15, 0);
-    } else if (cameraPreset === 'perspective') {
-      camera.position.set(1.4, 1.45, 2.1);
-      controls.target.set(0, 1.15, 0);
+    if (angle === 'front') {
+      camera.position.set(0, 0.45, 2.2);
+      controls.target.set(0, 0.45, 0);
+    } else if (angle === 'back') {
+      camera.position.set(0, 0.45, -2.2);
+      controls.target.set(0, 0.45, 0);
+    } else if (angle === 'angle') {
+      camera.position.set(1.6, 0.6, 1.6);
+      controls.target.set(0, 0.45, 0);
+    } else if (angle === 'closeup') {
+      camera.position.set(0, 0.55, 1.0);
+      controls.target.set(0, 0.55, 0);
     }
     controls.update();
-  }, [cameraPreset]);
-
-  // Sculpted Mannequin Fallback
-  const buildSculptedMannequin = (group: THREE.Group) => {
-    const mat = new THREE.MeshStandardMaterial({
-      color: '#e2e8f0',
-      roughness: 0.38,
-      metalness: 0.05,
-    });
-
-    // Torso with natural female waist & bust curvature
-    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.13, 0.45, 32), mat);
-    torso.position.set(0, 1.22, 0);
-    torso.castShadow = true;
-    group.add(torso);
-
-    const bustL = new THREE.Mesh(new THREE.SphereGeometry(0.065, 24, 24), mat);
-    bustL.position.set(-0.065, 1.25, 0.08);
-    bustL.scale.set(1.0, 1.1, 0.9);
-    group.add(bustL);
-
-    const bustR = new THREE.Mesh(new THREE.SphereGeometry(0.065, 24, 24), mat);
-    bustR.position.set(0.065, 1.25, 0.08);
-    bustR.scale.set(1.0, 1.1, 0.9);
-    group.add(bustR);
-
-    const pelvis = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.175, 0.35, 32), mat);
-    pelvis.position.set(0, 0.88, 0);
-    pelvis.castShadow = true;
-    group.add(pelvis);
-
-    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.07, 0.15, 24), mat);
-    neck.position.set(0, 1.48, 0);
-    group.add(neck);
-
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.10, 32, 32), mat);
-    head.position.set(0, 1.63, 0.01);
-    head.scale.set(0.9, 1.18, 1.0);
-    head.castShadow = true;
-    group.add(head);
-
-    // Sculpted Shoulders & Arms
-    const shoulderL = new THREE.Mesh(new THREE.SphereGeometry(0.065, 20, 20), mat);
-    shoulderL.position.set(-0.20, 1.36, 0);
-    group.add(shoulderL);
-
-    const shoulderR = new THREE.Mesh(new THREE.SphereGeometry(0.065, 20, 20), mat);
-    shoulderR.position.set(0.20, 1.36, 0);
-    group.add(shoulderR);
-
-    const armL = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.42, 20), mat);
-    armL.position.set(-0.28, 1.16, 0);
-    armL.rotation.z = 0.28;
-    group.add(armL);
-
-    const armR = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.04, 0.42, 20), mat);
-    armR.position.set(0.28, 1.16, 0);
-    armR.rotation.z = -0.28;
-    group.add(armR);
-
-    // Sculpted Legs
-    const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.045, 0.72, 24), mat);
-    legL.position.set(-0.095, 0.38, 0);
-    legL.castShadow = true;
-    group.add(legL);
-
-    const legR = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.045, 0.72, 24), mat);
-    legR.position.set(0.095, 0.38, 0);
-    legR.castShadow = true;
-    group.add(legR);
   };
 
-  // 3D Cloth Tug / Mouse Interaction
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0 || !clothMeshRef.current || !cameraRef.current) return;
+  // Download High-Res 4K Snapshot
+  const handleDownloadSnapshot = () => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    mouseRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    mouseRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    const dataUrl = renderer.domElement.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = `openclo-${activeTemplateId}-${mockupScene}-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
-    raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
-    const intersects = raycasterRef.current.intersectObject(clothMeshRef.current);
-
-    if (intersects.length > 0) {
-      const hit = intersects[0];
-      if (hit.point) {
-        const sim = simulatorRef.current;
-        let closestIdx = -1;
-        let minDist = Infinity;
-        for (let i = 0; i < sim.particles.length; i++) {
-          const d = sim.particles[i].pos.distanceTo(hit.point);
-          if (d < minDist) {
-            minDist = d;
-            closestIdx = i;
-          }
-        }
-
-        if (closestIdx !== -1 && minDist < 0.18) {
-          selectedParticleIdxRef.current = closestIdx;
-          sim.particles[closestIdx].pinned = true;
-
-          const camDir = new THREE.Vector3();
-          cameraRef.current.getWorldDirection(camDir);
-          dragPlaneRef.current.setFromNormalAndCoplanarPoint(
-            camDir.negate(),
-            hit.point
-          );
-
-          if (controlsRef.current) controlsRef.current.enabled = false;
-        }
-      }
-    }
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (
-      selectedParticleIdxRef.current === null ||
-      !cameraRef.current
-    )
-      return;
-
-    const rect = e.currentTarget.getBoundingClientRect();
-    mouseRef.current.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-    mouseRef.current.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-    raycasterRef.current.setFromCamera(mouseRef.current, cameraRef.current);
-    const targetPoint = new THREE.Vector3();
-    raycasterRef.current.ray.intersectPlane(dragPlaneRef.current, targetPoint);
-
-    if (targetPoint) {
-      const p = simulatorRef.current.particles[selectedParticleIdxRef.current];
-      p.pos.copy(targetPoint);
-      p.prevPos.copy(targetPoint);
-    }
-  };
-
-  const handlePointerUp = () => {
-    if (selectedParticleIdxRef.current !== null) {
-      simulatorRef.current.particles[selectedParticleIdxRef.current].pinned = false;
-      selectedParticleIdxRef.current = null;
-    }
-    if (controlsRef.current) controlsRef.current.enabled = true;
+    setDownloadSuccess(true);
+    setTimeout(() => setDownloadSuccess(false), 2500);
   };
 
   return (
-    <div
-      className="relative w-full h-full bg-[#0c0e12] overflow-hidden flex flex-col select-none"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-    >
-      {/* 3D Viewport Header Overlay */}
-      <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5 bg-[#1b1e26]/90 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-slate-700/60 shadow-lg text-xs text-slate-300">
-        <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-        <span className="font-semibold text-slate-100">3D Studio</span>
-        {modelLoaded && (
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Mannequin Active" />
-        )}
-        <span className="text-slate-500 hidden xl:inline">|</span>
-        <span className="text-slate-400 hidden xl:inline">{currentMaterial.name}</span>
-      </div>
-
-      {/* Top Right Studio Controls */}
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-[#1b1e26]/90 backdrop-blur-md p-1.5 rounded-lg border border-slate-700/60 shadow-xl">
-        <button
-          onClick={() => setIsSimulating(!isSimulating)}
-          className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-            isSimulating
-              ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-              : 'bg-slate-700/80 hover:bg-slate-700 text-slate-200'
-          }`}
-          title="Toggle Simulation (Space)"
-        >
-          {isSimulating ? (
-            <>
-              <Pause className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Draping</span>
-            </>
-          ) : (
-            <>
-              <Play className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Drape</span>
-            </>
-          )}
-        </button>
-
-        <button
-          onClick={resetSimulation}
-          className="p-1.5 hover:bg-slate-700/60 rounded text-slate-300 hover:text-white transition-colors"
-          title="Reset Drape & Position"
-        >
-          <RotateCcw className="w-3.5 h-3.5" />
-        </button>
-
-        <button
-          onClick={handleDropAnimation}
-          disabled={isDropAnimating}
-          className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
-            isDropAnimating
-              ? 'bg-purple-600 text-white cursor-not-allowed opacity-80'
-              : 'bg-slate-700/80 hover:bg-purple-600/80 text-slate-200 hover:text-white'
-          }`}
-          title="Drop garment onto mannequin"
-        >
-          <ArrowDownToLine className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">{isDropAnimating ? 'Dropping…' : 'Drop'}</span>
-        </button>
-
-        <div className="w-[1px] h-4 bg-slate-700" />
-
-        {/* Fabric Dynamics / Wind Control */}
-        <button
-          onClick={() => {
-            const next =
-              simulationDynamics <= 0.05
-                ? 0.35
-                : simulationDynamics <= 0.4
-                ? 0.65
-                : simulationDynamics <= 0.75
-                ? 1.0
-                : 0.0;
-            setSimulationDynamics(next);
-          }}
-          className={`px-2 py-1 rounded text-xs font-medium flex items-center gap-1.5 transition-colors ${
-            simulationDynamics > 0.05
-              ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40 hover:bg-blue-600/40'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-          }`}
-          title={`Fabric Motion & Wind: ${Math.round(
-            simulationDynamics * 100
-          )}% (Click to cycle Calm / Breeze / Wind / Runway)`}
-        >
-          <Wind className="w-3.5 h-3.5" />
-          <span className="text-[11px] hidden sm:inline">
-            {simulationDynamics <= 0.05
-              ? 'Calm'
-              : simulationDynamics <= 0.4
-              ? 'Breeze'
-              : simulationDynamics <= 0.75
-              ? 'Wind'
-              : 'Runway'}
-          </span>
-        </button>
-
-        <div className="w-[1px] h-4 bg-slate-700" />
-
-        {/* Toggle Avatar Style (Porcelain vs Realistic) */}
-        <button
-          onClick={toggleAvatarStyle}
-          className="p-1.5 hover:bg-slate-700/60 rounded text-slate-300 hover:text-white transition-colors flex items-center gap-1 text-xs"
-          title="Switch between Porcelain Mannequin and Realistic Skin"
-        >
-          <UserCheck className="w-4 h-4 text-blue-400" />
-          <span className="text-[11px] capitalize hidden sm:inline">{avatarMode}</span>
-        </button>
-
-        {/* Mannequin Color Selector */}
-        <button
-          onClick={cycleAvatarColor}
-          className="p-1.5 hover:bg-slate-700/60 rounded text-slate-300 hover:text-white transition-colors flex items-center gap-1.5 text-xs"
-          title={`Mannequin Color: ${AVATAR_COLOR_PRESETS[avatarColorIndex].label} (Click to cycle White / Grey / Tan / Charcoal / Black)`}
-        >
-          <span
-            className="w-3.5 h-3.5 rounded-full border border-slate-400/80 shadow-sm inline-block"
-            style={{ backgroundColor: AVATAR_COLOR_PRESETS[avatarColorIndex].color }}
-          />
-          <span className="text-[11px] hidden sm:inline">
-            {AVATAR_COLOR_PRESETS[avatarColorIndex].label}
-          </span>
-        </button>
-
-        <button
-          onClick={toggleHeatmap}
-          className={`p-1.5 rounded transition-colors ${
-            showHeatmap
-              ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-              : 'hover:bg-slate-700/60 text-slate-300'
-          }`}
-          title="Toggle Fit Tension Heatmap"
-        >
-          <Thermometer className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={toggleWireframe}
-          className={`p-1.5 rounded transition-colors ${
-            showWireframe
-              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-              : 'hover:bg-slate-700/60 text-slate-300'
-          }`}
-          title="Toggle Wireframe"
-        >
-          <Layers className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={toggleAvatar}
-          className={`p-1.5 rounded transition-colors ${
-            showAvatar ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'
-          }`}
-          title="Toggle Avatar Visibility"
-        >
-          <Eye className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* Floating Camera Angle Selector */}
-      <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1 bg-[#1b1e26]/90 backdrop-blur-md p-1 rounded-lg border border-slate-700/60 shadow-xl text-xs">
-        <span className="text-slate-400 px-2 flex items-center gap-1 text-[11px]">
-          <Camera className="w-3 h-3" /> Camera:
-        </span>
-        {(['front', 'back', 'side', 'perspective'] as const).map((mode) => (
-          <button
-            key={mode}
-            onClick={() => setCameraPreset(mode)}
-            className={`px-2 py-1 rounded capitalize transition-colors ${
-              cameraPreset === mode
-                ? 'bg-blue-600 text-white font-medium'
-                : 'text-slate-300 hover:bg-slate-700/60'
-            }`}
-          >
-            {mode}
-          </button>
-        ))}
-      </div>
-
-      {/* Tension Heatmap Legend */}
-      {showHeatmap && (
-        <div className="absolute bottom-4 left-4 z-10 bg-[#1b1e26]/90 backdrop-blur-md px-3 py-2 rounded-lg border border-slate-700/60 shadow-xl text-[11px] text-slate-300 flex flex-col gap-1.5">
-          <span className="font-semibold text-slate-200">Fit Tension Map</span>
-          <div className="flex items-center gap-2">
-            <div className="w-24 h-2.5 rounded bg-gradient-to-r from-blue-500 via-green-400 to-red-500" />
-          </div>
-          <div className="flex justify-between text-[10px] text-slate-400">
-            <span>Relaxed (0%)</span>
-            <span>Snug (8%)</span>
-            <span>Tight (15%+)</span>
-          </div>
+    <div className="relative w-full h-full bg-[#0c0e12] overflow-hidden select-none">
+      {/* Top Studio Controls */}
+      <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
+        {/* Mockup Scene Mode Selector */}
+        <div className="flex items-center gap-1 bg-[#14171f]/90 backdrop-blur-md border border-slate-800 rounded-2xl p-1.5 shadow-xl pointer-events-auto">
+          {[
+            { id: 'ghost', label: 'Ghost Mannequin' },
+            { id: 'hanger', label: 'Boutique Hanger' },
+            { id: 'flat-lay', label: 'Studio Flat Lay' },
+            { id: 'folded', label: 'Folded Drop' },
+            { id: 'floating-360', label: 'Floating 360°' },
+          ].map((mode) => (
+            <button
+              key={mode.id}
+              onClick={() => setMockupScene(mode.id as MockupSceneMode)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                mockupScene === mode.id
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+              }`}
+            >
+              {mode.label}
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* Three.js Container */}
+        {/* Lighting Preset Selector */}
+        <div className="flex items-center gap-1 bg-[#14171f]/90 backdrop-blur-md border border-slate-800 rounded-2xl p-1.5 shadow-xl pointer-events-auto">
+          {[
+            { id: 'ecommerce-white', label: 'Clean White' },
+            { id: 'moody-dark', label: 'Moody Dark' },
+            { id: 'warm-editorial', label: 'Warm Editorial' },
+          ].map((light) => (
+            <button
+              key={light.id}
+              onClick={() => setLightingPreset(light.id as StudioLightingPreset)}
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                lightingPreset === light.id
+                  ? 'bg-slate-700 text-white'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {light.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Camera Angles & Snapshot Controls Bottom-Right */}
+      <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
+        <div className="flex items-center gap-1 bg-[#14171f]/90 backdrop-blur-md border border-slate-800 rounded-2xl p-1.5 shadow-xl">
+          <button
+            onClick={() => setCameraAngle('front')}
+            className="px-2.5 py-1 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800"
+            title="Front View"
+          >
+            Front
+          </button>
+          <button
+            onClick={() => setCameraAngle('back')}
+            className="px-2.5 py-1 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800"
+            title="Back View"
+          >
+            Back
+          </button>
+          <button
+            onClick={() => setCameraAngle('angle')}
+            className="px-2.5 py-1 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800"
+            title="3/4 Perspective Angle"
+          >
+            3/4 Angle
+          </button>
+          <button
+            onClick={() => setCameraAngle('closeup')}
+            className="px-2.5 py-1 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800"
+            title="Close-Up Chest Detail"
+          >
+            Detail
+          </button>
+        </div>
+
+        {/* Snapshot Button */}
+        <button
+          onClick={handleDownloadSnapshot}
+          className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl font-bold text-xs shadow-xl shadow-blue-600/30 transition-all active:scale-95"
+        >
+          <Download className="w-4 h-4" />
+          <span>{downloadSuccess ? 'Saved!' : '4K Snapshot'}</span>
+        </button>
+      </div>
+
+      {/* Bottom Info Pill */}
+      <div className="absolute bottom-4 left-4 z-20 bg-[#14171f]/80 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-1 text-[11px] text-slate-400">
+        <span className="font-semibold text-slate-200">{spec.name}</span> · Orbit: Left Drag · Zoom: Scroll
+      </div>
+
+      {/* Three.js Canvas Container */}
       <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
     </div>
   );

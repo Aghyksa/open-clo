@@ -23,6 +23,7 @@ export const PatternCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const {
+    setCanvasViewMode,
     pieces,
     seams,
     selectedPieceId,
@@ -2461,6 +2462,13 @@ export const PatternCanvas: React.FC = () => {
           title="Reset View"
         >
           <Maximize2 className="w-4 h-4" />
+        </button>
+        <button
+          onClick={() => setCanvasViewMode('assembled')}
+          className="px-2 py-1 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 hover:text-white text-xs font-semibold rounded-lg transition-colors ml-1"
+          title="Return to Assembled Flat View"
+        >
+          ← Flat View
         </button>
       </div>
 

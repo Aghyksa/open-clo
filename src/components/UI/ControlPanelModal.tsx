@@ -122,7 +122,7 @@ export const ControlPanelModal: React.FC<ControlPanelModalProps> = ({ isOpen, on
             if (p.pieces) importProjectData(p);
           });
         }
-      } catch (err) {
+      } catch {
         alert('Invalid CAD project JSON file format.');
       }
     };

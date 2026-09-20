@@ -158,6 +158,51 @@ export interface CloProject {
   avatar: AvatarConfig;
   avatar2D: Avatar2DConfig;
   stitchSettings: StitchSettings;
+  colorZones?: Record<string, string>;
+  decals?: GraphicDecal[];
+  mockupScene?: MockupSceneMode;
+  canvasViewMode?: CanvasViewMode;
 }
 
 export type ViewportLayout = 'dual' | 'pattern-only' | '3d-only';
+
+export type MockupSceneMode = 'ghost' | 'flat-lay' | 'hanger' | 'folded' | 'floating-360';
+export type CanvasViewMode = 'assembled' | 'pieces';
+export type StudioLightingPreset = 'ecommerce-white' | 'moody-dark' | 'warm-editorial';
+
+export type ColorZoneKey =
+  | 'body'
+  | 'collar'
+  | 'sleeves'
+  | 'leftSleeve'
+  | 'rightSleeve'
+  | 'pocket'
+  | 'hem'
+  | 'cuffs'
+  | 'hood'
+  | 'zipper';
+
+export interface DecalFontProps {
+  fontFamily: string;
+  fontSize: number;
+  letterSpacing: number;
+  fontWeight: string;
+  arcCurvature: number; // -1 to 1 bend curvature
+  color: string;
+}
+
+export interface GraphicDecal {
+  id: string;
+  type: 'image' | 'text' | 'preset';
+  content: string; // Data URL or text string or preset name
+  name: string;
+  position: { x: number; y: number };
+  scale: number;
+  rotation: number; // In degrees
+  viewTarget: 'front' | 'back' | 'leftSleeve' | 'rightSleeve';
+  blendMode: 'normal' | 'multiply' | 'screen' | 'overlay';
+  opacity: number;
+  width: number;
+  height: number;
+  fontProps?: DecalFontProps;
+}

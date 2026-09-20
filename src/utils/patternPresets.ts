@@ -1426,113 +1426,120 @@ export function createPoloPreset(): { pieces: PatternPiece[]; seams: SeamConnect
 export interface GarmentTemplate {
   id: string;
   name: string;
-  category: 'Tops' | 'Outerwear' | 'Dresses' | 'Skirts';
+  category: 'Tops' | 'Outerwear' | 'Dresses' | 'Skirts' | 'Bottoms';
   description: string;
   piecesCount: number;
   icon: string;
   recommendedFabric: string;
   recommendedColor: string;
+  brandInspiration?: string;
+  silhouetteType?: 'oversized' | 'relaxed' | 'regular' | 'tailored';
   generator: () => { pieces: PatternPiece[]; seams: SeamConnection[] };
 }
 
 export const GARMENT_TEMPLATES: GarmentTemplate[] = [
   {
-    id: 'tshirt',
-    name: 'Classic Crewneck Tee',
+    id: 'uniqlo-u-boxy-tee',
+    name: 'Uniqlo U AIRism Boxy Tee',
     category: 'Tops',
     icon: '👕',
-    description: 'Timeless tailored crewneck t-shirt with anatomical curved short sleeves, ribbed neckband, and natural shoulder drape.',
+    description: 'Iconic streetwear cut inspired by Christophe Lemaire: dropped shoulders, wide sleeves hitting the elbow, and tight 1.25" thick knit ribbed collar.',
     piecesCount: 5,
     recommendedFabric: 'cotton-jersey',
-    recommendedColor: '#38bdf8',
-    generator: createTshirtPreset,
-  },
-  {
-    id: 'hoodie',
-    name: 'Streetwear Pullover Hoodie',
-    category: 'Outerwear',
-    icon: '🧥',
-    description: 'Heavy fleece boxy hoodie featuring long sleeves with wrist cuffs, kangaroo pocket, and sculpted hood.',
-    piecesCount: 6,
-    recommendedFabric: 'french-terry',
-    recommendedColor: '#334155',
-    generator: createHoodiePreset,
-  },
-  {
-    id: 'bomber',
-    name: 'Zip Bomber Jacket',
-    category: 'Outerwear',
-    icon: '🧥',
-    description: 'Structured zip-front bomber with flight panels, ribbed collar and cuffs, and long sleeves.',
-    piecesCount: 6,
-    recommendedFabric: 'structured-leather',
-    recommendedColor: '#0f766e',
-    generator: createBomberJacketPreset,
-  },
-  {
-    id: 'dress',
-    name: 'Summer A-Line Dress',
-    category: 'Dresses',
-    icon: '👗',
-    description: 'Flowing feminine silhouette with fitted bust, tailored waist, and flared hemline.',
-    piecesCount: 2,
-    recommendedFabric: 'silk-satin',
-    recommendedColor: '#ec4899',
-    generator: createDressPreset,
-  },
-  {
-    id: 'polo',
-    name: 'Classic Pique Polo Shirt',
-    category: 'Tops',
-    icon: '👔',
-    description: 'Clean preppy polo featuring short sleeves, button placket cutout, and contrasting ribbed collar band.',
-    piecesCount: 5,
-    recommendedFabric: 'cotton-jersey',
-    recommendedColor: '#1e40af',
-    generator: createPoloPreset,
-  },
-  {
-    id: 'tanktop',
-    name: 'Athletic Tank Top',
-    category: 'Tops',
-    icon: '🎽',
-    description: 'Racerback-styled athletic sleeveless tank with deep scoop neck and flatlock stretch seams.',
-    piecesCount: 2,
-    recommendedFabric: 'sport-spandex',
-    recommendedColor: '#06b6d4',
-    generator: createTankTopPreset,
-  },
-  {
-    id: 'croptop',
-    name: 'Modern Crop Top',
-    category: 'Tops',
-    icon: '👚',
-    description: 'Minimalist contemporary cropped top ending cleanly above the waistline.',
-    piecesCount: 2,
-    recommendedFabric: 'cotton-jersey',
-    recommendedColor: '#a855f7',
-    generator: createCropTopPreset,
-  },
-  {
-    id: 'oversized',
-    name: 'Boxy Drop-Shoulder Tee',
-    category: 'Tops',
-    icon: '👕',
-    description: 'Relaxed streetwear aesthetic with dropped shoulder lines, wide short sleeves, and thick ribbed collar.',
-    piecesCount: 5,
-    recommendedFabric: 'heavy-denim',
-    recommendedColor: '#10b981',
+    recommendedColor: '#262626',
+    brandInspiration: 'Uniqlo U LifeWear',
+    silhouetteType: 'oversized',
     generator: createOversizedTeePreset,
   },
   {
-    id: 'skirt',
-    name: 'Flared A-Line Skirt',
-    category: 'Skirts',
-    icon: '👗',
-    description: 'High-waisted flared skirt with natural circular drapery folds and hem flare.',
+    id: 'heavyweight-hoodie',
+    name: 'GU / Uniqlo Heavy Hoodie',
+    category: 'Outerwear',
+    icon: '🧥',
+    description: 'Heavyweight 400+ GSM French Terry pullover hoodie featuring a structured stand-up double-layer hood, deep kangaroo pocket, and heavy 2x2 rib cuffs and hem.',
+    piecesCount: 6,
+    recommendedFabric: 'french-terry',
+    recommendedColor: '#3d4a3e',
+    brandInspiration: 'GU Heavyweight 400gsm',
+    silhouetteType: 'oversized',
+    generator: createHoodiePreset,
+  },
+  {
+    id: 'full-zip-hoodie',
+    name: 'Uniqlo Full-Zip Sweat Hoodie',
+    category: 'Outerwear',
+    icon: '🧥',
+    description: 'Full-zip streetwear track hoodie with smooth center metal zipper, split kangaroo front pockets, and comfortable relaxed drop-shoulder cut.',
+    piecesCount: 6,
+    recommendedFabric: 'french-terry',
+    recommendedColor: '#949ba4',
+    brandInspiration: 'Uniqlo LifeWear Sweat',
+    silhouetteType: 'relaxed',
+    generator: createHoodiePreset,
+  },
+  {
+    id: 'coach-jacket',
+    name: 'Uniqlo Utility Coach Jacket',
+    category: 'Outerwear',
+    icon: '🧥',
+    description: 'Minimalist street workwear jacket featuring a classic pointed turn-down collar, snap-button / zip placket, welt hand pockets, and straight hem.',
+    piecesCount: 6,
+    recommendedFabric: 'heavy-denim',
+    recommendedColor: '#1a2332',
+    brandInspiration: 'Uniqlo Utility Workwear',
+    silhouetteType: 'relaxed',
+    generator: createBomberJacketPreset,
+  },
+  {
+    id: 'pique-polo',
+    name: 'Uniqlo Dry Pique Polo Shirt',
+    category: 'Tops',
+    icon: '👔',
+    description: 'Clean preppy polo featuring a firm textured knit ribbed collar, 2-button front placket, ribbed sleeve bands, and stepped side vents.',
+    piecesCount: 5,
+    recommendedFabric: 'cotton-jersey',
+    recommendedColor: '#f4f1ea',
+    brandInspiration: 'Uniqlo Dry-EX Pique',
+    silhouetteType: 'regular',
+    generator: createPoloPreset,
+  },
+  {
+    id: 'camp-shirt',
+    name: 'Uniqlo Open Collar Vacation Shirt',
+    category: 'Tops',
+    icon: '👔',
+    description: 'Relaxed short-sleeve resort shirt with retro notched camp collar, clean front button placket, left chest patch pocket, and airy drape.',
+    piecesCount: 5,
+    recommendedFabric: 'cotton-jersey',
+    recommendedColor: '#c2a68c',
+    brandInspiration: 'Uniqlo Open Collar Broadcloth',
+    silhouetteType: 'relaxed',
+    generator: createTshirtPreset,
+  },
+  {
+    id: 'tshirt',
+    name: 'Supima Classic Crewneck Tee',
+    category: 'Tops',
+    icon: '👕',
+    description: 'Everyday staple classic fit crewneck t-shirt with tailored shoulder line, neat armhole drape, and single-needle finish.',
+    piecesCount: 5,
+    recommendedFabric: 'cotton-jersey',
+    recommendedColor: '#ffffff',
+    brandInspiration: 'Uniqlo Supima Cotton',
+    silhouetteType: 'regular',
+    generator: createTshirtPreset,
+  },
+  {
+    id: 'cargo-pants',
+    name: 'GU Wide-Leg Parachute Pants',
+    category: 'Bottoms',
+    icon: '👖',
+    description: 'Modern relaxed cargo bottoms with elastic waistband, drawcord tie, side utility cargo flap pockets, and wide straight leg silhouette.',
     piecesCount: 2,
-    recommendedFabric: 'silk-satin',
-    recommendedColor: '#f59e0b',
+    recommendedFabric: 'heavy-denim',
+    recommendedColor: '#262626',
+    brandInspiration: 'GU Utility Parachute',
+    silhouetteType: 'oversized',
     generator: createSkirtPreset,
   },
 ];
@@ -1594,4 +1601,205 @@ export function exportPatternsToSvg(pieces: PatternPiece[]): string {
   <rect width="100%" height="100%" fill="#ffffff" />
   ${paths}
 </svg>`;
+}
+
+// ==========================================
+// Curated Fashion Color Palettes (Uniqlo/Streetwear Standard)
+// ==========================================
+export interface FashionColorSwatch {
+  id: string;
+  name: string;
+  hex: string;
+  pantoneRef: string;
+}
+
+export const FASHION_COLOR_PALETTES: FashionColorSwatch[] = [
+  { id: 'washed-charcoal', name: 'Washed Charcoal', hex: '#262626', pantoneRef: '19-3908 TCX' },
+  { id: 'vintage-offwhite', name: 'Vintage Off-White', hex: '#f4f1ea', pantoneRef: '11-0601 TCX' },
+  { id: 'airism-white', name: 'AIRism Pure White', hex: '#ffffff', pantoneRef: '11-0602 TCX' },
+  { id: 'deep-navy', name: 'Deep Indigo Navy', hex: '#1a2332', pantoneRef: '19-3921 TCX' },
+  { id: 'olive-drab', name: 'Military Olive Drab', hex: '#3d4a3e', pantoneRef: '18-0527 TCX' },
+  { id: 'earth-sand', name: 'Earth Clay Sand', hex: '#c2a68c', pantoneRef: '16-1324 TCX' },
+  { id: 'terracotta-rust', name: 'Terracotta Rust', hex: '#9e4732', pantoneRef: '18-1442 TCX' },
+  { id: 'sage-green', name: 'Muted Sage Green', hex: '#8b9d83', pantoneRef: '16-0213 TCX' },
+  { id: 'heather-grey', name: 'Melange Heather Grey', hex: '#949ba4', pantoneRef: '16-3850 TCX' },
+  { id: 'pitch-black', name: 'Pitch Pure Black', hex: '#0f1014', pantoneRef: '19-4004 TCX' },
+  { id: 'butter-cream', name: 'Butter Cream Yellow', hex: '#f6e7c1', pantoneRef: '12-0720 TCX' },
+  { id: 'burgundy-wine', name: 'Vintage Burgundy', hex: '#5c1d2e', pantoneRef: '19-1725 TCX' },
+];
+
+// ==========================================
+// Curated Fashion Typography & Fonts
+// ==========================================
+export interface FashionFontItem {
+  id: string;
+  name: string;
+  family: string;
+  category: string;
+  previewText: string;
+}
+
+export const FASHION_FONTS: FashionFontItem[] = [
+  { id: 'gothic-streetwear', name: 'Streetwear Heavy Gothic', family: '"Impact", "Arial Black", sans-serif', category: 'Streetwear Gothic', previewText: 'TOKYO OVERSIZED' },
+  { id: 'swiss-sans', name: 'Swiss Minimalist Sans', family: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', category: 'Swiss Sans', previewText: 'LIFEWEAR ARCHIVE 2026' },
+  { id: 'varsity-block', name: 'Athletic Varsity Block', family: '"Trebuchet MS", "Impact", sans-serif', category: 'Varsity Block', previewText: 'STATE ATHLETICS 98' },
+  { id: 'vintage-serif', name: 'Editorial Serif Luxury', family: '"Georgia", "Times New Roman", serif', category: 'Editorial Serif', previewText: 'Atelier de Couture' },
+  { id: 'tech-stencil', name: 'Industrial Tech Stencil', family: '"Courier New", monospace', category: 'Tech Stencil', previewText: 'SPEC // 04-240-GSM' },
+];
+
+// ==========================================
+// Streetwear Graphic & Decal Library
+// ==========================================
+export interface GraphicPresetItem {
+  id: string;
+  name: string;
+  category: 'streetwear' | 'vintage' | 'minimal' | 'label';
+  svg: string;
+  defaultWidth: number;
+  defaultHeight: number;
+}
+
+export const GRAPHIC_PRESETS: GraphicPresetItem[] = [
+  {
+    id: 'tokyo-box-logo',
+    name: 'Tokyo Minimalist Box Stamp',
+    category: 'streetwear',
+    svg: `<svg viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="196" height="56" fill="#000000" stroke="#ffffff" stroke-width="2"/><text x="100" y="38" fill="#ffffff" font-family="sans-serif" font-size="20" font-weight="900" text-anchor="middle" letter-spacing="3">TOKYO / ARCHIVE</text></svg>`,
+    defaultWidth: 160,
+    defaultHeight: 48,
+  },
+  {
+    id: 'care-label-barcode',
+    name: 'Industrial Care Label & Barcode',
+    category: 'label',
+    svg: `<svg viewBox="0 0 160 120" xmlns="http://www.w3.org/2000/svg"><rect width="160" height="120" fill="#ffffff" stroke="#111111" stroke-width="2"/><text x="12" y="22" fill="#111111" font-family="monospace" font-size="10" font-weight="700">100% HEAVY COTTON</text><text x="12" y="38" fill="#111111" font-family="monospace" font-size="8">MADE IN JAPAN // DRY CLEAN</text><rect x="12" y="50" width="4" height="42" fill="#111111"/><rect x="19" y="50" width="2" height="42" fill="#111111"/><rect x="25" y="50" width="6" height="42" fill="#111111"/><rect x="35" y="50" width="2" height="42" fill="#111111"/><rect x="41" y="50" width="5" height="42" fill="#111111"/><rect x="50" y="50" width="3" height="42" fill="#111111"/><rect x="57" y="50" width="7" height="42" fill="#111111"/><rect x="68" y="50" width="2" height="42" fill="#111111"/><rect x="74" y="50" width="4" height="42" fill="#111111"/><rect x="82" y="50" width="6" height="42" fill="#111111"/><rect x="92" y="50" width="3" height="42" fill="#111111"/><rect x="99" y="50" width="5" height="42" fill="#111111"/><rect x="108" y="50" width="2" height="42" fill="#111111"/><rect x="114" y="50" width="6" height="42" fill="#111111"/><rect x="124" y="50" width="4" height="42" fill="#111111"/><rect x="132" y="50" width="3" height="42" fill="#111111"/><rect x="139" y="50" width="6" height="42" fill="#111111"/><text x="80" y="108" fill="#111111" font-family="monospace" font-size="9" text-anchor="middle">2 0 2 6 9 8 7 4 1 0</text></svg>`,
+    defaultWidth: 130,
+    defaultHeight: 95,
+  },
+  {
+    id: 'vintage-athletics-crest',
+    name: 'Varsity Athletics Oval Emblem',
+    category: 'vintage',
+    svg: `<svg viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg"><circle cx="80" cy="80" r="74" fill="none" stroke="#222222" stroke-width="5" stroke-dasharray="4,3"/><circle cx="80" cy="80" r="64" fill="none" stroke="#222222" stroke-width="2"/><text x="80" y="70" fill="#222222" font-family="sans-serif" font-size="28" font-weight="900" text-anchor="middle">98</text><text x="80" y="92" fill="#222222" font-family="sans-serif" font-size="11" font-weight="800" text-anchor="middle" letter-spacing="3">VARSITY</text><text x="80" y="108" fill="#222222" font-family="sans-serif" font-size="8" font-weight="600" text-anchor="middle">ATHLETIC DEPT.</text></svg>`,
+    defaultWidth: 120,
+    defaultHeight: 120,
+  },
+  {
+    id: 'sun-minimalist',
+    name: 'Sol Horizon Geometric Mark',
+    category: 'minimal',
+    svg: `<svg viewBox="0 0 140 140" xmlns="http://www.w3.org/2000/svg"><path d="M 20 80 A 50 50 0 0 1 120 80 Z" fill="#222222"/><line x1="10" y1="90" x2="130" y2="90" stroke="#222222" stroke-width="3"/><line x1="25" y1="100" x2="115" y2="100" stroke="#222222" stroke-width="2"/><line x1="40" y1="110" x2="100" y2="110" stroke="#222222" stroke-width="2"/></svg>`,
+    defaultWidth: 100,
+    defaultHeight: 100,
+  },
+  {
+    id: 'cyber-barcode-stamp',
+    name: 'Cyberpunk Industrial Serial Tag',
+    category: 'streetwear',
+    svg: `<svg viewBox="0 0 180 50" xmlns="http://www.w3.org/2000/svg"><rect width="180" height="50" fill="none" stroke="#222222" stroke-width="2"/><text x="10" y="22" fill="#222222" font-family="monospace" font-size="12" font-weight="900">PROJECT: OVERSIZE</text><text x="10" y="38" fill="#555555" font-family="monospace" font-size="9">SERIES 01 // AUTUMN 26</text><text x="165" y="32" fill="#222222" font-family="sans-serif" font-size="18" font-weight="900" text-anchor="end">[*]</text></svg>`,
+    defaultWidth: 150,
+    defaultHeight: 45,
+  },
+];
+
+// ==========================================
+// Assembled Garment Flat Sketch Definitions
+// ==========================================
+export interface AssembledGarmentSpec {
+  templateId: string;
+  name: string;
+  hasKangarooPocket?: boolean;
+  hasChestPocket?: boolean;
+  hasHood?: boolean;
+  hasZipper?: boolean;
+  hasPoloCollar?: boolean;
+  hasCampCollar?: boolean;
+  isPants?: boolean;
+  halfChestCm: number;
+  bodyLengthCm: number;
+  shoulderDropCm: number;
+  sleeveLengthCm: number;
+}
+
+export const ASSEMBLED_GARMENT_SPECS: Record<string, AssembledGarmentSpec> = {
+  'uniqlo-u-boxy-tee': {
+    templateId: 'uniqlo-u-boxy-tee',
+    name: 'Uniqlo U AIRism Boxy Tee',
+    halfChestCm: 62,
+    bodyLengthCm: 74,
+    shoulderDropCm: 56,
+    sleeveLengthCm: 26,
+  },
+  'heavyweight-hoodie': {
+    templateId: 'heavyweight-hoodie',
+    name: 'GU / Uniqlo Heavy Pullover Hoodie',
+    hasKangarooPocket: true,
+    hasHood: true,
+    halfChestCm: 64,
+    bodyLengthCm: 72,
+    shoulderDropCm: 58,
+    sleeveLengthCm: 62,
+  },
+  'full-zip-hoodie': {
+    templateId: 'full-zip-hoodie',
+    name: 'Uniqlo Full-Zip Sweat Hoodie',
+    hasKangarooPocket: true,
+    hasHood: true,
+    hasZipper: true,
+    halfChestCm: 63,
+    bodyLengthCm: 71,
+    shoulderDropCm: 57,
+    sleeveLengthCm: 61,
+  },
+  'coach-jacket': {
+    templateId: 'coach-jacket',
+    name: 'Uniqlo Utility Coach Jacket',
+    hasCampCollar: true,
+    hasZipper: true,
+    hasChestPocket: true,
+    halfChestCm: 61,
+    bodyLengthCm: 73,
+    shoulderDropCm: 53,
+    sleeveLengthCm: 63,
+  },
+  'pique-polo': {
+    templateId: 'pique-polo',
+    name: 'Uniqlo Dry Pique Polo Shirt',
+    hasPoloCollar: true,
+    halfChestCm: 54,
+    bodyLengthCm: 71,
+    shoulderDropCm: 46,
+    sleeveLengthCm: 23,
+  },
+  'camp-shirt': {
+    templateId: 'camp-shirt',
+    name: 'Uniqlo Open Collar Vacation Shirt',
+    hasCampCollar: true,
+    hasChestPocket: true,
+    halfChestCm: 59,
+    bodyLengthCm: 72,
+    shoulderDropCm: 51,
+    sleeveLengthCm: 25,
+  },
+  'tshirt': {
+    templateId: 'tshirt',
+    name: 'Supima Classic Crewneck Tee',
+    halfChestCm: 53,
+    bodyLengthCm: 70,
+    shoulderDropCm: 45,
+    sleeveLengthCm: 22,
+  },
+  'cargo-pants': {
+    templateId: 'cargo-pants',
+    name: 'GU Wide-Leg Parachute Pants',
+    isPants: true,
+    halfChestCm: 42, // waist half width
+    bodyLengthCm: 104, // outseam length
+    shoulderDropCm: 32, // leg opening
+    sleeveLengthCm: 76, // inseam length
+  },
+};
+
+export function getAssembledSpec(templateId: string): AssembledGarmentSpec {
+  return ASSEMBLED_GARMENT_SPECS[templateId] || ASSEMBLED_GARMENT_SPECS['uniqlo-u-boxy-tee'];
 }
