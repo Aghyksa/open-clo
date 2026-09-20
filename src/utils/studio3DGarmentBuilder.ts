@@ -189,15 +189,36 @@ export function generateGarmentTextureCanvas(
 export function createGarment3DModel(
   spec: AssembledGarmentSpec,
   sceneMode: MockupSceneMode,
-  canvasTexture: THREE.CanvasTexture
+  canvasTexture: THREE.CanvasTexture,
+  colorZones?: Record<string, string>
 ): THREE.Group {
   const root = new THREE.Group();
 
-  // PBR Fabric Material
+  const bodyCol = colorZones?.body || '#262626';
+  const sleeveCol = colorZones?.sleeves || bodyCol;
+  const collarCol = colorZones?.collar || bodyCol;
+
+  // PBR Fabric Material for torso body
   const fabricMat = new THREE.MeshStandardMaterial({
     map: canvasTexture,
-    roughness: 0.85,
+    roughness: 0.82,
     metalness: 0.04,
+    side: THREE.DoubleSide,
+  });
+
+  // Dedicated clean PBR material for sleeves (prevents decal stretching & white patches)
+  const sleeveMat = new THREE.MeshStandardMaterial({
+    color: sleeveCol,
+    roughness: 0.82,
+    metalness: 0.04,
+    side: THREE.DoubleSide,
+  });
+
+  // Dedicated clean PBR material for collar
+  const collarMat = new THREE.MeshStandardMaterial({
+    color: collarCol,
+    roughness: 0.85,
+    metalness: 0.02,
     side: THREE.DoubleSide,
   });
 
@@ -222,7 +243,7 @@ export function createGarment3DModel(
       height,
       36,
       24,
-      true // open-ended cylinder for realistic hollow hollow interior
+      true // open-ended cylinder for realistic hollow interior
     );
 
     // Flatten slightly on Z axis for realistic human chest oval proportion
@@ -233,8 +254,7 @@ export function createGarment3DModel(
     const uvs = bodyGeo.attributes.uv;
     for (let i = 0; i < uvs.count; i++) {
       let u = uvs.getX(i);
-      let v = uvs.getY(i);
-      // Align front to center of left half, back to right half
+      const v = uvs.getY(i);
       u = (u + 0.25) % 1.0;
       uvs.setXY(i, u, v);
     }
@@ -249,7 +269,7 @@ export function createGarment3DModel(
     // 2. Hollow Inner Neck Ring (shows neck tape & collar volume)
     const neckRingGeo = new THREE.TorusGeometry(width * 0.22, 0.022, 16, 48);
     neckRingGeo.scale(1, 0.45, 1);
-    const neckMesh = new THREE.Mesh(neckRingGeo, fabricMat);
+    const neckMesh = new THREE.Mesh(neckRingGeo, collarMat);
     neckMesh.rotation.x = Math.PI / 2;
     neckMesh.position.set(0, 0.45 + height / 2, 0);
     neckMesh.castShadow = true;
@@ -263,14 +283,14 @@ export function createGarment3DModel(
     sleeveGeo.scale(1, 1, 0.7);
 
     // Left Sleeve
-    const leftSleeve = new THREE.Mesh(sleeveGeo, fabricMat);
+    const leftSleeve = new THREE.Mesh(sleeveGeo, sleeveMat);
     leftSleeve.position.set(-width * 0.45 - sleeveLen * 0.35, 0.45 + height * 0.25, 0);
     leftSleeve.rotation.z = Math.PI / 2 - 0.35;
     leftSleeve.castShadow = true;
     root.add(leftSleeve);
 
     // Right Sleeve
-    const rightSleeve = new THREE.Mesh(sleeveGeo, fabricMat);
+    const rightSleeve = new THREE.Mesh(sleeveGeo, sleeveMat);
     rightSleeve.position.set(width * 0.45 + sleeveLen * 0.35, 0.45 + height * 0.25, 0);
     rightSleeve.rotation.z = -Math.PI / 2 + 0.35;
     rightSleeve.castShadow = true;
@@ -293,76 +313,86 @@ export function createGarment3DModel(
   // Sleek Scandinavian curved wooden hanger + metal hook
   // =========================================================
   else if (sceneMode === 'hanger') {
-    // 1. Natural Wood Hanger
-    const hangerWidth = width * 0.95;
+    // 1. Natural Birch Wood Hanger (proportioned to sit inside shoulders)
+    const hangerWidth = width * 0.72;
     const woodMat = new THREE.MeshStandardMaterial({
-      color: '#d4b996', // Birch wood tone
-      roughness: 0.4,
-      metalness: 0.05,
+      color: '#c29b70', // Natural birch wood
+      roughness: 0.35,
+      metalness: 0.06,
     });
     const metalHookMat = new THREE.MeshStandardMaterial({
-      color: '#cbd5e1', // Brushed chrome / stainless steel
-      roughness: 0.2,
-      metalness: 0.85,
+      color: '#e2e8f0', // Polished chrome
+      roughness: 0.15,
+      metalness: 0.92,
     });
 
     const hangerGroup = new THREE.Group();
 
-    // Curved wood shoulder bar
+    // Curved wood shoulder bar with subtle dip
     const woodCurve = new THREE.QuadraticBezierCurve3(
-      new THREE.Vector3(-hangerWidth / 2, 0, 0),
-      new THREE.Vector3(0, 0.06, 0),
-      new THREE.Vector3(hangerWidth / 2, 0, 0)
+      new THREE.Vector3(-hangerWidth / 2, -0.02, 0),
+      new THREE.Vector3(0, 0.05, 0),
+      new THREE.Vector3(hangerWidth / 2, -0.02, 0)
     );
-    const woodGeo = new THREE.TubeGeometry(woodCurve, 32, 0.016, 12, false);
+    const woodGeo = new THREE.TubeGeometry(woodCurve, 32, 0.013, 12, false);
     const woodMesh = new THREE.Mesh(woodGeo, woodMat);
     woodMesh.castShadow = true;
     hangerGroup.add(woodMesh);
 
-    // Metal Hook
-    const hookCurve = new THREE.QuadraticBezierCurve3(
-      new THREE.Vector3(0, 0.06, 0),
+    // Swivel Hook
+    const hookCurve = new THREE.CubicBezierCurve3(
+      new THREE.Vector3(0, 0.05, 0),
       new THREE.Vector3(0, 0.16, 0),
-      new THREE.Vector3(0.04, 0.22, 0)
+      new THREE.Vector3(0.065, 0.18, 0),
+      new THREE.Vector3(0.045, 0.11, 0)
     );
-    const hookGeo = new THREE.TubeGeometry(hookCurve, 24, 0.005, 8, false);
+    const hookGeo = new THREE.TubeGeometry(hookCurve, 32, 0.0045, 8, false);
     const hookMesh = new THREE.Mesh(hookGeo, metalHookMat);
     hookMesh.castShadow = true;
     hangerGroup.add(hookMesh);
 
-    hangerGroup.position.set(0, 0.45 + height / 2 - 0.04, 0);
+    hangerGroup.position.set(0, 0.45 + height / 2 - 0.035, 0);
     root.add(hangerGroup);
 
     // 2. Garment Drape Mesh on Hanger (flatter drape hanging vertically)
     const drapeGeo = new THREE.CylinderGeometry(
+      width * 0.43,
       width * 0.45,
-      width * 0.47,
       height,
-      32,
+      36,
       20,
       true
     );
-    drapeGeo.scale(1, 1, 0.16); // Thinner Z dimension since it is hanging
+    drapeGeo.scale(1, 1, 0.18); // Thinner Z dimension since it is hanging
+    const uvs = drapeGeo.attributes.uv;
+    for (let i = 0; i < uvs.count; i++) {
+      let u = uvs.getX(i);
+      const v = uvs.getY(i);
+      u = (u + 0.25) % 1.0;
+      uvs.setXY(i, u, v);
+    }
+    uvs.needsUpdate = true;
+
     const drapeMesh = new THREE.Mesh(drapeGeo, fabricMat);
     drapeMesh.position.y = 0.45;
     drapeMesh.castShadow = true;
     drapeMesh.receiveShadow = true;
     root.add(drapeMesh);
 
-    // Hanging Sleeves
+    // Hanging Sleeves (using clean sleeveMat)
     const sleeveLen = isHoodie || isJacket ? 0.58 : 0.26;
-    const sleeveGeo = new THREE.CylinderGeometry(0.1, 0.08, sleeveLen, 20, 10, true);
-    sleeveGeo.scale(1, 1, 0.6);
+    const sleeveGeo = new THREE.CylinderGeometry(0.1, 0.085, sleeveLen, 24, 10, true);
+    sleeveGeo.scale(1, 1, 0.55);
 
-    const leftSleeve = new THREE.Mesh(sleeveGeo, fabricMat);
-    leftSleeve.position.set(-width * 0.44, 0.45 + height * 0.18 - sleeveLen * 0.35, 0);
-    leftSleeve.rotation.z = 0.15;
+    const leftSleeve = new THREE.Mesh(sleeveGeo, sleeveMat);
+    leftSleeve.position.set(-width * 0.41, 0.45 + height * 0.18 - sleeveLen * 0.35, 0);
+    leftSleeve.rotation.z = 0.14;
     leftSleeve.castShadow = true;
     root.add(leftSleeve);
 
-    const rightSleeve = new THREE.Mesh(sleeveGeo, fabricMat);
-    rightSleeve.position.set(width * 0.44, 0.45 + height * 0.18 - sleeveLen * 0.35, 0);
-    rightSleeve.rotation.z = -0.15;
+    const rightSleeve = new THREE.Mesh(sleeveGeo, sleeveMat);
+    rightSleeve.position.set(width * 0.41, 0.45 + height * 0.18 - sleeveLen * 0.35, 0);
+    rightSleeve.rotation.z = -0.14;
     rightSleeve.castShadow = true;
     root.add(rightSleeve);
   }

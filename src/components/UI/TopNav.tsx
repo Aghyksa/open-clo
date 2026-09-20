@@ -157,7 +157,7 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
         <select
           value={activeTemplateId}
           onChange={(e) => loadPreset(e.target.value)}
-          className="bg-[#1a1d26] text-slate-200 text-xs px-2 py-1.5 rounded-lg border border-slate-700/80 focus:outline-none focus:border-blue-500 font-medium cursor-pointer max-w-[120px]"
+          className="bg-[#1a1d26] text-slate-200 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700/80 focus:outline-none focus:border-blue-500 font-medium cursor-pointer max-w-[210px]"
           title="Switch Garment Template"
         >
           {GARMENT_TEMPLATES.map((tmpl) => (

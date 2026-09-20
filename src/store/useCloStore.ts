@@ -26,7 +26,7 @@ import {
   STITCH_PRESETS,
 } from '../utils/patternPresets';
 
-const STORAGE_KEY_PROJECTS = 'openclo_projects_v1';
+const STORAGE_KEY_PROJECTS = 'openclo_projects_v2';
 const STORAGE_KEY_ACTIVE = 'openclo_active_project_id';
 
 function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string): CloProject {
@@ -66,7 +66,7 @@ function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string): 
         scale: 1,
         rotation: 0,
         viewTarget: 'front',
-        blendMode: 'multiply',
+        blendMode: 'normal',
         opacity: 0.95,
         width: 140,
         height: 42,
@@ -377,7 +377,7 @@ export const useCloStore = create<CloState>((set, get) => {
         scale: 1,
         rotation: 0,
         viewTarget: 'front',
-        blendMode: 'multiply',
+        blendMode: 'normal',
         opacity: 0.95,
         width: 140,
         height: 42,

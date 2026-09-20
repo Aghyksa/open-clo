@@ -2159,6 +2159,25 @@ export const PatternCanvas: React.FC = () => {
         <span className="font-bold text-slate-100">2D Pattern Window</span>
         <span className="text-slate-600">|</span>
 
+        {/* View Mode Switcher */}
+        <div className="flex items-center bg-slate-800/80 rounded-lg p-0.5 border border-slate-700/60 text-[11px]">
+          <button
+            onClick={() => setCanvasViewMode('assembled')}
+            className="px-2.5 py-0.5 rounded-md font-semibold text-slate-400 hover:text-white transition-colors"
+            title="Switch to Assembled Front & Back Flat Sketch"
+          >
+            Flat Sketch
+          </button>
+          <button
+            className="px-2.5 py-0.5 rounded-md font-semibold bg-blue-600 text-white shadow-sm"
+            title="2D Pattern Pieces & Seams Canvas"
+          >
+            Pattern Pieces
+          </button>
+        </div>
+
+        <span className="text-slate-600">|</span>
+
         {/* 2D Avatar Guide Toggle */}
         <button
           onClick={() => updateAvatar2D({ visible: !avatar2D.visible })}

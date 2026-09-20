@@ -13,7 +13,6 @@ import {
   Sparkles,
   Palette,
   Ruler,
-  Scissors,
   Check,
 } from 'lucide-react';
 import { DecalToolModal } from '../UI/DecalToolModal';
@@ -103,12 +102,18 @@ export const AssembledFlatCanvas: React.FC = () => {
   // Center view on mount or template change
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect
-    setViewState((prev) => ({
-      ...prev,
-      scale: Math.max(0.7, Math.min(1.1, dims.width / 950)),
-      offsetX: Math.max(40, (dims.width - 760) / 2),
-      offsetY: Math.max(30, (dims.height - 520) / 2),
-    }));
+    setViewState(() => {
+      const artboardW = 860;
+      const artboardH = 600;
+      const targetScale = Math.max(0.65, Math.min(1.05, Math.min((dims.width - 60) / artboardW, (dims.height - 110) / artboardH)));
+      const offX = Math.max(30, (dims.width - artboardW * targetScale) / 2);
+      const offY = Math.max(72, (dims.height - artboardH * targetScale) / 2);
+      return {
+        scale: targetScale,
+        offsetX: offX,
+        offsetY: offY,
+      };
+    });
   }, [activeTemplateId, dims.width, dims.height]);
 
   // Main Canvas Render
@@ -132,21 +137,21 @@ export const AssembledFlatCanvas: React.FC = () => {
     ctx.scale(viewState.scale, viewState.scale);
 
     // 2. Draw White CAD Card Artboards
-    const artboardWidth = 780;
-    const artboardHeight = 560;
+    const artboardWidth = 860;
+    const artboardHeight = 600;
 
     // Subtle drop shadow for artboard sheet
-    ctx.shadowColor = 'rgba(0, 0, 0, 0.08)';
-    ctx.shadowBlur = 24;
-    ctx.shadowOffsetY = 6;
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.06)';
+    ctx.shadowBlur = 18;
+    ctx.shadowOffsetY = 4;
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
-    ctx.roundRect(0, 0, artboardWidth, artboardHeight, 16);
+    ctx.roundRect(0, 0, artboardWidth, artboardHeight, 12);
     ctx.fill();
     ctx.shadowColor = 'transparent';
 
     // Artboard Border
-    ctx.strokeStyle = '#e2e8f0';
+    ctx.strokeStyle = '#cbd5e1';
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
@@ -169,25 +174,25 @@ export const AssembledFlatCanvas: React.FC = () => {
     // 3. Render Title & Specifications Header
     ctx.fillStyle = '#0f172a';
     ctx.font = 'bold 13px Inter, sans-serif';
-    ctx.fillText(`${spec.name.toUpperCase()} // TECH FLAT SPEC`, 24, 32);
+    ctx.fillText(`${spec.name.toUpperCase()} // COMMERCIAL SPEC`, 28, 36);
 
     ctx.fillStyle = '#64748b';
-    ctx.font = '10px monospace';
+    ctx.font = '10px ui-monospace, monospace';
     ctx.fillText(
-      `CHEST: ${spec.halfChestCm}cm | LENGTH: ${spec.bodyLengthCm}cm | SHOULDER: ${spec.shoulderDropCm}cm | SCALE: 1:1 CAD`,
-      24,
-      48
+      `HALF-CHEST: ${spec.halfChestCm} cm | BODY LENGTH: ${spec.bodyLengthCm} cm | SHOULDER: ${spec.shoulderDropCm} cm | CAD SCALE: 1:1`,
+      28,
+      52
     );
 
     // Centers for Front and Back views
-    const frontCenter = { x: 210, y: 280 };
-    const backCenter = { x: 570, y: 280 };
+    const frontCenter = { x: 235, y: 315 };
+    const backCenter = { x: 625, y: 315 };
 
     // View Labels
     ctx.fillStyle = '#2563eb';
-    ctx.font = 'bold 10px Inter, sans-serif';
-    ctx.fillText('[FRONT VIEW]', frontCenter.x - 36, 85);
-    ctx.fillText('[BACK VIEW]', backCenter.x - 34, 85);
+    ctx.font = 'bold 11px Inter, sans-serif';
+    ctx.fillText('[FRONT VIEW]', frontCenter.x - 38, 92);
+    ctx.fillText('[BACK VIEW]', backCenter.x - 36, 92);
 
     // ==========================================
     // Helper function to draw garment silhouette
@@ -625,19 +630,35 @@ export const AssembledFlatCanvas: React.FC = () => {
 
       // Chest Width measurement line
       const chestY = frontCenter.y + 10;
-      const chestLeft = frontCenter.x - 70;
-      const chestRight = frontCenter.x + 70;
+      const chestLeft = frontCenter.x - 72;
+      const chestRight = frontCenter.x + 72;
 
       ctx.beginPath();
       ctx.moveTo(chestLeft, chestY);
       ctx.lineTo(chestRight, chestY);
       ctx.stroke();
 
-      ctx.font = 'bold 9px monospace';
+      // Pill for Chest Width
+      const chestText = `${spec.halfChestCm} cm (Chest)`;
+      ctx.font = 'bold 9px ui-monospace, monospace';
+      const ctw = ctx.measureText(chestText).width;
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#93c5fd';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.roundRect(frontCenter.x - ctw / 2 - 4, chestY - 7, ctw + 8, 14, 3);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#1d4ed8';
       ctx.textAlign = 'center';
-      ctx.fillText(`${spec.halfChestCm} cm (Chest)`, frontCenter.x, chestY - 5);
+      ctx.textBaseline = 'middle';
+      ctx.fillText(chestText, frontCenter.x, chestY);
 
       // Body Length measurement line
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([3, 3]);
       const lenX = frontCenter.x - 90;
       const lenTop = frontCenter.y - 110;
       const lenBottom = frontCenter.y + 125;
@@ -647,10 +668,24 @@ export const AssembledFlatCanvas: React.FC = () => {
       ctx.lineTo(lenX, lenBottom);
       ctx.stroke();
 
+      // Pill for Length
+      const lenText = `${spec.bodyLengthCm} cm (Length)`;
+      const ltw = ctx.measureText(lenText).width;
       ctx.save();
-      ctx.translate(lenX - 6, (lenTop + lenBottom) / 2);
+      ctx.translate(lenX - 8, (lenTop + lenBottom) / 2);
       ctx.rotate(-Math.PI / 2);
-      ctx.fillText(`${spec.bodyLengthCm} cm (Length)`, 0, 0);
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#93c5fd';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.roundRect(-ltw / 2 - 4, -7, ltw + 8, 14, 3);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#1d4ed8';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(lenText, 0, 0);
       ctx.restore();
 
       ctx.restore();
@@ -767,36 +802,48 @@ export const AssembledFlatCanvas: React.FC = () => {
   };
 
   return (
-    <div className="relative w-full h-full bg-[#0e1117] overflow-hidden select-none">
+    <div className="relative w-full h-full bg-[#f8fafc] overflow-hidden select-none">
       {/* Top Floating Control Toolbar */}
-      <div className="absolute top-4 left-4 z-20 flex items-center gap-2 bg-[#14171f]/90 backdrop-blur-md border border-slate-800 rounded-2xl px-3 py-1.5 shadow-xl">
-        <button
-          onClick={() => setCanvasViewMode('pieces')}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
-          title="Switch to Pattern Pieces Cutting Canvas"
-        >
-          <Scissors className="w-3.5 h-3.5" />
-          <span>Cut Pattern Mode</span>
-        </button>
+      <div className="absolute top-3 left-4 z-20 flex items-center gap-2 bg-[#171a23]/90 backdrop-blur-md border border-slate-700/70 rounded-xl px-3 py-1.5 shadow-xl text-xs text-slate-300">
+        <Sparkles className="w-4 h-4 text-blue-400" />
+        <span className="font-bold text-slate-100">2D Flat Tech Spec</span>
+        <span className="text-slate-600">|</span>
 
-        <div className="w-px h-4 bg-slate-800" />
+        {/* View Switcher: Assembled vs Pattern Pieces */}
+        <div className="flex items-center bg-slate-800/80 rounded-lg p-0.5 border border-slate-700/60 text-[11px]">
+          <button
+            className="px-2.5 py-0.5 rounded-md font-semibold bg-blue-600 text-white shadow-sm"
+            title="Assembled Front & Back Flat Sketch"
+          >
+            Flat Sketch
+          </button>
+          <button
+            onClick={() => setCanvasViewMode('pieces')}
+            className="px-2.5 py-0.5 rounded-md font-semibold text-slate-400 hover:text-white transition-colors"
+            title="Switch to Pattern Pieces Cutting Canvas"
+          >
+            Pattern Pieces
+          </button>
+        </div>
+
+        <span className="text-slate-600">|</span>
 
         <button
           onClick={() => setDecalModalOpen(true)}
-          className="flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 shadow-md shadow-blue-600/30 transition-all"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-blue-600 hover:bg-blue-500 shadow-sm transition-all"
           title="Add Artwork, Typography or Presets [T]"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Decal & Text Studio</span>
+          <span>Decal Studio</span>
         </button>
 
-        <div className="w-px h-4 bg-slate-800" />
+        <span className="text-slate-600">|</span>
 
         {/* Color Zone Quick Picker */}
         <div className="relative">
           <button
             onClick={() => setActiveZonePicker(activeZonePicker ? null : 'body')}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
             title="Color Blocking Zones"
           >
             <Palette className="w-3.5 h-3.5 text-blue-400" />
@@ -804,7 +851,7 @@ export const AssembledFlatCanvas: React.FC = () => {
           </button>
 
           {activeZonePicker && (
-            <div className="absolute top-10 left-0 bg-[#1c202a] border border-slate-700 rounded-2xl p-4 shadow-2xl z-30 w-72 space-y-3">
+            <div className="absolute top-10 left-0 bg-[#171a23]/95 backdrop-blur-md border border-slate-700 rounded-xl p-3.5 shadow-2xl z-30 w-72 space-y-3">
               <div className="flex items-center justify-between text-xs font-bold text-white">
                 <span>Color Blocking Zone</span>
                 <span className="text-[10px] text-slate-400 uppercase">Select zone</span>
@@ -852,19 +899,20 @@ export const AssembledFlatCanvas: React.FC = () => {
           )}
         </div>
 
-        <div className="w-px h-4 bg-slate-800" />
+        <span className="text-slate-600">|</span>
 
         {/* Toggle Measurements */}
         <button
           onClick={() => setShowMeasurements(!showMeasurements)}
-          className={`p-1.5 rounded-xl text-xs transition-colors ${
+          className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium transition-colors ${
             showMeasurements
-              ? 'text-blue-400 bg-blue-500/10'
+              ? 'text-blue-400 bg-blue-500/10 border border-blue-500/20'
               : 'text-slate-400 hover:text-white'
           }`}
           title="Toggle Technical Measurements Overlay"
         >
-          <Ruler className="w-4 h-4" />
+          <Ruler className="w-3.5 h-3.5" />
+          <span>Dims</span>
         </button>
       </div>
 

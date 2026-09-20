@@ -70,7 +70,7 @@ export const StudioViewport: React.FC = () => {
       powerPreference: 'high-performance',
     });
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
     renderer.shadowMap.enabled = true;
@@ -96,8 +96,8 @@ export const StudioViewport: React.FC = () => {
     const key = new THREE.DirectionalLight('#ffffff', 1.5);
     key.position.set(2.0, 3.8, 2.8);
     key.castShadow = true;
-    key.shadow.mapSize.width = 2048;
-    key.shadow.mapSize.height = 2048;
+    key.shadow.mapSize.width = 1024;
+    key.shadow.mapSize.height = 1024;
     key.shadow.bias = -0.0001;
     scene.add(key);
 
@@ -133,12 +133,12 @@ export const StudioViewport: React.FC = () => {
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
     texture.colorSpace = THREE.SRGBColorSpace;
-    texture.generateMipmaps = true;
-    texture.minFilter = THREE.LinearMipmapLinearFilter;
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
     canvasTextureRef.current = texture;
 
     // Build 3D Model
-    const garment = createGarment3DModel(spec, mockupScene, texture);
+    const garment = createGarment3DModel(spec, mockupScene, texture, colorZones);
     scene.add(garment);
     garmentGroupRef.current = garment;
 
@@ -213,7 +213,7 @@ export const StudioViewport: React.FC = () => {
       scene.remove(garmentGroupRef.current);
     }
 
-    const newGarment = createGarment3DModel(spec, mockupScene, canvasTextureRef.current);
+    const newGarment = createGarment3DModel(spec, mockupScene, canvasTextureRef.current, colorZones);
     scene.add(newGarment);
     garmentGroupRef.current = newGarment;
 
@@ -221,7 +221,7 @@ export const StudioViewport: React.FC = () => {
     if (mockupScene !== 'floating-360') {
       newGarment.rotation.y = 0;
     }
-  }, [mockupScene, activeTemplateId, spec]);
+  }, [mockupScene, activeTemplateId, spec, colorZones]);
 
   // 4. Update Studio Lighting Preset
   useEffect(() => {
