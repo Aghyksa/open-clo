@@ -31,7 +31,7 @@ export const STITCH_PRESETS: StitchPreset[] = [
     id: 'double-needle',
     name: 'Double Needle Topstitch',
     code: 'ISO 406',
-    description: 'Parallel twin topstitching for denim seams, hems, pocket borders, and outerwear.',
+    description: 'Parallel twin topstitching for denim seams, hems, pocket borders, and streetwear tees.',
     defaultSpacingMm: 3.0,
     seamAllowanceMm: 15,
     defaultStrength: 1.4,
@@ -77,154 +77,94 @@ export const STITCH_PRESETS: StitchPreset[] = [
     defaultStrength: 1.8,
     patternLabel: '▪ ▪ ▪',
   },
+  {
+    id: 'topstitch',
+    name: 'Edge Topstitch Detail',
+    code: 'ISO 101',
+    description: 'Crisp aesthetic topstitch run 1/16" or 1/4" from garment seams.',
+    defaultSpacingMm: 3.2,
+    seamAllowanceMm: 10,
+    defaultStrength: 1.2,
+    patternLabel: '┈┈┈',
+  },
 ];
 
 export const FABRIC_PRESETS: FabricMaterial[] = [
   {
     id: 'cotton-jersey',
-    name: 'Cotton Jersey (T-Shirt)',
+    name: 'Heavyweight Combed Cotton (240 GSM)',
     category: 'Knit',
-    color: '#e2e8f0',
-    density: 180,
+    color: '#1e293b',
+    density: 240,
     stretchStiffness: 0.85,
-    bendingStiffness: 0.15,
-    friction: 0.4,
-    roughness: 0.7,
-    metalness: 0.05,
+    bendingStiffness: 0.18,
+    friction: 0.45,
+    roughness: 0.72,
+    metalness: 0.02,
     patternType: 'solid',
-    description: 'Classic lightweight circular knit with natural drape and comfortable softness.',
+    description: 'Premium dense combed cotton jersey with crisp body drape and smooth handfeel.',
   },
   {
     id: 'french-terry',
-    name: 'Heavy French Terry Fleece',
+    name: 'Heavy French Terry Fleece (400 GSM)',
     category: 'Knit',
     color: '#334155',
-    density: 380,
-    stretchStiffness: 0.75,
-    bendingStiffness: 0.45,
+    density: 400,
+    stretchStiffness: 0.78,
+    bendingStiffness: 0.38,
     friction: 0.55,
     roughness: 0.82,
-    metalness: 0.02,
-    patternType: 'fleece',
-    description: 'Substantial looped-back cotton fleece engineered for hoodies and oversized pullovers.',
-  },
-  {
-    id: 'heavy-denim',
-    name: 'Raw Heavy Denim 14oz',
-    category: 'Denim',
-    color: '#1e3a8a',
-    density: 450,
-    stretchStiffness: 0.98,
-    bendingStiffness: 0.75,
-    friction: 0.65,
-    roughness: 0.85,
-    metalness: 0.0,
-    patternType: 'denim',
-    description: 'Rigid shuttle-loom indigo twill with crisp folding lines and structured silhouettes.',
-  },
-  {
-    id: 'silk-satin',
-    name: 'Mulberry Silk Satin',
-    category: 'Luxury',
-    color: '#fbcfe8',
-    density: 90,
-    stretchStiffness: 0.95,
-    bendingStiffness: 0.02,
-    friction: 0.15,
-    roughness: 0.25,
-    metalness: 0.22,
-    patternType: 'solid',
-    description: 'High-lustre flowing drape that cascades smoothly across anatomical body curves.',
-  },
-  {
-    id: 'structured-leather',
-    name: 'Full-Grain Structured Leather',
-    category: 'Leather',
-    color: '#18181b',
-    density: 520,
-    stretchStiffness: 0.99,
-    bendingStiffness: 0.85,
-    friction: 0.45,
-    roughness: 0.42,
-    metalness: 0.1,
-    patternType: 'solid',
-    description: 'Thick calfskin leather with prominent sculptural form and minimal stretch.',
-  },
-  {
-    id: 'linen-blend',
-    name: 'Pure Summer Flax Linen',
-    category: 'Woven',
-    color: '#fef3c7',
-    density: 210,
-    stretchStiffness: 0.92,
-    bendingStiffness: 0.28,
-    friction: 0.45,
-    roughness: 0.78,
-    metalness: 0.0,
-    patternType: 'solid',
-    description: 'Breathable slub-textured open weave with organic wrinkles and crisp summer folds.',
-  },
-  {
-    id: 'merino-wool',
-    name: 'Merino Knit Wool',
-    category: 'Knit',
-    color: '#b45309',
-    density: 280,
-    stretchStiffness: 0.65,
-    bendingStiffness: 0.35,
-    friction: 0.5,
-    roughness: 0.8,
     metalness: 0.0,
     patternType: 'rib',
-    description: 'Fine-gauge resilient wool with cozy stretch recovery and soft natural volume.',
+    description: 'Substantial streetwear hoodie loopback fleece with structured drape and shape retention.',
   },
   {
     id: 'tech-ripstop',
-    name: 'Technical Ripstop Nylon',
+    name: 'MA-1 Flight Shell Nylon',
     category: 'Technical',
-    color: '#0284c7',
-    density: 120,
-    stretchStiffness: 0.99,
-    bendingStiffness: 0.22,
-    friction: 0.3,
-    roughness: 0.38,
-    metalness: 0.15,
-    patternType: 'grid',
-    description: 'Ultralight water-repellent grid-weave shell used for streetwear windbreakers.',
+    color: '#1c3d2e',
+    density: 180,
+    stretchStiffness: 0.98,
+    bendingStiffness: 0.32,
+    friction: 0.35,
+    roughness: 0.42,
+    metalness: 0.18,
+    patternType: 'solid',
+    description: 'Durable military flight satin nylon with subtle sheen and wind resistance.',
   },
   {
-    id: 'crushed-velvet',
-    name: 'Luxe Crushed Velvet',
-    category: 'Luxury',
-    color: '#701a75',
-    density: 320,
-    stretchStiffness: 0.82,
-    bendingStiffness: 0.18,
-    friction: 0.6,
-    roughness: 0.65,
-    metalness: 0.3,
-    patternType: 'solid',
-    description: 'Plush directional pile reflecting light dynamically across drapery folds.',
+    id: 'heavy-denim',
+    name: 'Vintage Raw Indigo Denim (14 oz)',
+    category: 'Woven',
+    color: '#1e3a8a',
+    density: 460,
+    stretchStiffness: 0.98,
+    bendingStiffness: 0.72,
+    friction: 0.65,
+    roughness: 0.88,
+    metalness: 0.0,
+    patternType: 'denim',
+    description: 'Rigid selvedge denim with prominent twill structure and sharp architectural creases.',
   },
   {
-    id: 'sheer-chiffon',
-    name: 'Ethereal Sheer Chiffon',
+    id: 'silk-satin',
+    name: 'Mulberry Silk Charmeuse',
     category: 'Luxury',
-    color: '#e0e7ff',
-    density: 65,
-    stretchStiffness: 0.96,
-    bendingStiffness: 0.015,
-    friction: 0.2,
-    roughness: 0.3,
-    metalness: 0.05,
+    color: '#be185d',
+    density: 95,
+    stretchStiffness: 0.94,
+    bendingStiffness: 0.02,
+    friction: 0.15,
+    roughness: 0.22,
+    metalness: 0.25,
     patternType: 'solid',
-    description: 'Featherweight transparent plain weave with supreme fluid drapery.',
+    description: 'Liquid fluid silk satin with luminous highlights and cascading drape.',
   },
   {
     id: 'sport-spandex',
     name: 'Performance 4-Way Spandex',
     category: 'Technical',
-    color: '#10b981',
+    color: '#0284c7',
     density: 230,
     stretchStiffness: 0.45,
     bendingStiffness: 0.08,
@@ -235,82 +175,82 @@ export const FABRIC_PRESETS: FabricMaterial[] = [
     description: 'High compression 4-way stretch fabric hugging body contours tightly without sag.',
   },
   {
-    id: 'vintage-corduroy',
-    name: 'Wide-Wale Vintage Corduroy',
-    category: 'Woven',
-    color: '#78350f',
-    density: 410,
-    stretchStiffness: 0.94,
-    bendingStiffness: 0.68,
-    friction: 0.6,
-    roughness: 0.85,
-    metalness: 0.0,
-    patternType: 'stripes',
-    description: 'Distinctive ribbed cut-pile ridges delivering rich tactile depth and structure.',
+    id: 'pique-cotton',
+    name: 'Double Pique Knit (220 GSM)',
+    category: 'Knit',
+    color: '#1e3a8a',
+    density: 220,
+    stretchStiffness: 0.82,
+    bendingStiffness: 0.24,
+    friction: 0.48,
+    roughness: 0.75,
+    metalness: 0.02,
+    patternType: 'grid',
+    description: 'Classic honeycomb waffle-textured polo knit with excellent breathability and collar stand.',
   },
 ];
 
 // ==========================================
-// 1. Classic Crewneck T-Shirt Preset
+// 1. Streetwear Heavyweight Boxy Crewneck Tee (Size L / Unisex)
+// True proportions: 72cm length, 58cm chest width, 54cm drop shoulder, 23cm sleeve
+// Coordinate scale: 10 units = 1 cm (1 unit = 1 mm)
 // ==========================================
 export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
-  // Real French curve pattern for front bodice
+  // Front Bodice (Half-width 290mm, Length 720mm from HPS)
   const frontPoints = [
-    { id: 'f0', x: -135, y: -215 }, // Left shoulder tip
-    { id: 'f1', x: -65, y: -245 },  // Left neck
-    { id: 'f2', x: -30, y: -225 },  // Front neck curve
-    { id: 'f3', x: 0, y: -205 },    // Center neck drop
-    { id: 'f4', x: 30, y: -225 },
-    { id: 'f5', x: 65, y: -245 },   // Right neck
-    { id: 'f6', x: 135, y: -215 },  // Right shoulder tip
-    { id: 'f7', x: 145, y: -165 },  // Right armhole curve
-    { id: 'f8', x: 128, y: -95 },   // Right armscye base
-    { id: 'f9', x: 125, y: 30 },    // Right waist contour
-    { id: 'f10', x: 130, y: 180 },  // Right hem
-    { id: 'f11', x: -130, y: 180 }, // Left hem
-    { id: 'f12', x: -125, y: 30 },  // Left waist contour
-    { id: 'f13', x: -128, y: -95 }, // Left armscye base
-    { id: 'f14', x: -145, y: -165 }, // Left armhole curve
+    { id: 'tf0', x: -270, y: -325 }, // Left drop shoulder tip
+    { id: 'tf1', x: -90, y: -360 },  // Left neck point (HPS)
+    { id: 'tf2', x: -45, y: -315 },  // Front neck curve
+    { id: 'tf3', x: 0, y: -270 },    // Center front neck drop (9cm deep)
+    { id: 'tf4', x: 45, y: -315 },
+    { id: 'tf5', x: 90, y: -360 },   // Right neck point (HPS)
+    { id: 'tf6', x: 270, y: -325 },  // Right drop shoulder tip
+    { id: 'tf7', x: 275, y: -200 },  // Right armhole curve
+    { id: 'tf8', x: 290, y: -70 },   // Right armscye base (underarm)
+    { id: 'tf9', x: 285, y: 150 },   // Right waist
+    { id: 'tf10', x: 285, y: 360 },  // Right bottom hem
+    { id: 'tf11', x: -285, y: 360 }, // Left bottom hem
+    { id: 'tf12', x: -285, y: 150 }, // Left waist
+    { id: 'tf13', x: -290, y: -70 }, // Left armscye base (underarm)
+    { id: 'tf14', x: -275, y: -200 }, // Left armhole curve
   ];
 
+  // Back Bodice (Same chest & shoulder width, high back neckline)
   const backPoints = [
-    { id: 'b0', x: -135, y: -215 }, // Left shoulder tip
-    { id: 'b1', x: -65, y: -245 },  // Left neck
-    { id: 'b2', x: 0, y: -238 },    // High back neck curve
-    { id: 'b3', x: 65, y: -245 },   // Right neck
-    { id: 'b4', x: 135, y: -215 },  // Right shoulder tip
-    { id: 'b5', x: 142, y: -165 },  // Right armhole
-    { id: 'b6', x: 128, y: -95 },   // Right armscye base
-    { id: 'b7', x: 125, y: 30 },    // Right waist contour
-    { id: 'b8', x: 130, y: 180 },   // Right hem
-    { id: 'b9', x: -130, y: 180 },  // Left hem
-    { id: 'b10', x: -125, y: 30 },  // Left waist contour
-    { id: 'b11', x: -128, y: -95 }, // Left armscye base
-    { id: 'b12', x: -142, y: -165 }, // Left armhole
+    { id: 'tb0', x: -270, y: -325 },
+    { id: 'tb1', x: -90, y: -360 },
+    { id: 'tb2', x: 0, y: -332 },    // High back neck curve (2.8cm drop)
+    { id: 'tb3', x: 90, y: -360 },
+    { id: 'tb4', x: 270, y: -325 },
+    { id: 'tb5', x: 275, y: -200 },
+    { id: 'tb6', x: 290, y: -70 },
+    { id: 'tb7', x: 285, y: 150 },
+    { id: 'tb8', x: 285, y: 360 },
+    { id: 'tb9', x: -285, y: 360 },
+    { id: 'tb10', x: -285, y: 150 },
+    { id: 'tb11', x: -290, y: -70 },
+    { id: 'tb12', x: -275, y: -200 },
   ];
 
-  // Anatomical curved short sleeve cap (bell crown)
+  // Drop Shoulder Short Sleeve (23cm length, 46cm bicep, 40cm opening)
   const sleeveLPoints = [
-    { id: 'sl0', x: -90, y: -15 },  // Underarm left
-    { id: 'sl1', x: -80, y: -55 },  // Lower cap curve
-    { id: 'sl2', x: -45, y: -85 },  // Upper cap curve
-    { id: 'sl3', x: 0, y: -100 },   // Sleeve crown apex (puncak lengan)
-    { id: 'sl4', x: 45, y: -85 },   // Upper cap curve
-    { id: 'sl5', x: 80, y: -55 },   // Lower cap curve
-    { id: 'sl6', x: 90, y: -15 },   // Underarm right
-    { id: 'sl7', x: 75, y: 80 },    // Sleeve hem opening right
-    { id: 'sl8', x: 0, y: 82 },     // Sleeve hem center
-    { id: 'sl9', x: -75, y: 80 },   // Sleeve hem opening left
+    { id: 'tsl0', x: -230, y: -20 }, // Underarm left
+    { id: 'tsl1', x: -160, y: -70 },
+    { id: 'tsl2', x: 0, y: -110 },   // Sleeve crown apex
+    { id: 'tsl3', x: 160, y: -70 },
+    { id: 'tsl4', x: 230, y: -20 },  // Underarm right
+    { id: 'tsl5', x: 200, y: 120 },  // Hem opening right
+    { id: 'tsl6', x: -200, y: 120 }, // Hem opening left
   ];
 
   const sleeveRPoints = JSON.parse(JSON.stringify(sleeveLPoints));
 
-  // Ribbed Crewneck Collar Band (Kerah Rib)
+  // 1x1 Cotton Spandex Crewneck Collar Rib (46cm circumference x 2.8cm height)
   const collarPoints = [
-    { id: 'c0', x: -105, y: -12 },
-    { id: 'c1', x: 105, y: -12 },
-    { id: 'c2', x: 105, y: 12 },
-    { id: 'c3', x: -105, y: 12 },
+    { id: 'tc0', x: -230, y: -14 },
+    { id: 'tc1', x: 230, y: -14 },
+    { id: 'tc2', x: 230, y: 14 },
+    { id: 'tc3', x: -230, y: 14 },
   ];
 
   const pieces: PatternPiece[] = [
@@ -318,9 +258,9 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-front',
       name: 'Front Bodice',
       points: frontPoints,
-      position: { x: 170, y: 260 },
+      position: { x: 380, y: 450 },
       rotation: 0,
-      color: '#38bdf8',
+      color: '#1e293b',
       placement: { origin3D: [0, 0.4, 0.16], rotation3D: [0, 0, 0] },
       graphics: [
         {
@@ -329,12 +269,12 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
           type: 'text',
           content: 'OPENCLO ATELIER',
           x: 0,
-          y: -130,
+          y: -140,
           scale: 1.0,
           rotation: 0,
           color: '#ffffff',
-          fontSize: 11,
-          opacity: 0.9,
+          fontSize: 12,
+          opacity: 0.95,
         },
       ],
     },
@@ -342,37 +282,37 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-back',
       name: 'Back Bodice',
       points: backPoints,
-      position: { x: 440, y: 260 },
+      position: { x: 1040, y: 450 },
       rotation: 0,
-      color: '#818cf8',
+      color: '#1e293b',
       placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
+    },
+    {
+      id: 'piece-collar',
+      name: 'Ribbed Crewneck Collar',
+      points: collarPoints,
+      position: { x: 710, y: 90 },
+      rotation: 0,
+      color: '#0f172a',
+      placement: { origin3D: [0, 0.55, 0.05], rotation3D: [0, 0, 0] },
     },
     {
       id: 'piece-sleeve-l',
       name: 'Left Sleeve',
       points: sleeveLPoints,
-      position: { x: 700, y: 180 },
+      position: { x: 1650, y: 280 },
       rotation: 0,
-      color: '#06b6d4',
+      color: '#1e293b',
       placement: { origin3D: [0.35, 0.35, 0], rotation3D: [0, 0, -Math.PI / 4] },
     },
     {
       id: 'piece-sleeve-r',
       name: 'Right Sleeve',
       points: sleeveRPoints,
-      position: { x: 700, y: 390 },
+      position: { x: 1650, y: 680 },
       rotation: 0,
-      color: '#06b6d4',
+      color: '#1e293b',
       placement: { origin3D: [-0.35, 0.35, 0], rotation3D: [0, 0, Math.PI / 4] },
-    },
-    {
-      id: 'piece-collar',
-      name: 'Ribbed Crewneck Collar',
-      points: collarPoints,
-      position: { x: 300, y: 530 },
-      rotation: 0,
-      color: '#e2e8f0',
-      placement: { origin3D: [0, 0.55, 0.05], rotation3D: [0, 0, 0] },
     },
   ];
 
@@ -392,6 +332,13 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
       stitchType: 'single-needle',
     },
     {
+      id: 'seam-collar-front',
+      edgeA: { pieceId: 'piece-collar', edgeIndex: 0 },
+      edgeB: { pieceId: 'piece-front', edgeIndex: 2 },
+      strength: 1.0,
+      stitchType: 'double-needle',
+    },
+    {
       id: 'seam-side-r',
       edgeA: { pieceId: 'piece-front', edgeIndex: 9 },
       edgeB: { pieceId: 'piece-back', edgeIndex: 7 },
@@ -400,31 +347,24 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
     },
     {
       id: 'seam-side-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 11 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 9 },
+      edgeA: { pieceId: 'piece-front', edgeIndex: 12 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 10 },
       strength: 1.0,
       stitchType: 'overlock',
     },
     {
       id: 'seam-sleeve-l',
-      edgeA: { pieceId: 'piece-sleeve-l', edgeIndex: 2 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 13 },
+      edgeA: { pieceId: 'piece-front', edgeIndex: 14 },
+      edgeB: { pieceId: 'piece-sleeve-l', edgeIndex: 0 },
       strength: 1.0,
       stitchType: 'overlock',
     },
     {
       id: 'seam-sleeve-r',
-      edgeA: { pieceId: 'piece-sleeve-r', edgeIndex: 2 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 7 },
+      edgeA: { pieceId: 'piece-front', edgeIndex: 6 },
+      edgeB: { pieceId: 'piece-sleeve-r', edgeIndex: 0 },
       strength: 1.0,
       stitchType: 'overlock',
-    },
-    {
-      id: 'seam-collar-front',
-      edgeA: { pieceId: 'piece-collar', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 2 },
-      strength: 1.0,
-      stitchType: 'single-needle',
     },
   ];
 
@@ -432,46 +372,824 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
 }
 
 // ==========================================
-// 2. Summer A-Line Dress Preset
+// 2. Heavyweight Boxy Streetwear Pullover Hoodie
+// True proportions: 70cm length, 62cm chest, 60cm long sleeves, kangaroo pocket, 38cm hood
 // ==========================================
-export function createDressPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
-  // Realistic A-line dress with fitted bodice, flared skirt, and proper neckline curves
+export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
   const frontPoints = [
-    { id: 'df0', x: -118, y: -225 }, // Left shoulder tip
-    { id: 'df1', x: -55, y: -248 },  // Left neck slope
-    { id: 'df2', x: -25, y: -228 },  // Left neck curve
-    { id: 'df3', x: 0, y: -195 },    // Center front V-neck drop
-    { id: 'df4', x: 25, y: -228 },   // Right neck curve
-    { id: 'df5', x: 55, y: -248 },   // Right neck slope
-    { id: 'df6', x: 118, y: -225 },  // Right shoulder tip
-    { id: 'df7', x: 130, y: -170 },  // Right armhole upper
-    { id: 'df8', x: 115, y: -95 },   // Right armscye base
-    { id: 'df9', x: 110, y: -20 },   // Right waist (fitted)
-    { id: 'df10', x: 135, y: 80 },   // Right hip flare start
-    { id: 'df11', x: 185, y: 360 },  // Right hem flare
-    { id: 'df12', x: -185, y: 360 }, // Left hem flare
-    { id: 'df13', x: -135, y: 80 },  // Left hip flare start
-    { id: 'df14', x: -110, y: -20 }, // Left waist (fitted)
-    { id: 'df15', x: -115, y: -95 }, // Left armscye base
-    { id: 'df16', x: -130, y: -170 }, // Left armhole upper
+    { id: 'hf0', x: -290, y: -320 },
+    { id: 'hf1', x: -100, y: -350 },
+    { id: 'hf2', x: 0, y: -260 },
+    { id: 'hf3', x: 100, y: -350 },
+    { id: 'hf4', x: 290, y: -320 },
+    { id: 'hf5', x: 305, y: -190 },
+    { id: 'hf6', x: 310, y: -50 },
+    { id: 'hf7', x: 310, y: 285 },
+    { id: 'hf8', x: 270, y: 350 },
+    { id: 'hf9', x: -270, y: 350 },
+    { id: 'hf10', x: -310, y: 285 },
+    { id: 'hf11', x: -310, y: -50 },
+    { id: 'hf12', x: -305, y: -190 },
   ];
 
   const backPoints = [
-    { id: 'db0', x: -118, y: -225 },
-    { id: 'db1', x: -55, y: -248 },
-    { id: 'db2', x: 0, y: -240 },    // High back neck (shallow scoop)
-    { id: 'db3', x: 55, y: -248 },
-    { id: 'db4', x: 118, y: -225 },
-    { id: 'db5', x: 130, y: -170 },
-    { id: 'db6', x: 115, y: -95 },
-    { id: 'db7', x: 110, y: -20 },
-    { id: 'db8', x: 135, y: 80 },
-    { id: 'db9', x: 185, y: 360 },
-    { id: 'db10', x: -185, y: 360 },
-    { id: 'db11', x: -135, y: 80 },
-    { id: 'db12', x: -110, y: -20 },
-    { id: 'db13', x: -115, y: -95 },
-    { id: 'db14', x: -130, y: -170 },
+    { id: 'hb0', x: -290, y: -320 },
+    { id: 'hb1', x: -100, y: -350 },
+    { id: 'hb2', x: 0, y: -330 },
+    { id: 'hb3', x: 100, y: -350 },
+    { id: 'hb4', x: 290, y: -320 },
+    { id: 'hb5', x: 305, y: -190 },
+    { id: 'hb6', x: 310, y: -50 },
+    { id: 'hb7', x: 310, y: 285 },
+    { id: 'hb8', x: 270, y: 350 },
+    { id: 'hb9', x: -270, y: 350 },
+    { id: 'hb10', x: -310, y: 285 },
+    { id: 'hb11', x: -310, y: -50 },
+    { id: 'hb12', x: -305, y: -190 },
+  ];
+
+  const pocketPoints = [
+    { id: 'hpk0', x: -120, y: -105 },
+    { id: 'hpk1', x: 120, y: -105 },
+    { id: 'hpk2', x: 170, y: 0 },
+    { id: 'hpk3', x: 170, y: 105 },
+    { id: 'hpk4', x: -170, y: 105 },
+    { id: 'hpk5', x: -170, y: 0 },
+  ];
+
+  const sleeveLPoints = [
+    { id: 'hsl0', x: -240, y: -200 },
+    { id: 'hsl1', x: 0, y: -280 },
+    { id: 'hsl2', x: 240, y: -200 },
+    { id: 'hsl3', x: 120, y: 320 },
+    { id: 'hsl4', x: -120, y: 320 },
+  ];
+
+  const sleeveRPoints = JSON.parse(JSON.stringify(sleeveLPoints));
+
+  const hoodPoints = [
+    { id: 'hhd0', x: -140, y: -190 },
+    { id: 'hhd1', x: 60, y: -190 },
+    { id: 'hhd2', x: 140, y: -100 },
+    { id: 'hhd3', x: 130, y: 150 },
+    { id: 'hhd4', x: -40, y: 190 },
+    { id: 'hhd5', x: -140, y: 100 },
+    { id: 'hhd6', x: -160, y: 0 },
+  ];
+
+  const pieces: PatternPiece[] = [
+    {
+      id: 'piece-front',
+      name: 'Hoodie Front Torso',
+      points: frontPoints,
+      position: { x: 390, y: 460 },
+      rotation: 0,
+      color: '#334155',
+      placement: { origin3D: [0, 0.4, 0.16], rotation3D: [0, 0, 0] },
+      graphics: [
+        {
+          id: 'g-hoodie-print',
+          name: 'Chest Minimal Print',
+          type: 'text',
+          content: 'OPENCLO HEAVY FLEECE',
+          x: 0,
+          y: -110,
+          scale: 1.0,
+          rotation: 0,
+          color: '#f8fafc',
+          fontSize: 11,
+          opacity: 0.9,
+        },
+      ],
+    },
+    {
+      id: 'piece-back',
+      name: 'Hoodie Back Torso',
+      points: backPoints,
+      position: { x: 1060, y: 460 },
+      rotation: 0,
+      color: '#334155',
+      placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
+    },
+    {
+      id: 'piece-pocket',
+      name: 'Kangaroo Pocket',
+      points: pocketPoints,
+      position: { x: 390, y: 560 },
+      rotation: 0,
+      color: '#1e293b',
+      placement: { origin3D: [0, 0.15, 0.20], rotation3D: [0, 0, 0] },
+    },
+    {
+      id: 'piece-hood',
+      name: 'Double Hood Panel',
+      points: hoodPoints,
+      position: { x: 720, y: 120 },
+      rotation: 0,
+      color: '#334155',
+      placement: { origin3D: [0, 0.75, 0], rotation3D: [0, 0, 0] },
+    },
+    {
+      id: 'piece-sleeve-l',
+      name: 'Left Long Sleeve',
+      points: sleeveLPoints,
+      position: { x: 1680, y: 290 },
+      rotation: 0,
+      color: '#334155',
+      placement: { origin3D: [0.38, 0.32, 0], rotation3D: [0, 0, -Math.PI / 4] },
+    },
+    {
+      id: 'piece-sleeve-r',
+      name: 'Right Long Sleeve',
+      points: sleeveRPoints,
+      position: { x: 1680, y: 730 },
+      rotation: 0,
+      color: '#334155',
+      placement: { origin3D: [-0.38, 0.32, 0], rotation3D: [0, 0, Math.PI / 4] },
+    },
+  ];
+
+  const seams: SeamConnection[] = [
+    {
+      id: 'seam-hoodie-shoulder-l',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
+      strength: 1.0,
+      stitchType: 'double-needle',
+    },
+    {
+      id: 'seam-hoodie-shoulder-r',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 3 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
+      strength: 1.0,
+      stitchType: 'double-needle',
+    },
+    {
+      id: 'seam-hoodie-side-r',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 6 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 6 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+    {
+      id: 'seam-hoodie-side-l',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 10 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 10 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+  ];
+
+  return { pieces, seams };
+}
+
+// ==========================================
+// 3. MA-1 Flight Zip Bomber Jacket
+// True proportions: 67cm length, 60cm chest, split front panels with center zipper fly
+// ==========================================
+export function createBomberJacketPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
+  const frontLPoints = [
+    { id: 'bjfl0', x: -150, y: -300 },
+    { id: 'bjfl1', x: -50, y: -335 },
+    { id: 'bjfl2', x: 0, y: -260 },
+    { id: 'bjfl3', x: 0, y: 335 },
+    { id: 'bjfl4', x: -150, y: 335 },
+    { id: 'bjfl5', x: -150, y: -50 },
+    { id: 'bjfl6', x: -145, y: -190 },
+  ];
+
+  const frontRPoints = [
+    { id: 'bjfr0', x: 0, y: -260 },
+    { id: 'bjfr1', x: 50, y: -335 },
+    { id: 'bjfr2', x: 150, y: -300 },
+    { id: 'bjfr3', x: 145, y: -190 },
+    { id: 'bjfr4', x: 150, y: -50 },
+    { id: 'bjfr5', x: 150, y: 335 },
+    { id: 'bjfr6', x: 0, y: 335 },
+  ];
+
+  const backPoints = [
+    { id: 'bjb0', x: -280, y: -300 },
+    { id: 'bjb1', x: -90, y: -335 },
+    { id: 'bjb2', x: 0, y: -315 },
+    { id: 'bjb3', x: 90, y: -335 },
+    { id: 'bjb4', x: 280, y: -300 },
+    { id: 'bjb5', x: 295, y: -190 },
+    { id: 'bjb6', x: 300, y: -50 },
+    { id: 'bjb7', x: 290, y: 335 },
+    { id: 'bjb8', x: -290, y: 335 },
+    { id: 'bjb9', x: -300, y: -50 },
+    { id: 'bjb10', x: -295, y: -190 },
+  ];
+
+  const sleeveLPoints = [
+    { id: 'bjs0', x: -230, y: -200 },
+    { id: 'bjs1', x: 0, y: -280 },
+    { id: 'bjs2', x: 230, y: -200 },
+    { id: 'bjs3', x: 125, y: 310 },
+    { id: 'bjs4', x: -125, y: 310 },
+  ];
+
+  const sleeveRPoints = JSON.parse(JSON.stringify(sleeveLPoints));
+
+  const collarPoints = [
+    { id: 'bjc0', x: -210, y: -25 },
+    { id: 'bjc1', x: 210, y: -25 },
+    { id: 'bjc2', x: 210, y: 25 },
+    { id: 'bjc3', x: -210, y: 25 },
+  ];
+
+  const pieces: PatternPiece[] = [
+    {
+      id: 'piece-bomber-front-l',
+      name: 'Left Front Zip Panel',
+      points: frontLPoints,
+      position: { x: 260, y: 450 },
+      rotation: 0,
+      color: '#1c3d2e',
+      placement: { origin3D: [0.15, 0.4, 0.16], rotation3D: [0, 0, 0] },
+    },
+    {
+      id: 'piece-bomber-front-r',
+      name: 'Right Front Zip Panel',
+      points: frontRPoints,
+      position: { x: 580, y: 450 },
+      rotation: 0,
+      color: '#1c3d2e',
+      placement: { origin3D: [-0.15, 0.4, 0.16], rotation3D: [0, 0, 0] },
+    },
+    {
+      id: 'piece-bomber-back',
+      name: 'Bomber Back Panel',
+      points: backPoints,
+      position: { x: 1120, y: 450 },
+      rotation: 0,
+      color: '#1c3d2e',
+      placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
+    },
+    {
+      id: 'piece-collar',
+      name: 'Baseball Ribbed Collar',
+      points: collarPoints,
+      position: { x: 840, y: 90 },
+      rotation: 0,
+      color: '#0f241a',
+      placement: { origin3D: [0, 0.55, 0.05], rotation3D: [0, 0, 0] },
+    },
+    {
+      id: 'piece-bomber-sleeve-l',
+      name: 'Left Flight Sleeve',
+      points: sleeveLPoints,
+      position: { x: 1720, y: 280 },
+      rotation: 0,
+      color: '#1c3d2e',
+      placement: { origin3D: [0.38, 0.32, 0], rotation3D: [0, 0, -Math.PI / 4] },
+    },
+    {
+      id: 'piece-bomber-sleeve-r',
+      name: 'Right Flight Sleeve',
+      points: sleeveRPoints,
+      position: { x: 1720, y: 720 },
+      rotation: 0,
+      color: '#1c3d2e',
+      placement: { origin3D: [-0.38, 0.32, 0], rotation3D: [0, 0, Math.PI / 4] },
+    },
+  ];
+
+  const seams: SeamConnection[] = [
+    {
+      id: 'seam-bomber-zip',
+      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 2 },
+      edgeB: { pieceId: 'piece-bomber-front-r', edgeIndex: 5 },
+      strength: 1.0,
+      stitchType: 'topstitch',
+    },
+    {
+      id: 'seam-bomber-shoulder-l',
+      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 0 },
+      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 0 },
+      strength: 1.0,
+      stitchType: 'single-needle',
+    },
+    {
+      id: 'seam-bomber-shoulder-r',
+      edgeA: { pieceId: 'piece-bomber-front-r', edgeIndex: 1 },
+      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 3 },
+      strength: 1.0,
+      stitchType: 'single-needle',
+    },
+    {
+      id: 'seam-bomber-side-l',
+      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 4 },
+      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 8 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+    {
+      id: 'seam-bomber-side-r',
+      edgeA: { pieceId: 'piece-bomber-front-r', edgeIndex: 4 },
+      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 6 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+  ];
+
+  return { pieces, seams };
+}
+
+// ==========================================
+// 4. Classic Pique Polo Shirt
+// True proportions: 72cm length, 54cm chest, 3-button placket, knit turnover collar
+// ==========================================
+export function createPoloPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
+  const frontPoints = [
+    { id: 'pf0', x: -240, y: -330 },
+    { id: 'pf1', x: -80, y: -360 },
+    { id: 'pf2', x: -20, y: -320 },
+    { id: 'pf3', x: -20, y: -180 },
+    { id: 'pf4', x: 20, y: -180 },
+    { id: 'pf5', x: 20, y: -320 },
+    { id: 'pf6', x: 80, y: -360 },
+    { id: 'pf7', x: 240, y: -330 },
+    { id: 'pf8', x: 255, y: -200 },
+    { id: 'pf9', x: 270, y: -70 },
+    { id: 'pf10', x: 265, y: 360 },
+    { id: 'pf11', x: -265, y: 360 },
+    { id: 'pf12', x: -270, y: -70 },
+    { id: 'pf13', x: -255, y: -200 },
+  ];
+
+  const backPoints = [
+    { id: 'pb0', x: -240, y: -330 },
+    { id: 'pb1', x: -80, y: -360 },
+    { id: 'pb2', x: 0, y: -335 },
+    { id: 'pb3', x: 80, y: -360 },
+    { id: 'pb4', x: 240, y: -330 },
+    { id: 'pb5', x: 255, y: -200 },
+    { id: 'pb6', x: 270, y: -70 },
+    { id: 'pb7', x: 265, y: 380 },
+    { id: 'pb8', x: -265, y: 380 },
+    { id: 'pb9', x: -270, y: -70 },
+    { id: 'pb10', x: -255, y: -200 },
+  ];
+
+  const sleeveLPoints = [
+    { id: 'psl0', x: -220, y: -20 },
+    { id: 'psl1', x: 0, y: -110 },
+    { id: 'psl2', x: 220, y: -20 },
+    { id: 'psl3', x: 180, y: 110 },
+    { id: 'psl4', x: -180, y: 110 },
+  ];
+
+  const sleeveRPoints = JSON.parse(JSON.stringify(sleeveLPoints));
+
+  const collarPoints = [
+    { id: 'pc0', x: -220, y: -35 },
+    { id: 'pc1', x: 220, y: -35 },
+    { id: 'pc2', x: 200, y: 35 },
+    { id: 'pc3', x: -200, y: 35 },
+  ];
+
+  const pieces: PatternPiece[] = [
+    {
+      id: 'piece-front',
+      name: 'Polo Front Bodice',
+      points: frontPoints,
+      position: { x: 380, y: 450 },
+      rotation: 0,
+      color: '#1e3a8a',
+      placement: { origin3D: [0, 0.4, 0.16], rotation3D: [0, 0, 0] },
+    },
+    {
+      id: 'piece-back',
+      name: 'Polo Back Bodice',
+      points: backPoints,
+      position: { x: 1040, y: 450 },
+      rotation: 0,
+      color: '#1e3a8a',
+      placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
+    },
+    {
+      id: 'piece-collar',
+      name: 'Turnover Knit Collar',
+      points: collarPoints,
+      position: { x: 710, y: 90 },
+      rotation: 0,
+      color: '#172554',
+      placement: { origin3D: [0, 0.55, 0.05], rotation3D: [0, 0, 0] },
+    },
+    {
+      id: 'piece-sleeve-l',
+      name: 'Left Short Sleeve',
+      points: sleeveLPoints,
+      position: { x: 1650, y: 280 },
+      rotation: 0,
+      color: '#1e3a8a',
+      placement: { origin3D: [0.35, 0.35, 0], rotation3D: [0, 0, -Math.PI / 4] },
+    },
+    {
+      id: 'piece-sleeve-r',
+      name: 'Right Short Sleeve',
+      points: sleeveRPoints,
+      position: { x: 1650, y: 680 },
+      rotation: 0,
+      color: '#1e3a8a',
+      placement: { origin3D: [-0.35, 0.35, 0], rotation3D: [0, 0, Math.PI / 4] },
+    },
+  ];
+
+  const seams: SeamConnection[] = [
+    {
+      id: 'seam-polo-shoulder-l',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
+      strength: 1.0,
+      stitchType: 'single-needle',
+    },
+    {
+      id: 'seam-polo-shoulder-r',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 6 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
+      strength: 1.0,
+      stitchType: 'single-needle',
+    },
+    {
+      id: 'seam-polo-side-l',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 11 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 8 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+    {
+      id: 'seam-polo-side-r',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 9 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 6 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+  ];
+
+  return { pieces, seams };
+}
+
+// ==========================================
+// 5. Athletic Muscle Tank Top
+// True proportions: 70cm length, 50cm chest, deep scoop neck, racerback cut
+// ==========================================
+export function createTankTopPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
+  const frontPoints = [
+    { id: 'tf0', x: -140, y: -330 },
+    { id: 'tf1', x: -80, y: -350 },
+    { id: 'tf2', x: 0, y: -220 },
+    { id: 'tf3', x: 80, y: -350 },
+    { id: 'tf4', x: 140, y: -330 },
+    { id: 'tf5', x: 150, y: -190 },
+    { id: 'tf6', x: 250, y: -70 },
+    { id: 'tf7', x: 245, y: 350 },
+    { id: 'tf8', x: -245, y: 350 },
+    { id: 'tf9', x: -250, y: -70 },
+    { id: 'tf10', x: -150, y: -190 },
+  ];
+
+  const backPoints = [
+    { id: 'tb0', x: -140, y: -330 },
+    { id: 'tb1', x: -80, y: -350 },
+    { id: 'tb2', x: 0, y: -300 },
+    { id: 'tb3', x: 80, y: -350 },
+    { id: 'tb4', x: 140, y: -330 },
+    { id: 'tb5', x: 120, y: -190 },
+    { id: 'tb6', x: 250, y: -70 },
+    { id: 'tb7', x: 245, y: 350 },
+    { id: 'tb8', x: -245, y: 350 },
+    { id: 'tb9', x: -250, y: -70 },
+    { id: 'tb10', x: -120, y: -190 },
+  ];
+
+  const pieces: PatternPiece[] = [
+    {
+      id: 'piece-front',
+      name: 'Tank Front Panel',
+      points: frontPoints,
+      position: { x: 420, y: 440 },
+      rotation: 0,
+      color: '#0284c7',
+      placement: { origin3D: [0, 0.4, 0.16], rotation3D: [0, 0, 0] },
+    },
+    {
+      id: 'piece-back',
+      name: 'Racerback Panel',
+      points: backPoints,
+      position: { x: 1060, y: 440 },
+      rotation: 0,
+      color: '#0284c7',
+      placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
+    },
+  ];
+
+  const seams: SeamConnection[] = [
+    {
+      id: 'seam-tank-strap-l',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
+      strength: 1.0,
+      stitchType: 'flatlock',
+    },
+    {
+      id: 'seam-tank-strap-r',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 3 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
+      strength: 1.0,
+      stitchType: 'flatlock',
+    },
+    {
+      id: 'seam-tank-side-l',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 8 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 8 },
+      strength: 1.0,
+      stitchType: 'flatlock',
+    },
+    {
+      id: 'seam-tank-side-r',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 6 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 6 },
+      strength: 1.0,
+      stitchType: 'flatlock',
+    },
+  ];
+
+  return { pieces, seams };
+}
+
+// ==========================================
+// 6. Modern Boxy Cropped Streetwear Tee
+// True proportions: 46cm cropped length, 56cm relaxed boxy cut, drop shoulder
+// ==========================================
+export function createCropTopPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
+  const frontPoints = [
+    { id: 'cf0', x: -260, y: -230 },
+    { id: 'cf1', x: -85, y: -260 },
+    { id: 'cf2', x: 0, y: -190 },
+    { id: 'cf3', x: 85, y: -260 },
+    { id: 'cf4', x: 260, y: -230 },
+    { id: 'cf5', x: 275, y: -110 },
+    { id: 'cf6', x: 280, y: 0 },
+    { id: 'cf7', x: 275, y: 200 },
+    { id: 'cf8', x: -275, y: 200 },
+    { id: 'cf9', x: -280, y: 0 },
+    { id: 'cf10', x: -275, y: -110 },
+  ];
+
+  const backPoints = [
+    { id: 'cb0', x: -260, y: -230 },
+    { id: 'cb1', x: -85, y: -260 },
+    { id: 'cb2', x: 0, y: -240 },
+    { id: 'cb3', x: 85, y: -260 },
+    { id: 'cb4', x: 260, y: -230 },
+    { id: 'cb5', x: 275, y: -110 },
+    { id: 'cb6', x: 280, y: 0 },
+    { id: 'cb7', x: 275, y: 200 },
+    { id: 'cb8', x: -275, y: 200 },
+    { id: 'cb9', x: -280, y: 0 },
+    { id: 'cb10', x: -275, y: -110 },
+  ];
+
+  const pieces: PatternPiece[] = [
+    {
+      id: 'piece-front',
+      name: 'Cropped Front Bodice',
+      points: frontPoints,
+      position: { x: 420, y: 380 },
+      rotation: 0,
+      color: '#475569',
+      placement: { origin3D: [0, 0.4, 0.16], rotation3D: [0, 0, 0] },
+    },
+    {
+      id: 'piece-back',
+      name: 'Cropped Back Bodice',
+      points: backPoints,
+      position: { x: 1060, y: 380 },
+      rotation: 0,
+      color: '#475569',
+      placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
+    },
+  ];
+
+  const seams: SeamConnection[] = [
+    {
+      id: 'seam-crop-shoulder-l',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
+      strength: 1.0,
+      stitchType: 'single-needle',
+    },
+    {
+      id: 'seam-crop-shoulder-r',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 3 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
+      strength: 1.0,
+      stitchType: 'single-needle',
+    },
+    {
+      id: 'seam-crop-side-l',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 8 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 8 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+    {
+      id: 'seam-crop-side-r',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 6 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 6 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+  ];
+
+  return { pieces, seams };
+}
+
+// ==========================================
+// 7. Vintage Skate Drop-Shoulder Oversized Tee
+// True proportions: 76cm longline, 64cm chest, 60cm drop shoulder
+// ==========================================
+export function createOversizedTeePreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
+  const frontPoints = [
+    { id: 'of0', x: -300, y: -340 },
+    { id: 'of1', x: -95, y: -380 },
+    { id: 'of2', x: 0, y: -290 },
+    { id: 'of3', x: 95, y: -380 },
+    { id: 'of4', x: 300, y: -340 },
+    { id: 'of5', x: 310, y: -200 },
+    { id: 'of6', x: 320, y: -50 },
+    { id: 'of7', x: 320, y: 380 },
+    { id: 'of8', x: -320, y: 380 },
+    { id: 'of9', x: -320, y: -50 },
+    { id: 'of10', x: -310, y: -200 },
+  ];
+
+  const backPoints = [
+    { id: 'ob0', x: -300, y: -340 },
+    { id: 'ob1', x: -95, y: -380 },
+    { id: 'ob2', x: 0, y: -350 },
+    { id: 'ob3', x: 95, y: -380 },
+    { id: 'ob4', x: 300, y: -340 },
+    { id: 'ob5', x: 310, y: -200 },
+    { id: 'ob6', x: 320, y: -50 },
+    { id: 'ob7', x: 320, y: 380 },
+    { id: 'ob8', x: -320, y: 380 },
+    { id: 'ob9', x: -320, y: -50 },
+    { id: 'ob10', x: -310, y: -200 },
+  ];
+
+  const sleeveLPoints = [
+    { id: 'osl0', x: -250, y: -20 },
+    { id: 'osl1', x: 0, y: -90 },
+    { id: 'osl2', x: 250, y: -20 },
+    { id: 'osl3', x: 220, y: 150 },
+    { id: 'osl4', x: -220, y: 150 },
+  ];
+
+  const sleeveRPoints = JSON.parse(JSON.stringify(sleeveLPoints));
+
+  const collarPoints = [
+    { id: 'oc0', x: -240, y: -16 },
+    { id: 'oc1', x: 240, y: -16 },
+    { id: 'oc2', x: 240, y: 16 },
+    { id: 'oc3', x: -240, y: 16 },
+  ];
+
+  const pieces: PatternPiece[] = [
+    {
+      id: 'piece-front',
+      name: 'Oversized Front Bodice',
+      points: frontPoints,
+      position: { x: 400, y: 460 },
+      rotation: 0,
+      color: '#292524',
+      placement: { origin3D: [0, 0.4, 0.16], rotation3D: [0, 0, 0] },
+      graphics: [
+        {
+          id: 'g-skate',
+          name: 'Vintage Skate Print',
+          type: 'text',
+          content: 'HEAVYWEIGHT OVERSIZED',
+          x: 0,
+          y: -130,
+          scale: 1.0,
+          rotation: 0,
+          color: '#e7e5e4',
+          fontSize: 12,
+          opacity: 0.9,
+        },
+      ],
+    },
+    {
+      id: 'piece-back',
+      name: 'Oversized Back Bodice',
+      points: backPoints,
+      position: { x: 1080, y: 460 },
+      rotation: 0,
+      color: '#292524',
+      placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
+    },
+    {
+      id: 'piece-collar',
+      name: 'Thick Crewneck Rib',
+      points: collarPoints,
+      position: { x: 740, y: 90 },
+      rotation: 0,
+      color: '#1c1917',
+      placement: { origin3D: [0, 0.55, 0.05], rotation3D: [0, 0, 0] },
+    },
+    {
+      id: 'piece-sleeve-l',
+      name: 'Left Oversized Sleeve',
+      points: sleeveLPoints,
+      position: { x: 1720, y: 280 },
+      rotation: 0,
+      color: '#292524',
+      placement: { origin3D: [0.35, 0.35, 0], rotation3D: [0, 0, -Math.PI / 4] },
+    },
+    {
+      id: 'piece-sleeve-r',
+      name: 'Right Oversized Sleeve',
+      points: sleeveRPoints,
+      position: { x: 1720, y: 720 },
+      rotation: 0,
+      color: '#292524',
+      placement: { origin3D: [-0.35, 0.35, 0], rotation3D: [0, 0, Math.PI / 4] },
+    },
+  ];
+
+  const seams: SeamConnection[] = [
+    {
+      id: 'seam-over-shoulder-l',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
+      strength: 1.0,
+      stitchType: 'single-needle',
+    },
+    {
+      id: 'seam-over-shoulder-r',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 3 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
+      strength: 1.0,
+      stitchType: 'single-needle',
+    },
+    {
+      id: 'seam-over-side-l',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 8 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 8 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+    {
+      id: 'seam-over-side-r',
+      edgeA: { pieceId: 'piece-front', edgeIndex: 6 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 6 },
+      strength: 1.0,
+      stitchType: 'overlock',
+    },
+  ];
+
+  return { pieces, seams };
+}
+
+// ==========================================
+// 8. Casual Summer A-Line Dress
+// True proportions: 94cm length, tailored waist, flowing flared hemline
+// ==========================================
+export function createDressPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
+  const frontPoints = [
+    { id: 'df0', x: -160, y: -450 },
+    { id: 'df1', x: -80, y: -470 },
+    { id: 'df2', x: 0, y: -380 },
+    { id: 'df3', x: 80, y: -470 },
+    { id: 'df4', x: 160, y: -450 },
+    { id: 'df5', x: 175, y: -320 },
+    { id: 'df6', x: 240, y: -200 },
+    { id: 'df7', x: 210, y: -50 },
+    { id: 'df8', x: 360, y: 470 },
+    { id: 'df9', x: -360, y: 470 },
+    { id: 'df10', x: -210, y: -50 },
+    { id: 'df11', x: -240, y: -200 },
+    { id: 'df12', x: -175, y: -320 },
+  ];
+
+  const backPoints = [
+    { id: 'db0', x: -160, y: -450 },
+    { id: 'db1', x: -80, y: -470 },
+    { id: 'db2', x: 0, y: -440 },
+    { id: 'db3', x: 80, y: -470 },
+    { id: 'db4', x: 160, y: -450 },
+    { id: 'db5', x: 175, y: -320 },
+    { id: 'db6', x: 240, y: -200 },
+    { id: 'db7', x: 210, y: -50 },
+    { id: 'db8', x: 360, y: 470 },
+    { id: 'db9', x: -360, y: 470 },
+    { id: 'db10', x: -210, y: -50 },
+    { id: 'db11', x: -240, y: -200 },
+    { id: 'db12', x: -175, y: -320 },
   ];
 
   const pieces: PatternPiece[] = [
@@ -479,18 +1197,18 @@ export function createDressPreset(): { pieces: PatternPiece[]; seams: SeamConnec
       id: 'piece-front',
       name: 'Dress Front Panel',
       points: frontPoints,
-      position: { x: 190, y: 290 },
+      position: { x: 440, y: 520 },
       rotation: 0,
-      color: '#ec4899',
+      color: '#be185d',
       placement: { origin3D: [0, 0.4, 0.16], rotation3D: [0, 0, 0] },
     },
     {
       id: 'piece-back',
       name: 'Dress Back Panel',
       points: backPoints,
-      position: { x: 490, y: 290 },
+      position: { x: 1140, y: 520 },
       rotation: 0,
-      color: '#f43f5e',
+      color: '#be185d',
       placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
     },
   ];
@@ -505,548 +1223,20 @@ export function createDressPreset(): { pieces: PatternPiece[]; seams: SeamConnec
     },
     {
       id: 'seam-dress-shoulder-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 5 },
+      edgeA: { pieceId: 'piece-front', edgeIndex: 3 },
       edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
       strength: 1.0,
       stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-dress-side-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 10 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 8 },
-      strength: 1.0,
-      stitchType: 'overlock',
     },
     {
       id: 'seam-dress-side-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 12 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 10 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-  ];
-
-  return { pieces, seams };
-}
-
-// ==========================================
-// 3. Urban Streetwear Hoodie Preset
-// ==========================================
-export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
-  const frontPoints = [
-    { id: 'hf0', x: -160, y: -230 }, // Left drop shoulder
-    { id: 'hf1', x: -70, y: -250 },  // Left neck
-    { id: 'hf2', x: -30, y: -225 },
-    { id: 'hf3', x: 0, y: -195 },    // Center neck
-    { id: 'hf4', x: 30, y: -225 },
-    { id: 'hf5', x: 70, y: -250 },   // Right neck
-    { id: 'hf6', x: 160, y: -230 },  // Right drop shoulder
-    { id: 'hf7', x: 168, y: -165 },  // Right armhole
-    { id: 'hf8', x: 155, y: -80 },   // Armhole base
-    { id: 'hf9', x: 155, y: 220 },   // Right hem
-    { id: 'hf10', x: -155, y: 220 }, // Left hem
-    { id: 'hf11', x: -155, y: -80 },
-    { id: 'hf12', x: -168, y: -165 },
-  ];
-
-  const backPoints = [
-    { id: 'hb0', x: -160, y: -230 },
-    { id: 'hb1', x: -70, y: -250 },
-    { id: 'hb2', x: 0, y: -240 },
-    { id: 'hb3', x: 70, y: -250 },
-    { id: 'hb4', x: 160, y: -230 },
-    { id: 'hb5', x: 168, y: -165 },
-    { id: 'hb6', x: 155, y: -80 },
-    { id: 'hb7', x: 155, y: 220 },
-    { id: 'hb8', x: -155, y: 220 },
-    { id: 'hb9', x: -155, y: -80 },
-    { id: 'hb10', x: -168, y: -165 },
-  ];
-
-  const pocketPoints = [
-    { id: 'pk0', x: -75, y: -30 },  // Top edge
-    { id: 'pk1', x: 75, y: -30 },
-    { id: 'pk2', x: 115, y: 40 },  // Angled pocket hand opening
-    { id: 'pk3', x: 115, y: 110 }, // Bottom side
-    { id: 'pk4', x: -115, y: 110 },
-    { id: 'pk5', x: -115, y: 40 },
-  ];
-
-  const hoodPoints = [
-    { id: 'hd0', x: -70, y: -120 },
-    { id: 'hd1', x: 30, y: -130 },
-    { id: 'hd2', x: 90, y: -70 },
-    { id: 'hd3', x: 90, y: 50 },
-    { id: 'hd4', x: -40, y: 60 },
-    { id: 'hd5', x: -80, y: 10 },
-  ];
-
-  const sleeveLPoints = [
-    { id: 'hsl0', x: -105, y: -20 },
-    { id: 'hsl1', x: -90, y: -65 },
-    { id: 'hsl2', x: 0, y: -90 },
-    { id: 'hsl3', x: 90, y: -65 },
-    { id: 'hsl4', x: 105, y: -20 },
-    { id: 'hsl5', x: 65, y: 160 }, // Long sleeve wrist cuff
-    { id: 'hsl6', x: -65, y: 160 },
-  ];
-
-  const sleeveRPoints = JSON.parse(JSON.stringify(sleeveLPoints));
-
-  const pieces: PatternPiece[] = [
-    {
-      id: 'piece-front',
-      name: 'Hoodie Front Torso',
-      points: frontPoints,
-      position: { x: 180, y: 260 },
-      rotation: 0,
-      color: '#475569',
-      placement: { origin3D: [0, 0.4, 0.17], rotation3D: [0, 0, 0] },
-      graphics: [
-        {
-          id: 'h-print',
-          name: 'Box Logo',
-          type: 'text',
-          content: 'CLO // STUDIO 2026',
-          x: 0,
-          y: -110,
-          scale: 1.1,
-          rotation: 0,
-          color: '#f8fafc',
-          fontSize: 12,
-          opacity: 0.95,
-        },
-      ],
-    },
-    {
-      id: 'piece-back',
-      name: 'Hoodie Back Torso',
-      points: backPoints,
-      position: { x: 480, y: 260 },
-      rotation: 0,
-      color: '#334155',
-      placement: { origin3D: [0, 0.4, -0.11], rotation3D: [0, Math.PI, 0] },
-    },
-    {
-      id: 'piece-pocket',
-      name: 'Kangaroo Pocket',
-      points: pocketPoints,
-      position: { x: 180, y: 440 },
-      rotation: 0,
-      color: '#64748b',
-      placement: { origin3D: [0, 0.2, 0.18], rotation3D: [0, 0, 0] },
-    },
-    {
-      id: 'piece-hood',
-      name: 'Hood Side Panel',
-      points: hoodPoints,
-      position: { x: 330, y: 90 },
-      rotation: 0,
-      color: '#94a3b8',
-      placement: { origin3D: [0, 0.6, 0.0], rotation3D: [0, 0, 0] },
-    },
-    {
-      id: 'piece-sleeve-l',
-      name: 'Left Long Sleeve',
-      points: sleeveLPoints,
-      position: { x: 740, y: 190 },
-      rotation: 0,
-      color: '#475569',
-      placement: { origin3D: [0.42, 0.3, 0], rotation3D: [0, 0, -Math.PI / 4] },
-    },
-    {
-      id: 'piece-sleeve-r',
-      name: 'Right Long Sleeve',
-      points: sleeveRPoints,
-      position: { x: 740, y: 430 },
-      rotation: 0,
-      color: '#475569',
-      placement: { origin3D: [-0.42, 0.3, 0], rotation3D: [0, 0, Math.PI / 4] },
-    },
-  ];
-
-  const seams: SeamConnection[] = [
-    {
-      id: 'seam-hoodie-sh-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
-      strength: 1.2,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-hoodie-sh-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 5 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
-      strength: 1.2,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-hoodie-sd-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 8 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 6 },
-      strength: 1.2,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-hoodie-sd-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 10 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 8 },
-      strength: 1.2,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-hoodie-sleeve-l',
-      edgeA: { pieceId: 'piece-sleeve-l', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 12 },
+      edgeA: { pieceId: 'piece-front', edgeIndex: 9 },
+      edgeB: { pieceId: 'piece-back', edgeIndex: 9 },
       strength: 1.0,
       stitchType: 'overlock',
     },
     {
-      id: 'seam-hoodie-sleeve-r',
-      edgeA: { pieceId: 'piece-sleeve-r', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 6 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-hoodie-hood',
-      edgeA: { pieceId: 'piece-hood', edgeIndex: 3 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 1 },
-      strength: 1.2,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-hoodie-pocket',
-      edgeA: { pieceId: 'piece-pocket', edgeIndex: 3 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 9 },
-      strength: 1.2,
-      stitchType: 'topstitch',
-    },
-  ];
-
-  return { pieces, seams };
-}
-
-// ==========================================
-// 4. Zip Bomber Jacket Preset
-// ==========================================
-export function createBomberJacketPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
-  const frontLeft = [
-    { id: 'bl0', x: -140, y: -220 },
-    { id: 'bl1', x: -60, y: -245 },
-    { id: 'bl2', x: 0, y: -215 },
-    { id: 'bl3', x: 0, y: 190 },
-    { id: 'bl4', x: -140, y: 190 },
-    { id: 'bl5', x: -135, y: -90 },
-  ];
-
-  const frontRight = [
-    { id: 'br0', x: 0, y: -215 },
-    { id: 'br1', x: 60, y: -245 },
-    { id: 'br2', x: 140, y: -220 },
-    { id: 'br3', x: 135, y: -90 },
-    { id: 'br4', x: 140, y: 190 },
-    { id: 'br5', x: 0, y: 190 },
-  ];
-
-  const backPoints = [
-    { id: 'bb0', x: -140, y: -220 },
-    { id: 'bb1', x: -60, y: -245 },
-    { id: 'bb2', x: 0, y: -235 },
-    { id: 'bb3', x: 60, y: -245 },
-    { id: 'bb4', x: 140, y: -220 },
-    { id: 'bb5', x: 135, y: -90 },
-    { id: 'bb6', x: 140, y: 190 },
-    { id: 'bb7', x: -140, y: 190 },
-    { id: 'bb8', x: -135, y: -90 },
-  ];
-
-  const sleeveLPoints = [
-    { id: 'bms0', x: -105, y: -20 },
-    { id: 'bms1', x: -90, y: -65 },
-    { id: 'bms2', x: 0, y: -90 },
-    { id: 'bms3', x: 90, y: -65 },
-    { id: 'bms4', x: 105, y: -20 },
-    { id: 'bms5', x: 65, y: 160 },
-    { id: 'bms6', x: -65, y: 160 },
-  ];
-  const sleeveRPoints = JSON.parse(JSON.stringify(sleeveLPoints));
-
-  const collarPoints = [
-    { id: 'bmc0', x: -95, y: -15 },
-    { id: 'bmc1', x: 95, y: -15 },
-    { id: 'bmc2', x: 95, y: 15 },
-    { id: 'bmc3', x: -95, y: 15 },
-  ];
-
-  const pieces: PatternPiece[] = [
-    {
-      id: 'piece-bomber-front-l',
-      name: 'Bomber Left Front Panel',
-      points: frontLeft,
-      position: { x: 140, y: 260 },
-      rotation: 0,
-      color: '#0f766e',
-      placement: { origin3D: [-0.08, 0.4, 0.16], rotation3D: [0, 0, 0] },
-    },
-    {
-      id: 'piece-bomber-front-r',
-      name: 'Bomber Right Front Panel',
-      points: frontRight,
-      position: { x: 300, y: 260 },
-      rotation: 0,
-      color: '#0d9488',
-      placement: { origin3D: [0.08, 0.4, 0.16], rotation3D: [0, 0, 0] },
-    },
-    {
-      id: 'piece-bomber-back',
-      name: 'Bomber Back Panel',
-      points: backPoints,
-      position: { x: 510, y: 260 },
-      rotation: 0,
-      color: '#115e59',
-      placement: { origin3D: [0, 0.4, -0.11], rotation3D: [0, Math.PI, 0] },
-    },
-    {
-      id: 'piece-bomber-sleeve-l',
-      name: 'Bomber Left Long Sleeve',
-      points: sleeveLPoints,
-      position: { x: 740, y: 190 },
-      rotation: 0,
-      color: '#0f766e',
-      placement: { origin3D: [0.42, 0.3, 0], rotation3D: [0, 0, -Math.PI / 4] },
-    },
-    {
-      id: 'piece-bomber-sleeve-r',
-      name: 'Bomber Right Long Sleeve',
-      points: sleeveRPoints,
-      position: { x: 740, y: 430 },
-      rotation: 0,
-      color: '#0f766e',
-      placement: { origin3D: [-0.42, 0.3, 0], rotation3D: [0, 0, Math.PI / 4] },
-    },
-    {
-      id: 'piece-bomber-collar',
-      name: 'Bomber Ribbed Baseball Collar',
-      points: collarPoints,
-      position: { x: 320, y: 80 },
-      rotation: 0,
-      color: '#134e4a',
-      placement: { origin3D: [0, 0.55, 0.05], rotation3D: [0, 0, 0] },
-    },
-  ];
-
-  const seams: SeamConnection[] = [
-    {
-      id: 'seam-bomber-zipper',
-      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 2 },
-      edgeB: { pieceId: 'piece-bomber-front-r', edgeIndex: 5 },
-      strength: 1.5,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-bomber-sh-l',
-      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 0 },
-      strength: 1.3,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-bomber-sh-r',
-      edgeA: { pieceId: 'piece-bomber-front-r', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 3 },
-      strength: 1.3,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-bomber-sd-l',
-      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 4 },
-      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 7 },
-      strength: 1.2,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-bomber-sd-r',
-      edgeA: { pieceId: 'piece-bomber-front-r', edgeIndex: 3 },
-      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 5 },
-      strength: 1.2,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-bomber-sleeve-l',
-      edgeA: { pieceId: 'piece-bomber-sleeve-l', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-bomber-front-l', edgeIndex: 5 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-bomber-sleeve-r',
-      edgeA: { pieceId: 'piece-bomber-sleeve-r', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-bomber-front-r', edgeIndex: 2 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-  ];
-
-  return { pieces, seams };
-}
-
-// ==========================================
-// 5. Fitted Athletic Tank Top Preset
-// ==========================================
-export function createTankTopPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
-  const frontPoints = [
-    { id: 'tf0', x: -85, y: -220 },
-    { id: 'tf1', x: -45, y: -240 },
-    { id: 'tf2', x: 0, y: -160 },
-    { id: 'tf3', x: 45, y: -240 },
-    { id: 'tf4', x: 85, y: -220 },
-    { id: 'tf5', x: 125, y: -80 },
-    { id: 'tf6', x: 120, y: 140 },
-    { id: 'tf7', x: -120, y: 140 },
-    { id: 'tf8', x: -125, y: -80 },
-  ];
-
-  const backPoints = [
-    { id: 'tb0', x: -85, y: -220 },
-    { id: 'tb1', x: -45, y: -240 },
-    { id: 'tb2', x: 0, y: -210 },
-    { id: 'tb3', x: 45, y: -240 },
-    { id: 'tb4', x: 85, y: -220 },
-    { id: 'tb5', x: 125, y: -80 },
-    { id: 'tb6', x: 120, y: 140 },
-    { id: 'tb7', x: -120, y: 140 },
-    { id: 'tb8', x: -125, y: -80 },
-  ];
-
-  const pieces: PatternPiece[] = [
-    {
-      id: 'piece-front',
-      name: 'Tank Front',
-      points: frontPoints,
-      position: { x: 160, y: 250 },
-      rotation: 0,
-      color: '#06b6d4',
-      placement: { origin3D: [0, 0.4, 0.16], rotation3D: [0, 0, 0] },
-    },
-    {
-      id: 'piece-back',
-      name: 'Tank Back',
-      points: backPoints,
-      position: { x: 420, y: 250 },
-      rotation: 0,
-      color: '#0284c7',
-      placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
-    },
-  ];
-
-  const seams: SeamConnection[] = [
-    {
-      id: 'seam-tank-shoulder-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
-      strength: 1.0,
-      stitchType: 'flatlock',
-    },
-    {
-      id: 'seam-tank-shoulder-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 3 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
-      strength: 1.0,
-      stitchType: 'flatlock',
-    },
-    {
-      id: 'seam-tank-side-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 5 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 5 },
-      strength: 1.0,
-      stitchType: 'flatlock',
-    },
-    {
-      id: 'seam-tank-side-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 7 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 7 },
-      strength: 1.0,
-      stitchType: 'flatlock',
-    },
-  ];
-
-  return { pieces, seams };
-}
-
-// ==========================================
-// 6. Trendy Cropped Top Preset
-// ==========================================
-export function createCropTopPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
-  const frontPoints = [
-    { id: 'cf0', x: -130, y: -220 },
-    { id: 'cf1', x: -55, y: -250 },
-    { id: 'cf2', x: 0, y: -190 },
-    { id: 'cf3', x: 55, y: -250 },
-    { id: 'cf4', x: 130, y: -220 },
-    { id: 'cf5', x: 120, y: -100 },
-    { id: 'cf6', x: 115, y: 30 },
-    { id: 'cf7', x: -115, y: 30 },
-    { id: 'cf8', x: -120, y: -100 },
-  ];
-
-  const backPoints = [
-    { id: 'cb0', x: -130, y: -220 },
-    { id: 'cb1', x: -55, y: -250 },
-    { id: 'cb2', x: 0, y: -230 },
-    { id: 'cb3', x: 55, y: -250 },
-    { id: 'cb4', x: 130, y: -220 },
-    { id: 'cb5', x: 120, y: -100 },
-    { id: 'cb6', x: 115, y: 30 },
-    { id: 'cb7', x: -115, y: 30 },
-    { id: 'cb8', x: -120, y: -100 },
-  ];
-
-  const pieces: PatternPiece[] = [
-    {
-      id: 'piece-front',
-      name: 'Crop Top Front',
-      points: frontPoints,
-      position: { x: 160, y: 240 },
-      rotation: 0,
-      color: '#a855f7',
-      placement: { origin3D: [0, 0.4, 0.16], rotation3D: [0, 0, 0] },
-    },
-    {
-      id: 'piece-back',
-      name: 'Crop Top Back',
-      points: backPoints,
-      position: { x: 420, y: 240 },
-      rotation: 0,
-      color: '#9333ea',
-      placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
-    },
-  ];
-
-  const seams: SeamConnection[] = [
-    {
-      id: 'seam-crop-shoulder-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-crop-shoulder-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 3 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-crop-side-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 5 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 5 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-crop-side-l',
+      id: 'seam-dress-side-r',
       edgeA: { pieceId: 'piece-front', edgeIndex: 7 },
       edgeB: { pieceId: 'piece-back', edgeIndex: 7 },
       strength: 1.0,
@@ -1058,211 +1248,83 @@ export function createCropTopPreset(): { pieces: PatternPiece[]; seams: SeamConn
 }
 
 // ==========================================
-// 7. Streetwear Boxy Oversized Tee Preset
-// ==========================================
-export function createOversizedTeePreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
-  const frontPoints = [
-    { id: 'of0', x: -165, y: -215 }, // Left drop shoulder
-    { id: 'of1', x: -70, y: -245 },  // Left neck
-    { id: 'of2', x: -30, y: -225 },
-    { id: 'of3', x: 0, y: -205 },    // Center neck
-    { id: 'of4', x: 30, y: -225 },
-    { id: 'of5', x: 70, y: -245 },   // Right neck
-    { id: 'of6', x: 165, y: -215 },  // Right drop shoulder
-    { id: 'of7', x: 175, y: -160 },  // Dropped armhole
-    { id: 'of8', x: 155, y: -80 },   // Armhole bottom
-    { id: 'of9', x: 160, y: 220 },   // Wide hem
-    { id: 'of10', x: -160, y: 220 },
-    { id: 'of11', x: -155, y: -80 },
-    { id: 'of12', x: -175, y: -160 },
-  ];
-
-  const backPoints = [
-    { id: 'ob0', x: -165, y: -215 },
-    { id: 'ob1', x: -70, y: -245 },
-    { id: 'ob2', x: 0, y: -238 },
-    { id: 'ob3', x: 70, y: -245 },
-    { id: 'ob4', x: 165, y: -215 },
-    { id: 'ob5', x: 175, y: -160 },
-    { id: 'ob6', x: 155, y: -80 },
-    { id: 'ob7', x: 160, y: 220 },
-    { id: 'ob8', x: -160, y: 220 },
-    { id: 'ob9', x: -155, y: -80 },
-    { id: 'ob10', x: -175, y: -160 },
-  ];
-
-  const sleeveLPoints = [
-    { id: 'osl0', x: -110, y: -20 },
-    { id: 'osl1', x: -95, y: -65 },
-    { id: 'osl2', x: 0, y: -90 }, // Flatter dropped cap
-    { id: 'osl3', x: 95, y: -65 },
-    { id: 'osl4', x: 110, y: -20 },
-    { id: 'osl5', x: 95, y: 100 },
-    { id: 'osl6', x: -95, y: 100 },
-  ];
-
-  const sleeveRPoints = JSON.parse(JSON.stringify(sleeveLPoints));
-
-  const collarPoints = [
-    { id: 'oc0', x: -115, y: -15 },
-    { id: 'oc1', x: 115, y: -15 },
-    { id: 'oc2', x: 115, y: 15 },
-    { id: 'oc3', x: -115, y: 15 },
-  ];
-
-  const pieces: PatternPiece[] = [
-    {
-      id: 'piece-front',
-      name: 'Oversized Front',
-      points: frontPoints,
-      position: { x: 190, y: 270 },
-      rotation: 0,
-      color: '#10b981',
-      placement: { origin3D: [0, 0.4, 0.17], rotation3D: [0, 0, 0] },
-    },
-    {
-      id: 'piece-back',
-      name: 'Oversized Back',
-      points: backPoints,
-      position: { x: 480, y: 270 },
-      rotation: 0,
-      color: '#059669',
-      placement: { origin3D: [0, 0.4, -0.11], rotation3D: [0, Math.PI, 0] },
-    },
-    {
-      id: 'piece-sleeve-l',
-      name: 'Left Dropped Sleeve',
-      points: sleeveLPoints,
-      position: { x: 740, y: 190 },
-      rotation: 0,
-      color: '#34d399',
-      placement: { origin3D: [0.38, 0.32, 0], rotation3D: [0, 0, -Math.PI / 4] },
-    },
-    {
-      id: 'piece-sleeve-r',
-      name: 'Right Dropped Sleeve',
-      points: sleeveRPoints,
-      position: { x: 740, y: 400 },
-      rotation: 0,
-      color: '#34d399',
-      placement: { origin3D: [-0.38, 0.32, 0], rotation3D: [0, 0, Math.PI / 4] },
-    },
-    {
-      id: 'piece-collar',
-      name: 'Ribbed Collar Band',
-      points: collarPoints,
-      position: { x: 330, y: 540 },
-      rotation: 0,
-      color: '#d1fae5',
-      placement: { origin3D: [0, 0.55, 0.05], rotation3D: [0, 0, 0] },
-    },
-  ];
-
-  const seams: SeamConnection[] = [
-    {
-      id: 'seam-over-shoulder-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-over-shoulder-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 5 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-over-side-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 8 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 6 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-over-side-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 10 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 8 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-over-sleeve-l',
-      edgeA: { pieceId: 'piece-sleeve-l', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 12 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-over-sleeve-r',
-      edgeA: { pieceId: 'piece-sleeve-r', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 6 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-  ];
-
-  return { pieces, seams };
-}
-
-// ==========================================
-// 8. Flared A-Line Skirt Preset
+// 9. Flared A-Line Midi Skirt
+// True proportions: 76cm length, 36cm flat waistband, 88cm flared hem
 // ==========================================
 export function createSkirtPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
   const frontPoints = [
-    { id: 'sf0', x: -125, y: -100 },
-    { id: 'sf1', x: 0, y: -90 },
-    { id: 'sf2', x: 125, y: -100 },
-    { id: 'sf3', x: 210, y: 220 },
-    { id: 'sf4', x: 0, y: 240 },
-    { id: 'sf5', x: -210, y: 220 },
+    { id: 'sf0', x: -180, y: -380 },
+    { id: 'sf1', x: 0, y: -370 },
+    { id: 'sf2', x: 180, y: -380 },
+    { id: 'sf3', x: 240, y: -200 },
+    { id: 'sf4', x: 440, y: 380 },
+    { id: 'sf5', x: 0, y: 395 },
+    { id: 'sf6', x: -440, y: 380 },
+    { id: 'sf7', x: -240, y: -200 },
   ];
 
   const backPoints = [
-    { id: 'sb0', x: -125, y: -100 },
-    { id: 'sb1', x: 0, y: -95 },
-    { id: 'sb2', x: 125, y: -100 },
-    { id: 'sb3', x: 210, y: 220 },
-    { id: 'sb4', x: 0, y: 240 },
-    { id: 'sb5', x: -210, y: 220 },
+    { id: 'sb0', x: -180, y: -380 },
+    { id: 'sb1', x: 0, y: -370 },
+    { id: 'sb2', x: 180, y: -380 },
+    { id: 'sb3', x: 240, y: -200 },
+    { id: 'sb4', x: 440, y: 380 },
+    { id: 'sb5', x: 0, y: 395 },
+    { id: 'sb6', x: -440, y: 380 },
+    { id: 'sb7', x: -240, y: -200 },
+  ];
+
+  const waistbandPoints = [
+    { id: 'sw0', x: -180, y: -20 },
+    { id: 'sw1', x: 180, y: -20 },
+    { id: 'sw2', x: 180, y: 20 },
+    { id: 'sw3', x: -180, y: 20 },
   ];
 
   const pieces: PatternPiece[] = [
     {
       id: 'piece-front-skirt',
-      name: 'Skirt Front',
+      name: 'Front Skirt Flare',
       points: frontPoints,
-      position: { x: 180, y: 250 },
+      position: { x: 480, y: 480 },
       rotation: 0,
-      color: '#f59e0b',
-      placement: { origin3D: [0, 0.0, 0.14], rotation3D: [0, 0, 0] },
+      color: '#b45309',
+      placement: { origin3D: [0, 0, 0.16], rotation3D: [0, 0, 0] },
     },
     {
       id: 'piece-back-skirt',
-      name: 'Skirt Back',
+      name: 'Back Skirt Flare',
       points: backPoints,
-      position: { x: 460, y: 250 },
+      position: { x: 1180, y: 480 },
       rotation: 0,
-      color: '#d97706',
-      placement: { origin3D: [0, 0.0, -0.10], rotation3D: [0, Math.PI, 0] },
+      color: '#b45309',
+      placement: { origin3D: [0, 0, -0.10], rotation3D: [0, Math.PI, 0] },
+    },
+    {
+      id: 'piece-waistband',
+      name: 'Elastic Waistband Band',
+      points: waistbandPoints,
+      position: { x: 830, y: 80 },
+      rotation: 0,
+      color: '#78350f',
+      placement: { origin3D: [0, 0.2, 0.05], rotation3D: [0, 0, 0] },
     },
   ];
 
   const seams: SeamConnection[] = [
     {
-      id: 'seam-skirt-r',
-      edgeA: { pieceId: 'piece-front-skirt', edgeIndex: 2 },
-      edgeB: { pieceId: 'piece-back-skirt', edgeIndex: 2 },
+      id: 'seam-skirt-side-l',
+      edgeA: { pieceId: 'piece-front-skirt', edgeIndex: 6 },
+      edgeB: { pieceId: 'piece-back-skirt', edgeIndex: 6 },
       strength: 1.0,
-      stitchType: 'single-needle',
+      stitchType: 'overlock',
     },
     {
-      id: 'seam-skirt-l',
-      edgeA: { pieceId: 'piece-front-skirt', edgeIndex: 5 },
-      edgeB: { pieceId: 'piece-back-skirt', edgeIndex: 5 },
+      id: 'seam-skirt-side-r',
+      edgeA: { pieceId: 'piece-front-skirt', edgeIndex: 3 },
+      edgeB: { pieceId: 'piece-back-skirt', edgeIndex: 3 },
       strength: 1.0,
-      stitchType: 'single-needle',
+      stitchType: 'overlock',
     },
   ];
 
@@ -1270,166 +1332,15 @@ export function createSkirtPreset(): { pieces: PatternPiece[]; seams: SeamConnec
 }
 
 // ==========================================
-// 9. Classic Pique Polo Shirt Preset
-// ==========================================
-export function createPoloPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
-  const frontPoints = [
-    { id: 'pf0', x: -140, y: -220 },
-    { id: 'pf1', x: -60, y: -248 },
-    { id: 'pf2', x: -15, y: -160 }, // Left Placket notch
-    { id: 'pf3', x: 15, y: -160 },  // Right Placket notch
-    { id: 'pf4', x: 60, y: -248 },
-    { id: 'pf5', x: 140, y: -220 },
-    { id: 'pf6', x: 125, y: -100 },
-    { id: 'pf7', x: 130, y: 190 },
-    { id: 'pf8', x: -130, y: 190 },
-    { id: 'pf9', x: -125, y: -100 },
-  ];
-
-  const backPoints = [
-    { id: 'pb0', x: -140, y: -220 },
-    { id: 'pb1', x: -60, y: -248 },
-    { id: 'pb2', x: 0, y: -240 },
-    { id: 'pb3', x: 60, y: -248 },
-    { id: 'pb4', x: 140, y: -220 },
-    { id: 'pb5', x: 125, y: -100 },
-    { id: 'pb6', x: 130, y: 195 },
-    { id: 'pb7', x: -130, y: 195 },
-    { id: 'pb8', x: -125, y: -100 },
-  ];
-
-  const collarPoints = [
-    { id: 'pc0', x: -90, y: -30 },
-    { id: 'pc1', x: 90, y: -30 },
-    { id: 'pc2', x: 110, y: 25 },
-    { id: 'pc3', x: -110, y: 25 },
-  ];
-
-  const sleeveLPoints = [
-    { id: 'psl0', x: -90, y: -15 },
-    { id: 'psl1', x: -75, y: -55 },
-    { id: 'psl2', x: 0, y: -95 },
-    { id: 'psl3', x: 75, y: -55 },
-    { id: 'psl4', x: 90, y: -15 },
-    { id: 'psl5', x: 75, y: 75 },
-    { id: 'psl6', x: -75, y: 75 },
-  ];
-
-  const sleeveRPoints = JSON.parse(JSON.stringify(sleeveLPoints));
-
-  const pieces: PatternPiece[] = [
-    {
-      id: 'piece-front',
-      name: 'Polo Front Bodice',
-      points: frontPoints,
-      position: { x: 180, y: 260 },
-      rotation: 0,
-      color: '#1e40af',
-      placement: { origin3D: [0, 0.4, 0.16], rotation3D: [0, 0, 0] },
-    },
-    {
-      id: 'piece-back',
-      name: 'Polo Back Bodice',
-      points: backPoints,
-      position: { x: 460, y: 260 },
-      rotation: 0,
-      color: '#1d4ed8',
-      placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
-    },
-    {
-      id: 'piece-collar',
-      name: 'Ribbed Knit Collar',
-      points: collarPoints,
-      position: { x: 320, y: 70 },
-      rotation: 0,
-      color: '#e2e8f0',
-      placement: { origin3D: [0, 0.55, 0.05], rotation3D: [0, 0, 0] },
-    },
-    {
-      id: 'piece-sleeve-l',
-      name: 'Left Sleeve',
-      points: sleeveLPoints,
-      position: { x: 720, y: 180 },
-      rotation: 0,
-      color: '#2563eb',
-      placement: { origin3D: [0.35, 0.35, 0], rotation3D: [0, 0, -Math.PI / 4] },
-    },
-    {
-      id: 'piece-sleeve-r',
-      name: 'Right Sleeve',
-      points: sleeveRPoints,
-      position: { x: 720, y: 380 },
-      rotation: 0,
-      color: '#2563eb',
-      placement: { origin3D: [-0.35, 0.35, 0], rotation3D: [0, 0, Math.PI / 4] },
-    },
-  ];
-
-  const seams: SeamConnection[] = [
-    {
-      id: 'seam-polo-sh-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-polo-sh-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 4 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-polo-sd-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 6 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 5 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-polo-sd-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 8 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 7 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-polo-sleeve-l',
-      edgeA: { pieceId: 'piece-sleeve-l', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 9 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-polo-sleeve-r',
-      edgeA: { pieceId: 'piece-sleeve-r', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 5 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-polo-collar',
-      edgeA: { pieceId: 'piece-collar', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 1 },
-      strength: 1.2,
-      stitchType: 'double-needle',
-    },
-  ];
-
-  return { pieces, seams };
-}
-
-// ==========================================
-// Garment Template Library Descriptor
+// Garment Template Catalog
 // ==========================================
 export interface GarmentTemplate {
   id: string;
   name: string;
   category: 'Tops' | 'Outerwear' | 'Dresses' | 'Skirts';
+  icon: string;
   description: string;
   piecesCount: number;
-  icon: string;
   recommendedFabric: string;
   recommendedColor: string;
   generator: () => { pieces: PatternPiece[]; seams: SeamConnection[] };
@@ -1438,21 +1349,21 @@ export interface GarmentTemplate {
 export const GARMENT_TEMPLATES: GarmentTemplate[] = [
   {
     id: 'tshirt',
-    name: 'Classic Crewneck Tee',
+    name: 'Streetwear Boxy Tee',
     category: 'Tops',
     icon: '👕',
-    description: 'Timeless tailored crewneck t-shirt with anatomical curved short sleeves, ribbed neckband, and natural shoulder drape.',
+    description: 'Authentic 240 GSM heavyweight boxy drop-shoulder tee with 72cm length, 58cm chest, twin-needle hems and ribbed collar.',
     piecesCount: 5,
     recommendedFabric: 'cotton-jersey',
-    recommendedColor: '#38bdf8',
+    recommendedColor: '#1e293b',
     generator: createTshirtPreset,
   },
   {
     id: 'hoodie',
-    name: 'Streetwear Pullover Hoodie',
+    name: 'Heavyweight Boxy Hoodie',
     category: 'Outerwear',
     icon: '🧥',
-    description: 'Heavy fleece boxy hoodie featuring long sleeves with wrist cuffs, kangaroo pocket, and sculpted hood.',
+    description: '400 GSM fleece streetwear pullover with 60cm full long sleeves, ribbed cuffs, authentic kangaroo pocket, and double-layer hood.',
     piecesCount: 6,
     recommendedFabric: 'french-terry',
     recommendedColor: '#334155',
@@ -1460,14 +1371,58 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
   },
   {
     id: 'bomber',
-    name: 'Zip Bomber Jacket',
+    name: 'MA-1 Flight Bomber Jacket',
     category: 'Outerwear',
     icon: '🧥',
-    description: 'Structured zip-front bomber with flight panels, ribbed collar and cuffs, and long sleeves.',
+    description: 'Military flight jacket with split front zip panels, gathered long sleeves, baseball varsity collar, and ribbed waistband.',
     piecesCount: 6,
-    recommendedFabric: 'structured-leather',
-    recommendedColor: '#0f766e',
+    recommendedFabric: 'tech-ripstop',
+    recommendedColor: '#1c3d2e',
     generator: createBomberJacketPreset,
+  },
+  {
+    id: 'polo',
+    name: 'Classic Pique Polo Shirt',
+    category: 'Tops',
+    icon: '👔',
+    description: '3-button placket polo with flat-knit turnover collar, ribbed armbands, and tennis dropped-tail side vents.',
+    piecesCount: 5,
+    recommendedFabric: 'pique-cotton',
+    recommendedColor: '#1e3a8a',
+    generator: createPoloPreset,
+  },
+  {
+    id: 'oversized',
+    name: 'Vintage Skate Oversized Tee',
+    category: 'Tops',
+    icon: '👕',
+    description: '76cm longline skate aesthetic with deep drop-shoulder cut, 64cm wide chest, and elbow-grazing short sleeves.',
+    piecesCount: 5,
+    recommendedFabric: 'cotton-jersey',
+    recommendedColor: '#292524',
+    generator: createOversizedTeePreset,
+  },
+  {
+    id: 'croptop',
+    name: 'Boxy Cropped Streetwear Tee',
+    category: 'Tops',
+    icon: '👚',
+    description: 'Clean 46cm cropped length ending right at the natural waistline with relaxed boxy drop shoulders.',
+    piecesCount: 2,
+    recommendedFabric: 'cotton-jersey',
+    recommendedColor: '#475569',
+    generator: createCropTopPreset,
+  },
+  {
+    id: 'tanktop',
+    name: 'Athletic Muscle Tank Top',
+    category: 'Tops',
+    icon: '🎽',
+    description: 'Racerback-styled athletic sleeveless tank with deep scoop neck and flatlock stretch seams.',
+    piecesCount: 2,
+    recommendedFabric: 'sport-spandex',
+    recommendedColor: '#0284c7',
+    generator: createTankTopPreset,
   },
   {
     id: 'dress',
@@ -1477,62 +1432,18 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
     description: 'Flowing feminine silhouette with fitted bust, tailored waist, and flared hemline.',
     piecesCount: 2,
     recommendedFabric: 'silk-satin',
-    recommendedColor: '#ec4899',
+    recommendedColor: '#be185d',
     generator: createDressPreset,
   },
   {
-    id: 'polo',
-    name: 'Classic Pique Polo Shirt',
-    category: 'Tops',
-    icon: '👔',
-    description: 'Clean preppy polo featuring short sleeves, button placket cutout, and contrasting ribbed collar band.',
-    piecesCount: 5,
-    recommendedFabric: 'cotton-jersey',
-    recommendedColor: '#1e40af',
-    generator: createPoloPreset,
-  },
-  {
-    id: 'tanktop',
-    name: 'Athletic Tank Top',
-    category: 'Tops',
-    icon: '🎽',
-    description: 'Racerback-styled athletic sleeveless tank with deep scoop neck and flatlock stretch seams.',
-    piecesCount: 2,
-    recommendedFabric: 'sport-spandex',
-    recommendedColor: '#06b6d4',
-    generator: createTankTopPreset,
-  },
-  {
-    id: 'croptop',
-    name: 'Modern Crop Top',
-    category: 'Tops',
-    icon: '👚',
-    description: 'Minimalist contemporary cropped top ending cleanly above the waistline.',
-    piecesCount: 2,
-    recommendedFabric: 'cotton-jersey',
-    recommendedColor: '#a855f7',
-    generator: createCropTopPreset,
-  },
-  {
-    id: 'oversized',
-    name: 'Boxy Drop-Shoulder Tee',
-    category: 'Tops',
-    icon: '👕',
-    description: 'Relaxed streetwear aesthetic with dropped shoulder lines, wide short sleeves, and thick ribbed collar.',
-    piecesCount: 5,
-    recommendedFabric: 'heavy-denim',
-    recommendedColor: '#10b981',
-    generator: createOversizedTeePreset,
-  },
-  {
     id: 'skirt',
-    name: 'Flared A-Line Skirt',
+    name: 'Flared A-Line Midi Skirt',
     category: 'Skirts',
     icon: '👗',
     description: 'High-waisted flared skirt with natural circular drapery folds and hem flare.',
-    piecesCount: 2,
+    piecesCount: 3,
     recommendedFabric: 'silk-satin',
-    recommendedColor: '#f59e0b',
+    recommendedColor: '#b45309',
     generator: createSkirtPreset,
   },
 ];
@@ -1554,44 +1465,26 @@ export function exportPatternsToSvg(pieces: PatternPiece[]): string {
     });
   });
 
-  const padding = 50;
-  const width = Math.max(800, (maxX - minX) + padding * 2);
-  const height = Math.max(600, (maxY - minY) + padding * 2);
-  const viewBox = `${minX - padding} ${minY - padding} ${width} ${height}`;
+  const width = Math.max(100, maxX - minX + 80);
+  const height = Math.max(100, maxY - minY + 80);
+  const ox = minX - 40;
+  const oy = minY - 40;
 
-  let paths = '';
-  pieces.forEach(piece => {
-    if (piece.points.length < 3) return;
-    let d = `M ${piece.position.x + piece.points[0].x} ${piece.position.y + piece.points[0].y}`;
-    for (let i = 1; i < piece.points.length; i++) {
-      d += ` L ${piece.position.x + piece.points[i].x} ${piece.position.y + piece.points[i].y}`;
-    }
-    d += ' Z';
+  const svgPaths = pieces.map(p => {
+    const d = p.points.map((pt, i) => {
+      const wx = p.position.x + pt.x - ox;
+      const wy = p.position.y + pt.y - oy;
+      return `${i === 0 ? 'M' : 'L'} ${wx.toFixed(1)} ${wy.toFixed(1)}`;
+    }).join(' ') + ' Z';
 
-    let graphicsSvg = '';
-    if (piece.graphics) {
-      piece.graphics.forEach(g => {
-        const gx = piece.position.x + g.x;
-        const gy = piece.position.y + g.y;
-        graphicsSvg += `
-        <text x="${gx}" y="${gy}" font-family="sans-serif" font-size="${g.fontSize || 12}" font-weight="700" fill="${g.color}" text-anchor="middle" opacity="${g.opacity}">${g.content}</text>`;
-      });
-    }
-
-    paths += `
-    <g id="${piece.id}" class="pattern-piece">
-      <path d="${d}" fill="${piece.color || '#3b82f6'}" fill-opacity="0.25" stroke="#2563eb" stroke-width="2" stroke-linejoin="round" />
-      <text x="${piece.position.x}" y="${piece.position.y}" font-family="sans-serif" font-size="14" font-weight="600" fill="#1e293b" text-anchor="middle">${piece.name}</text>
-      ${graphicsSvg}
-    </g>`;
-  });
+    return `<path d="${d}" fill="${p.color || '#e2e8f0'}" fill-opacity="0.25" stroke="#0f172a" stroke-width="2" stroke-linejoin="round" />
+    <text x="${(p.position.x - ox).toFixed(1)}" y="${(p.position.y - oy).toFixed(1)}" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#0f172a" text-anchor="middle">${p.name}</text>`;
+  }).join('\n  ');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${width}" height="${height}">
-  <style>
-    .pattern-piece:hover path { stroke: #1d4ed8; stroke-width: 3; }
-  </style>
+<svg width="${width.toFixed(0)}mm" height="${height.toFixed(0)}mm" viewBox="0 0 ${width.toFixed(1)} ${height.toFixed(1)}" xmlns="http://www.w3.org/2000/svg">
+  <!-- OpenCLO Fashion CAD Technical Pattern Export -->
   <rect width="100%" height="100%" fill="#ffffff" />
-  ${paths}
+  ${svgPaths}
 </svg>`;
 }
