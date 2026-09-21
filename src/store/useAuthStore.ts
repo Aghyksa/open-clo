@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { UserAccount } from '../types/cad';
 
-const USERS_STORAGE_KEY = 'openclo_auth_users_v1';
-const SESSION_STORAGE_KEY = 'openclo_auth_session_user_v1';
+const USERS_STORAGE_KEY = 'openclo_auth_users_v2';
+const SESSION_STORAGE_KEY = 'openclo_auth_session_user_v2';
 
 export const SEEDED_USERS: UserAccount[] = [
   {
@@ -67,16 +67,10 @@ function loadInitialSession(users: UserAccount[]): UserAccount | null {
       const found = users.find((u) => u.id === savedUserId || u.username.toLowerCase() === savedUserId.toLowerCase());
       if (found) return found;
     }
-    // Default to Superadmin aghyksa on initial session
-    const superadmin = users.find((u) => u.username.toLowerCase() === 'aghyksa');
-    if (superadmin) {
-      localStorage.setItem(SESSION_STORAGE_KEY, superadmin.id);
-      return superadmin;
-    }
   } catch (err) {
     console.warn('Failed to load initial session:', err);
   }
-  return SEEDED_USERS[0];
+  return null; // Guest by default: never auto-login!
 }
 
 interface AuthState {

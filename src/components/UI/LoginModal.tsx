@@ -3,20 +3,17 @@ import { useAuthStore } from '../../store/useAuthStore';
 import {
   Lock,
   User,
-  Crown,
   KeyRound,
   X,
   AlertCircle,
   CheckCircle2,
   Shirt,
-  Sparkles,
-  ArrowRight,
 } from 'lucide-react';
 
 export const LoginModal: React.FC = () => {
   const { loginModalOpen, setLoginModalOpen, login } = useAuthStore();
-  const [username, setUsername] = useState('aghyksa');
-  const [password, setPassword] = useState('aduhlupa');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
@@ -37,20 +34,6 @@ export const LoginModal: React.FC = () => {
       setErrorMsg(res.message || 'Login gagal!');
     } else {
       setSuccessMsg('Login berhasil! Selamat datang kembali.');
-      setTimeout(() => {
-        setSuccessMsg(null);
-        setLoginModalOpen(false);
-      }, 700);
-    }
-  };
-
-  const handleQuickSuperadmin = () => {
-    setUsername('aghyksa');
-    setPassword('aduhlupa');
-    setErrorMsg(null);
-    const res = login('aghyksa', 'aduhlupa');
-    if (res.success) {
-      setSuccessMsg('Masuk sebagai Superadmin (Aghyksa)...');
       setTimeout(() => {
         setSuccessMsg(null);
         setLoginModalOpen(false);
@@ -87,26 +70,6 @@ export const LoginModal: React.FC = () => {
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {/* Quick Superadmin One-Click Bar */}
-          <div
-            onClick={handleQuickSuperadmin}
-            className="p-3 rounded-xl bg-gradient-to-r from-purple-950/50 to-blue-950/50 border border-purple-500/40 hover:border-purple-400 cursor-pointer transition-all flex items-center justify-between group"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-purple-600/30 border border-purple-400/50 flex items-center justify-center text-purple-300">
-                <Crown className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-purple-200 group-hover:text-purple-100 flex items-center gap-1.5">
-                  <span>Masuk Cepat Superadmin</span>
-                  <Sparkles className="w-3 h-3 text-amber-400" />
-                </div>
-                <div className="text-[11px] text-slate-400 font-mono">aghyksa : aduhlupa</div>
-              </div>
-            </div>
-            <ArrowRight className="w-4 h-4 text-purple-400 group-hover:translate-x-1 transition-transform" />
-          </div>
-
           {errorMsg && (
             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0 text-rose-400" />
@@ -132,7 +95,7 @@ export const LoginModal: React.FC = () => {
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="aghyksa"
+                placeholder="Masukkan username"
                 className="w-full bg-[#1c202c] border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
                 autoFocus
               />
@@ -150,7 +113,7 @@ export const LoginModal: React.FC = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="aduhlupa"
+                placeholder="Masukkan password"
                 className="w-full bg-[#1c202c] border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
               />
             </div>
@@ -159,18 +122,12 @@ export const LoginModal: React.FC = () => {
           {/* Submit Button */}
           <button
             type="submit"
-            className="w-full mt-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2"
+            className="w-full mt-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-sm shadow-lg shadow-blue-600/30 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <KeyRound className="w-4 h-4" />
             <span>Masuk ke Workspace</span>
           </button>
         </form>
-
-        {/* Footer credentials reminder */}
-        <div className="px-6 py-3 bg-[#11131a] border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
-          <span>Superadmin: <code className="text-purple-300">aghyksa</code></span>
-          <span>Password: <code className="text-purple-300">aduhlupa</code></span>
-        </div>
       </div>
     </div>
   );
