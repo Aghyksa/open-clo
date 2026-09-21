@@ -190,6 +190,8 @@ export interface StitchSettings {
 export interface CloProject {
   id: string;
   name: string;
+  ownerId?: string;
+  ownerUsername?: string;
   createdAt: number;
   updatedAt: number;
   templateId: string;

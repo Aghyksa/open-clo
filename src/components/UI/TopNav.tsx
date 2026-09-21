@@ -39,7 +39,21 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
 
   const [exportOpen, setExportOpen] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
+  const [saveFeedback, setSaveFeedback] = useState<{ type: 'success' | 'warn'; message: string } | null>(null);
   const [fabricOpen, setFabricOpen] = useState(false);
+
+  const handleSaveClick = () => {
+    if (!isAuthenticated || !currentUser) {
+      setSaveFeedback({ type: 'warn', message: 'Silakan masuk untuk menyimpan proyek ke akun Anda!' });
+      setLoginModalOpen(true);
+      setTimeout(() => setSaveFeedback(null), 4000);
+      return;
+    }
+
+    saveActiveProject(currentUser.id, currentUser.username);
+    setSaveFeedback({ type: 'success', message: `Proyek tersimpan di akun @${currentUser.username}` });
+    setTimeout(() => setSaveFeedback(null), 3000);
+  };
 
   const handleExportSvg = () => {
     const svgData = exportPatternsToSvg(pieces);
@@ -233,15 +247,36 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
           )}
         </div>
 
-        {/* Save Button */}
+        {/* Save Feedback Banner */}
+        {saveFeedback && (
+          <div
+            className={`hidden md:flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md animate-in fade-in duration-150 ${
+              saveFeedback.type === 'success'
+                ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/30'
+                : 'text-amber-300 bg-amber-500/10 border border-amber-500/30'
+            }`}
+          >
+            <span>{saveFeedback.message}</span>
+          </div>
+        )}
+
+        {/* Save Button (Requires Login to Commit) */}
         <button
-          onClick={saveActiveProject}
+          onClick={handleSaveClick}
           className={`flex items-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg border transition-colors ${
-            isSaved
+            !isAuthenticated
+              ? 'bg-amber-500/10 text-amber-300 border-amber-500/40 hover:bg-amber-500/20'
+              : isSaved
               ? 'bg-[#1a1d26] text-slate-400 border-slate-700/60'
               : 'bg-emerald-600/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-600/30'
           }`}
-          title={isSaved ? 'All changes saved' : 'Save changes (Ctrl+S)'}
+          title={
+            !isAuthenticated
+              ? 'Masuk untuk menyimpan proyek ke akun Anda'
+              : isSaved
+              ? `Semua perubahan tersimpan di akun @${currentUser?.username}`
+              : 'Simpan perubahan ke akun Anda (Ctrl+S)'
+          }
         >
           <Save className="w-3.5 h-3.5" />
         </button>

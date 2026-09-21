@@ -481,6 +481,15 @@ export const UCPModal: React.FC = () => {
                         </div>
 
                         <div className="text-xs text-slate-400 space-y-0.5">
+                          <p className="flex items-center gap-1.5">
+                            <span>Pemilik:</span>
+                            <span className="font-semibold text-purple-300">@{proj.ownerUsername || 'aghyksa'}</span>
+                            {proj.ownerId === currentUser.id && (
+                              <span className="text-[9px] bg-blue-500/20 text-blue-300 px-1.5 py-0.2 rounded">
+                                Milik Anda
+                              </span>
+                            )}
+                          </p>
                           <p>Potongan Pola: {proj.pieces?.length || 0} mal potong</p>
                           <p className="text-[11px] text-slate-500">
                             Diperbarui: {new Date(proj.updatedAt || proj.createdAt).toLocaleString('id-ID')}
@@ -496,15 +505,15 @@ export const UCPModal: React.FC = () => {
                                 switchProject(proj.id);
                                 setUcpModalOpen(false);
                               }}
-                              className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 text-xs font-semibold transition-colors"
+                              className="px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 text-xs font-semibold transition-colors cursor-pointer"
                             >
                               Buka Proyek
                             </button>
                           )}
                           <button
-                            onClick={() => duplicateProject(proj.id)}
-                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
-                            title="Duplikat Proyek"
+                            onClick={() => duplicateProject(proj.id, currentUser.id, currentUser.username)}
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+                            title="Duplikat Proyek ke Akun Anda"
                           >
                             <Copy className="w-3.5 h-3.5" />
                           </button>
@@ -513,7 +522,7 @@ export const UCPModal: React.FC = () => {
                               setRenamingProjectId(proj.id);
                               setRenameInput(proj.name);
                             }}
-                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
+                            className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
                             title="Ganti Nama"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -523,7 +532,7 @@ export const UCPModal: React.FC = () => {
                         {projects.length > 1 && (
                           <button
                             onClick={() => deleteProject(proj.id)}
-                            className="p-1.5 rounded-lg hover:bg-rose-950/60 text-slate-500 hover:text-rose-400 transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-rose-950/60 text-slate-500 hover:text-rose-400 transition-colors cursor-pointer"
                             title="Hapus Proyek"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -573,12 +582,12 @@ export const UCPModal: React.FC = () => {
                       <button
                         onClick={() => {
                           if (newProjName.trim()) {
-                            createNewProject(newProjName.trim(), newProjTemplate);
+                            createNewProject(newProjName.trim(), newProjTemplate, currentUser.id, currentUser.username);
                             setShowNewProjModal(false);
                             setUcpModalOpen(false);
                           }
                         }}
-                        className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold"
+                        className="px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold cursor-pointer"
                       >
                         Buat & Buka
                       </button>

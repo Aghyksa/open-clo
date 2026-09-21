@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useCloStore } from './store/useCloStore';
+import { useAuthStore } from './store/useAuthStore';
 import { TopNav } from './components/UI/TopNav';
 import { ToolSidebar } from './components/UI/ToolSidebar';
 import { PropertyInspector } from './components/UI/PropertyInspector';
@@ -66,7 +67,7 @@ export const App: React.FC = () => {
       if (key === 'a') setActiveTool('vertex');
       if (key === 'p') setActiveTool('pen');
       if (key === 'c') setActiveTool('curve');
-      if (key === 's') setActiveTool('sew');
+      if (key === 's' && !e.ctrlKey && !e.metaKey) setActiveTool('sew');
       if (key === 'f') setActiveTool('free-sew');
       if (key === 'b') setActiveTool('edit-sew');
       if (key === 'h') setActiveTool('move');
@@ -74,6 +75,19 @@ export const App: React.FC = () => {
       if (key === 't') setActiveTool('graphic');
       if (key === 'x') setActiveTool('cut');
       if (key === 'n') setActiveTool('polygon');
+
+      // Ctrl+S / Cmd+S = Save Project (requires auth)
+      if ((e.ctrlKey || e.metaKey) && key === 's') {
+        e.preventDefault();
+        const auth = useAuthStore.getState();
+        if (!auth.isAuthenticated || !auth.currentUser) {
+          auth.setLoginModalOpen(true);
+        } else {
+          useCloStore.getState().saveActiveProject(auth.currentUser.id, auth.currentUser.username);
+        }
+        return;
+      }
+
       // Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
       if ((e.ctrlKey || e.metaKey) && key === 'z' && !e.shiftKey) {
         e.preventDefault();

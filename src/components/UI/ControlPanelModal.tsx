@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useCloStore } from '../../store/useCloStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { GARMENT_TEMPLATES } from '../../utils/patternPresets';
 import type { CloProject } from '../../types/cad';
 import {
@@ -42,6 +43,8 @@ export const ControlPanelModal: React.FC<ControlPanelModalProps> = ({ isOpen, on
     currentMaterial,
   } = useCloStore();
 
+  const { currentUser, isAuthenticated, setLoginModalOpen } = useAuthStore();
+
   const [isCreating, setIsCreating] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('tshirt');
@@ -57,6 +60,10 @@ export const ControlPanelModal: React.FC<ControlPanelModalProps> = ({ isOpen, on
   if (!isOpen) return null;
 
   const handleStartCreate = () => {
+    if (!isAuthenticated || !currentUser) {
+      setLoginModalOpen(true);
+      return;
+    }
     setIsCreating(true);
     setNewProjectName('New Collection Garment');
     setSelectedTemplate('tshirt');
@@ -65,7 +72,11 @@ export const ControlPanelModal: React.FC<ControlPanelModalProps> = ({ isOpen, on
   const handleConfirmCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newProjectName.trim()) return;
-    createNewProject(newProjectName.trim(), selectedTemplate);
+    if (!isAuthenticated || !currentUser) {
+      setLoginModalOpen(true);
+      return;
+    }
+    createNewProject(newProjectName.trim(), selectedTemplate, currentUser.id, currentUser.username);
     setIsCreating(false);
   };
 
@@ -196,9 +207,15 @@ export const ControlPanelModal: React.FC<ControlPanelModalProps> = ({ isOpen, on
 
           <div className="flex items-center gap-2">
             <button
-              onClick={saveActiveProject}
-              className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1 rounded-md border border-slate-700/60 transition-colors"
-              title="Commit active project now"
+              onClick={() => {
+                if (!isAuthenticated || !currentUser) {
+                  setLoginModalOpen(true);
+                  return;
+                }
+                saveActiveProject(currentUser.id, currentUser.username);
+              }}
+              className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1 rounded-md border border-slate-700/60 transition-colors cursor-pointer"
+              title="Commit active project to your account"
             >
               <Save className="w-3.5 h-3.5 text-blue-400" />
               <span>Save Changes</span>
@@ -206,10 +223,14 @@ export const ControlPanelModal: React.FC<ControlPanelModalProps> = ({ isOpen, on
 
             <button
               onClick={() => {
+                if (!isAuthenticated || !currentUser) {
+                  setLoginModalOpen(true);
+                  return;
+                }
                 setSaveAsName('');
                 setSaveAsOpen(true);
               }}
-              className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1 rounded-md border border-slate-700/60 transition-colors"
+              className="flex items-center gap-1.5 text-xs text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700/80 px-2.5 py-1 rounded-md border border-slate-700/60 transition-colors cursor-pointer"
             >
               <Copy className="w-3.5 h-3.5 text-indigo-400" />
               <span>Save As...</span>
@@ -398,6 +419,10 @@ export const ControlPanelModal: React.FC<ControlPanelModalProps> = ({ isOpen, on
 
                     {/* Metadata */}
                     <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-2">
+                      <span className="flex items-center gap-1 text-purple-300 font-semibold">
+                        @{proj.ownerUsername || 'aghyksa'}
+                      </span>
+                      <span>•</span>
                       <span className="flex items-center gap-1">
                         <Shirt className="w-3 h-3 text-slate-500" />
                         {tmpl ? tmpl.name : 'Custom CAD Block'}
@@ -424,7 +449,7 @@ export const ControlPanelModal: React.FC<ControlPanelModalProps> = ({ isOpen, on
                   <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 mt-3">
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => duplicateProject(proj.id)}
+                        onClick={() => duplicateProject(proj.id, currentUser?.id, currentUser?.username)}
                         className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded transition-colors"
                         title="Duplicate Project"
                       >

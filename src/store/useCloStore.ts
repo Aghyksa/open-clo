@@ -30,10 +30,10 @@ import {
   STITCH_PRESETS,
 } from '../utils/patternPresets';
 
-const STORAGE_KEY_PROJECTS = 'openclo_projects_v16';
+const STORAGE_KEY_PROJECTS = 'openclo_projects_v17';
 const STORAGE_KEY_ACTIVE = 'openclo_active_project_id';
 
-function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string): CloProject {
+function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string, ownerId = 'user-superadmin', ownerUsername = 'aghyksa'): CloProject {
   const tmpl = GARMENT_TEMPLATES.find((t) => t.id === templateId) || GARMENT_TEMPLATES[0];
   const data = tmpl.generator();
   const fabric = FABRIC_PRESETS.find((f) => f.id === tmpl.recommendedFabric) || FABRIC_PRESETS[0];
@@ -42,6 +42,8 @@ function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string): 
   return {
     id: `proj-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
     name: name || `${tmpl.name} Studio`,
+    ownerId,
+    ownerUsername,
     createdAt: Date.now(),
     updatedAt: Date.now(),
     templateId: tmpl.id,
@@ -206,13 +208,13 @@ interface CloState {
   redoStack: HistoryStep[];
 
   // Project Actions
-  createNewProject: (name: string, templateId?: string) => void;
+  createNewProject: (name: string, templateId?: string, ownerId?: string, ownerUsername?: string) => void;
   switchProject: (id: string) => void;
-  saveActiveProject: () => void;
-  saveProjectAs: (name: string) => void;
+  saveActiveProject: (ownerId?: string, ownerUsername?: string) => void;
+  saveProjectAs: (name: string, ownerId?: string, ownerUsername?: string) => void;
   renameProject: (id: string, name: string) => void;
   deleteProject: (id: string) => void;
-  duplicateProject: (id: string) => void;
+  duplicateProject: (id: string, ownerId?: string, ownerUsername?: string) => void;
   importProjectData: (project: CloProject) => void;
 
   // Pattern Editing (Photoshop-like & CLO3D CAD)
@@ -548,8 +550,8 @@ export const useCloStore = create<CloState>((set, get) => {
     // ==========================================
     // Project Management Actions
     // ==========================================
-    createNewProject: (name, templateId = 'tshirt') => {
-      const newProj = createDefaultProject(templateId, name);
+    createNewProject: (name, templateId = 'tshirt', ownerId, ownerUsername) => {
+      const newProj = createDefaultProject(templateId, name, ownerId, ownerUsername);
       const updatedProjects = [newProj, ...get().projects];
 
       set({
@@ -603,13 +605,15 @@ export const useCloStore = create<CloState>((set, get) => {
       } catch {}
     },
 
-    saveActiveProject: () => {
+    saveActiveProject: (ownerId, ownerUsername) => {
       const state = get();
       const now = Date.now();
       const updatedProjects = state.projects.map((p) => {
         if (p.id !== state.activeProjectId) return p;
         return {
           ...p,
+          ownerId: ownerId || p.ownerId,
+          ownerUsername: ownerUsername || p.ownerUsername,
           pieces: state.pieces,
           seams: state.seams,
           currentMaterial: state.currentMaterial,
@@ -618,6 +622,17 @@ export const useCloStore = create<CloState>((set, get) => {
           avatar: state.avatar,
           avatar2D: state.avatar2D,
           stitchSettings: state.stitchSettings,
+          colorZones: state.colorZones,
+          decals: state.decals,
+          mockupScene: state.mockupScene,
+          canvasViewMode: state.canvasViewMode,
+          canvasTheme: state.canvasTheme,
+          sublimationPrint: state.sublimationPrint,
+          tataBusanaMode: state.tataBusanaMode,
+          annotations: state.annotations,
+          referenceImages: state.referenceImages,
+          fabricRollWidthCm: state.fabricRollWidthCm,
+          showRollGuides: state.showRollGuides,
           updatedAt: now,
         };
       });
@@ -634,12 +649,15 @@ export const useCloStore = create<CloState>((set, get) => {
       });
     },
 
-    saveProjectAs: (name) => {
+    saveProjectAs: (name, ownerId, ownerUsername) => {
       const state = get();
       const now = Date.now();
+      const activeProj = state.projects.find((p) => p.id === state.activeProjectId);
       const cloned: CloProject = {
         id: `proj-${now}-${Math.random().toString(36).substr(2, 5)}`,
         name,
+        ownerId: ownerId || activeProj?.ownerId,
+        ownerUsername: ownerUsername || activeProj?.ownerUsername,
         createdAt: now,
         updatedAt: now,
         templateId: state.activeTemplateId,
@@ -650,6 +668,17 @@ export const useCloStore = create<CloState>((set, get) => {
         avatar: { ...state.avatar },
         avatar2D: { ...state.avatar2D },
         stitchSettings: { ...state.stitchSettings },
+        colorZones: state.colorZones,
+        decals: state.decals,
+        mockupScene: state.mockupScene,
+        canvasViewMode: state.canvasViewMode,
+        canvasTheme: state.canvasTheme,
+        sublimationPrint: state.sublimationPrint,
+        tataBusanaMode: state.tataBusanaMode,
+        annotations: state.annotations,
+        referenceImages: state.referenceImages,
+        fabricRollWidthCm: state.fabricRollWidthCm,
+        showRollGuides: state.showRollGuides,
       };
 
       const updatedProjects = [cloned, ...state.projects];
@@ -714,7 +743,7 @@ export const useCloStore = create<CloState>((set, get) => {
       }
     },
 
-    duplicateProject: (id) => {
+    duplicateProject: (id, ownerId, ownerUsername) => {
       const target = get().projects.find((p) => p.id === id);
       if (!target) return;
       const now = Date.now();
@@ -722,6 +751,8 @@ export const useCloStore = create<CloState>((set, get) => {
         ...JSON.parse(JSON.stringify(target)),
         id: `proj-${now}-${Math.random().toString(36).substr(2, 5)}`,
         name: `${target.name} (Copy)`,
+        ownerId: ownerId || target.ownerId,
+        ownerUsername: ownerUsername || target.ownerUsername,
         createdAt: now,
         updatedAt: now,
       };
