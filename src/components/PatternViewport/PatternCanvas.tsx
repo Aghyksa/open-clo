@@ -33,6 +33,22 @@ export const PatternCanvas: React.FC = () => {
     setTataBusanaMode,
     addNotchToEdge,
     removeNotch,
+    annotations,
+    selectedAnnotationId,
+    addAnnotation,
+    updateAnnotation,
+    removeAnnotation,
+    setSelectedAnnotationId,
+    referenceImages,
+    selectedRefImageId,
+    addReferenceImage,
+    updateReferenceImage,
+    removeReferenceImage,
+    setSelectedRefImageId,
+    showRollGuides,
+    fabricRollWidthCm,
+    setShowRollGuides,
+    addRectanglePiece,
     pieces,
     seams,
     selectedPieceId,
@@ -81,9 +97,9 @@ export const PatternCanvas: React.FC = () => {
 
   // Viewport Pan & Zoom state
   const [viewState, setViewState] = useState({
-    scale: 0.75,
-    offsetX: 120,
-    offsetY: 70,
+    scale: 0.58,
+    offsetX: 25,
+    offsetY: 65,
   });
 
   // Layers panel overlay toggle
@@ -133,6 +149,27 @@ export const PatternCanvas: React.FC = () => {
     y: number;
     seamId: string;
   } | null>(null);
+
+  // Freeform 2D Canvas Modals & Tools (CorelDraw style)
+  const [showAddTextModal, setShowAddTextModal] = useState(false);
+  const [showAddStripModal, setShowAddStripModal] = useState(false);
+  const [showAddRefModal, setShowAddRefModal] = useState(false);
+  const [textModalInput, setTextModalInput] = useState('');
+  const [stripNameInput, setStripNameInput] = useState('TALI 1 X');
+  const [stripWidthInput, setStripWidthInput] = useState(75);
+  const [stripHeightInput, setStripHeightInput] = useState(5);
+  const [refNameInput, setRefNameInput] = useState('Foto Prototype Fitting');
+  const [refUrlInput, setRefUrlInput] = useState('');
+
+  // Dragging annotations and reference images
+  const draggedAnnotationIdRef = useRef<string | null>(null);
+  const initialAnnotationPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const draggedRefImageIdRef = useRef<string | null>(null);
+  const initialRefImagePosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Cache for loaded reference images
+  const refImageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const [, setRefImageLoadTrigger] = useState(0);
 
   // Observe container resizing (prevents any canvas distortion / stretching on view switch or resize)
   useEffect(() => {
@@ -670,6 +707,124 @@ export const PatternCanvas: React.FC = () => {
     // 3. Draw 2D Avatar Silhouette Background (CLO3D feature)
     drawAvatar2DGuide(ctx, avatar, avatar2D);
 
+    // 3b. Draw Sublimation Fabric Roll Width Limits (Garis Batas Lebar Kain)
+    if (showRollGuides) {
+      const topY = worldToScreen(0, 0).y;
+      const rollHeightWorld = (fabricRollWidthCm || 150) * 10;
+      const bottomY = worldToScreen(0, rollHeightWorld).y;
+
+      ctx.save();
+      // Shaded roll background bed
+      ctx.fillStyle = isWhite ? 'rgba(244, 63, 94, 0.03)' : 'rgba(244, 63, 94, 0.06)';
+      ctx.fillRect(0, topY, width, bottomY - topY);
+
+      ctx.strokeStyle = '#f43f5e';
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([8, 6]);
+
+      ctx.beginPath();
+      ctx.moveTo(0, topY);
+      ctx.lineTo(width, topY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(0, bottomY);
+      ctx.lineTo(width, bottomY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Floating Banner Badge (Guaranteed visible)
+      const badgeY = Math.max(105, Math.min(height - 40, topY + 16));
+      ctx.fillStyle = '#f43f5e';
+      ctx.beginPath();
+      ctx.roundRect(16, badgeY, 260, 24, 6);
+      ctx.fill();
+
+      ctx.font = 'bold 11px ui-sans-serif, system-ui';
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`📏 LEBAR KAIN SUBLIMASI: ${fabricRollWidthCm || 150} CM`, 146, badgeY + 12);
+      ctx.restore();
+    }
+
+    // 3c. Draw Reference Images (Foto Prototype & Screenshot Size Chart - CorelDraw style)
+    (referenceImages || []).forEach((refImg) => {
+      const sp = worldToScreen(refImg.x, refImg.y);
+      const sw = refImg.width * viewState.scale;
+      const sh = refImg.height * viewState.scale;
+      const isRefSel = selectedRefImageId === refImg.id;
+
+      let imgElem = refImageCacheRef.current.get(refImg.url);
+      if (!imgElem) {
+        imgElem = new Image();
+        imgElem.src = refImg.url;
+        imgElem.onload = () => {
+          setRefImageLoadTrigger((prev) => prev + 1);
+        };
+        refImageCacheRef.current.set(refImg.url, imgElem);
+      }
+
+      ctx.save();
+      ctx.globalAlpha = refImg.opacity ?? 0.85;
+      if (imgElem.complete && imgElem.naturalWidth > 0) {
+        ctx.drawImage(imgElem, sp.x, sp.y, sw, sh);
+      } else {
+        ctx.fillStyle = isWhite ? '#e2e8f0' : '#1e293b';
+        ctx.fillRect(sp.x, sp.y, sw, sh);
+        ctx.fillStyle = isWhite ? '#64748b' : '#94a3b8';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(refImg.name || 'Reference Photo', sp.x + sw / 2, sp.y + sh / 2);
+      }
+
+      ctx.strokeStyle = isRefSel ? '#3b82f6' : 'rgba(100, 116, 139, 0.4)';
+      ctx.lineWidth = isRefSel ? 2.5 : 1;
+      ctx.strokeRect(sp.x, sp.y, sw, sh);
+      ctx.restore();
+    });
+
+    // 3d. Draw Canvas Annotations & Technical Notes (CorelDraw F8 / Tata Busana Notes)
+    (annotations || []).forEach((ann) => {
+      const sp = worldToScreen(ann.x, ann.y);
+      const isAnnSel = selectedAnnotationId === ann.id;
+      const lines = ann.text.split('\n');
+
+      ctx.save();
+      const scaledSize = Math.max(9, Math.round(ann.fontSize * viewState.scale));
+      ctx.font = ann.isHeader
+        ? `bold ${scaledSize}px ui-sans-serif, system-ui`
+        : `600 ${scaledSize}px ui-monospace, monospace`;
+
+      const lineHeight = scaledSize + 5;
+
+      let maxLineW = 0;
+      lines.forEach((line) => {
+        const tw = ctx.measureText(line).width;
+        if (tw > maxLineW) maxLineW = tw;
+      });
+      const boxW = maxLineW + 16;
+      const boxH = lines.length * lineHeight + 10;
+
+      if (isAnnSel) {
+        ctx.fillStyle = isWhite ? 'rgba(239, 246, 255, 0.95)' : 'rgba(30, 41, 59, 0.95)';
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.roundRect(sp.x - 4, sp.y - scaledSize - 2, boxW, boxH, 6);
+        ctx.fill();
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = ann.color || (isWhite ? '#0f172a' : '#f8fafc');
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      lines.forEach((line, lIdx) => {
+        ctx.fillText(line, sp.x + 4, sp.y + lIdx * lineHeight);
+      });
+      ctx.restore();
+    });
+
     // 4. Draw Pattern Pieces
     pieces.forEach((piece) => {
       if (piece.visible === false) return;
@@ -870,16 +1025,33 @@ export const PatternCanvas: React.FC = () => {
 
       ctx.restore();
 
-      // Piece Label (Pill Badge)
+      // Piece Label (Unified Pill Badge with Integrated TM/TB tag & zero collision)
+      let minPtY = Infinity, maxPtY = -Infinity;
+      pts.forEach((p) => {
+        if (p.y < minPtY) minPtY = p.y;
+        if (p.y > maxPtY) maxPtY = p.y;
+      });
+      const pieceHeightWorld = maxPtY - minPtY;
+      const isNarrowStrip = pieceHeightWorld < 45;
+
+      const hasTataTag = tataBusanaMode && (piece.tataBusanaType || isFrontPiece || isBackPiece);
+      const badgeTag = hasTataTag ? (piece.tataBusanaType || (isFrontPiece ? 'TM' : 'TB')) : null;
+
       ctx.save();
-      ctx.font = '600 12px ui-sans-serif, system-ui';
+      ctx.font = '600 11px ui-sans-serif, system-ui';
       const labelText = piece.name;
       const textW = ctx.measureText(labelText).width;
-      const pillW = textW + 16;
+      const badgeW = badgeTag ? 28 : 0;
+      const pillW = textW + (badgeTag ? badgeW + 20 : 16);
       const pillH = 22;
       const pillX = centerScreen.x - pillW / 2;
-      const pillY = centerScreen.y + 42 * viewState.scale;
 
+      // If narrow strip, place pill ABOVE the strip with clear 12px margin; otherwise centered inside lower body
+      const pillY = isNarrowStrip
+        ? worldToScreen(piece.position.x, piece.position.y + minPtY).y - pillH - 12
+        : centerScreen.y + Math.min(pieceHeightWorld * 0.22, 35) * viewState.scale;
+
+      // Pill Background
       ctx.fillStyle = isWhite ? '#ffffff' : '#1e293b';
       ctx.beginPath();
       ctx.roundRect(pillX, pillY, pillW, pillH, 6);
@@ -888,33 +1060,36 @@ export const PatternCanvas: React.FC = () => {
       ctx.lineWidth = 1;
       ctx.stroke();
 
-      ctx.fillStyle = isSelected ? '#1e40af' : (isWhite ? '#0f172a' : '#cbd5e1');
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(labelText, centerScreen.x, pillY + pillH / 2);
-
-      // Dedicated Tata Busana TM / TB Badge (Red / Blue)
-      if (tataBusanaMode && (piece.tataBusanaType || isFrontPiece || isBackPiece)) {
-        const badgeTag = piece.tataBusanaType || (isFrontPiece ? 'TM' : 'TB');
+      // If Tata Busana Tag, draw integrated badge on the left side INSIDE the pill!
+      if (badgeTag) {
         const isTM = badgeTag === 'TM';
-        const badgeW = 28;
-        const badgeH = 20;
-        const badgeX = pillX - badgeW - 6;
-        const badgeY = pillY + 1;
+        const tagBoxX = pillX + 3;
+        const tagBoxY = pillY + 2.5;
+        const tagBoxW = 24;
+        const tagBoxH = 17;
 
         ctx.fillStyle = isTM ? '#dc2626' : '#2563eb';
         ctx.beginPath();
-        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 5);
+        ctx.roundRect(tagBoxX, tagBoxY, tagBoxW, tagBoxH, 4);
         ctx.fill();
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 1;
-        ctx.stroke();
 
         ctx.font = 'bold 9px ui-sans-serif, system-ui';
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(badgeTag, badgeX + badgeW / 2, badgeY + badgeH / 2);
+        ctx.fillText(badgeTag, tagBoxX + tagBoxW / 2, tagBoxY + tagBoxH / 2);
+
+        // Draw piece name to the right of the tag inside the pill
+        ctx.font = '600 11px ui-sans-serif, system-ui';
+        ctx.fillStyle = isSelected ? '#1e40af' : (isWhite ? '#0f172a' : '#f1f5f9');
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(labelText, tagBoxX + tagBoxW + 6, pillY + pillH / 2);
+      } else {
+        ctx.fillStyle = isSelected ? '#1e40af' : (isWhite ? '#0f172a' : '#f1f5f9');
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(labelText, centerScreen.x, pillY + pillH / 2);
       }
       ctx.restore();
 
@@ -1590,6 +1765,12 @@ export const PatternCanvas: React.FC = () => {
     drawAvatar2DGuide,
     sublimationPrint,
     tataBusanaMode,
+    annotations,
+    selectedAnnotationId,
+    referenceImages,
+    selectedRefImageId,
+    showRollGuides,
+    fabricRollWidthCm,
   ]);
 
   // ==========================================
@@ -1663,6 +1844,30 @@ export const PatternCanvas: React.FC = () => {
             }
           }
         }
+      }
+
+      // 0e. Text Annotation Tool (CorelDraw F8 style)
+      if (activeTool === 'text') {
+        let clickedAnnId: string | null = null;
+        for (let i = (annotations || []).length - 1; i >= 0; i--) {
+          const ann = annotations[i];
+          const dist = Math.hypot(world.x - ann.x, world.y - ann.y);
+          if (dist < 40 / viewState.scale) {
+            clickedAnnId = ann.id;
+            break;
+          }
+        }
+        if (clickedAnnId) {
+          setSelectedAnnotationId(clickedAnnId);
+          draggedAnnotationIdRef.current = clickedAnnId;
+          const found = annotations.find((a) => a.id === clickedAnnId);
+          if (found) initialAnnotationPosRef.current = { x: found.x, y: found.y };
+          dragModeRef.current = 'annotation';
+        } else {
+          setTextModalInput('KOMPONEN GARMEN:\n• TALI 1 X\n• LAPISAN 1 X\n• BAN PINGGANG 1 X');
+          setShowAddTextModal(true);
+        }
+        return;
       }
 
       // 1. Sew Tool: Click edge (CLO3D Segment Sewing)
@@ -1853,6 +2058,42 @@ export const PatternCanvas: React.FC = () => {
       }
 
       // 4. Select Tool: Check transform handles first (bounding box)
+      if (activeTool === 'select' || activeTool === 'move') {
+        // Check if clicked on a canvas annotation (CorelDraw F8 text note)
+        for (let i = (annotations || []).length - 1; i >= 0; i--) {
+          const ann = annotations[i];
+          const dist = Math.hypot(world.x - ann.x, world.y - ann.y);
+          if (dist < 40 / viewState.scale) {
+            setSelectedAnnotationId(ann.id);
+            selectPiece(null);
+            setSelectedRefImageId(null);
+            draggedAnnotationIdRef.current = ann.id;
+            initialAnnotationPosRef.current = { x: ann.x, y: ann.y };
+            dragModeRef.current = 'annotation';
+            return;
+          }
+        }
+
+        // Check if clicked on a reference image
+        for (let i = (referenceImages || []).length - 1; i >= 0; i--) {
+          const img = referenceImages[i];
+          if (
+            world.x >= img.x &&
+            world.x <= img.x + img.width &&
+            world.y >= img.y &&
+            world.y <= img.y + img.height
+          ) {
+            setSelectedRefImageId(img.id);
+            selectPiece(null);
+            setSelectedAnnotationId(null);
+            draggedRefImageIdRef.current = img.id;
+            initialRefImagePosRef.current = { x: img.x, y: img.y };
+            dragModeRef.current = 'refImage';
+            return;
+          }
+        }
+      }
+
       if (activeTool === 'select' && selectedPieceId) {
         const piece = pieces.find((p) => p.id === selectedPieceId);
         if (piece && !piece.locked) {
@@ -2074,6 +2315,20 @@ export const PatternCanvas: React.FC = () => {
         offsetY: prev.offsetY + dy,
       }));
       dragStartRef.current = { x: sx, y: sy };
+    } else if (dragModeRef.current === 'annotation' && draggedAnnotationIdRef.current) {
+      const worldDx = dx / viewState.scale;
+      const worldDy = dy / viewState.scale;
+      updateAnnotation(draggedAnnotationIdRef.current, {
+        x: Math.round(initialAnnotationPosRef.current.x + worldDx),
+        y: Math.round(initialAnnotationPosRef.current.y + worldDy),
+      });
+    } else if (dragModeRef.current === 'refImage' && draggedRefImageIdRef.current) {
+      const worldDx = dx / viewState.scale;
+      const worldDy = dy / viewState.scale;
+      updateReferenceImage(draggedRefImageIdRef.current, {
+        x: Math.round(initialRefImagePosRef.current.x + worldDx),
+        y: Math.round(initialRefImagePosRef.current.y + worldDy),
+      });
     } else if (dragModeRef.current === 'piece' && draggedPieceIdRef.current) {
       const worldDx = dx / viewState.scale;
       const worldDy = dy / viewState.scale;
@@ -2216,6 +2471,8 @@ export const PatternCanvas: React.FC = () => {
     if (dragModeRef.current === 'curve') {
       curveDragRef.current = null;
     }
+    draggedAnnotationIdRef.current = null;
+    draggedRefImageIdRef.current = null;
     isDraggingRef.current = false;
     dragModeRef.current = null;
     draggedPieceIdRef.current = null;
@@ -2383,9 +2640,17 @@ export const PatternCanvas: React.FC = () => {
         return;
       }
 
-      // Delete selected vertex or piece or seam
+      // Delete selected annotation, ref image, vertex, piece, or seam
       if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (selectedSeamId && (activeTool === 'edit-sew' || activeTool === 'sew' || activeTool === 'free-sew')) {
+        if (selectedAnnotationId) {
+          e.preventDefault();
+          removeAnnotation(selectedAnnotationId);
+          setSeamToast('Catatan teknis dihapus');
+        } else if (selectedRefImageId) {
+          e.preventDefault();
+          removeReferenceImage(selectedRefImageId);
+          setSeamToast('Foto referensi dihapus');
+        } else if (selectedSeamId && (activeTool === 'edit-sew' || activeTool === 'sew' || activeTool === 'free-sew')) {
           e.preventDefault();
           removeSeam(selectedSeamId);
           setSelectedSeamId(null);
@@ -2436,6 +2701,7 @@ export const PatternCanvas: React.FC = () => {
         else if (k === 'h') setActiveTool('move');
         else if (k === 'm') setActiveTool('measure');
         else if (k === 'u') setActiveTool('notch');
+        else if (k === 't' || e.key === 'F8') setActiveTool('text');
       }
     };
 
@@ -2453,12 +2719,14 @@ export const PatternCanvas: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedPieceId, selectedVertexIndex, activeTool, deleteVertex, deletePiece, duplicatePiece, undo, redo, setActiveTool, selectPiece, selectedSeamId, removeSeam, setSelectedSeamId]);
+  }, [selectedPieceId, selectedVertexIndex, activeTool, deleteVertex, deletePiece, duplicatePiece, undo, redo, setActiveTool, selectPiece, selectedSeamId, removeSeam, setSelectedSeamId, selectedRefImageId, selectedAnnotationId, removeReferenceImage, removeAnnotation]);
 
   return (
     <div className={`relative w-full h-full ${canvasTheme === 'white' ? 'bg-[#f8fafc]' : 'bg-[#111317]'} overflow-hidden flex flex-col select-none`}>
-      {/* 2D Canvas Top Control Strip */}
-      <div className="absolute top-3 left-4 z-10 flex items-center gap-2 bg-[#171a23]/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/70 shadow-xl text-xs text-slate-300">
+      {/* 2D Canvas Floating Header (Row 1 + Row 2 flex column, guaranteed no overlap) */}
+      <div className="absolute top-3 left-4 z-20 flex flex-col gap-2 pointer-events-auto">
+        {/* Row 1: View Modes, Theme, Zoom, Body Sizing & Layers */}
+        <div className="flex items-center gap-2 bg-[#171a23]/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/70 shadow-xl text-xs text-slate-300 w-fit">
         <Layers className="w-4 h-4 text-blue-400" />
         <span className="font-bold text-slate-100">2D Pattern Window</span>
         <span className="text-slate-600">|</span>
@@ -2482,151 +2750,44 @@ export const PatternCanvas: React.FC = () => {
 
         <span className="text-slate-600">|</span>
 
-        {/* Theme Toggle (White Artboard / Dark CAD) */}
-        <button
-          onClick={() => setCanvasTheme(canvasTheme === 'white' ? 'dark' : 'white')}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors text-[11px] font-semibold ${
-            canvasTheme === 'white'
-              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-              : 'text-slate-400 hover:text-white bg-slate-800/60'
-          }`}
-          title="Toggle White Artboard / Dark CAD Theme"
-        >
-          <span>{canvasTheme === 'white' ? '☀️ White Artboard' : '🌙 Dark CAD'}</span>
-        </button>
+        {/* Theme Segmented Switcher (White Artboard / Dark CAD) */}
+        <div className="flex items-center bg-slate-800/80 rounded-lg p-0.5 border border-slate-700/60 text-[11px]">
+          <button
+            onClick={() => setCanvasTheme('white')}
+            className={`px-2 py-0.5 rounded-md font-semibold transition-colors ${
+              canvasTheme === 'white'
+                ? 'bg-amber-500 text-slate-950 font-bold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+            title="Switch to Clean White Artboard (CorelDraw / Illustrator Style)"
+          >
+            ☀️ White
+          </button>
+          <button
+            onClick={() => setCanvasTheme('dark')}
+            className={`px-2 py-0.5 rounded-md font-semibold transition-colors ${
+              canvasTheme === 'dark'
+                ? 'bg-slate-700 text-white font-bold shadow-sm'
+                : 'text-slate-400 hover:text-white'
+            }`}
+            title="Switch to Dark CAD Workspace"
+          >
+            🌙 Dark
+          </button>
+        </div>
+
+        <span className="text-slate-600">|</span>
+        <span className="text-slate-400 font-mono text-[11px]">{(viewState.scale * 100).toFixed(0)}%</span>
 
         <span className="text-slate-600">|</span>
 
-        {/* 2D Avatar Guide Toggle */}
-        <button
-          onClick={() => updateAvatar2D({ visible: !avatar2D.visible })}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors text-[11px] font-semibold ${
-            avatar2D.visible
-              ? 'bg-blue-600/30 text-blue-400 border border-blue-500/40'
-              : 'text-slate-400 hover:text-white bg-slate-800/60'
-          }`}
-          title="Toggle Anatomical 2D Avatar Silhouette Guide"
-        >
-          <User className="w-3.5 h-3.5" />
-          <span>Avatar Guide: {avatar2D.visible ? 'ON' : 'OFF'}</span>
-        </button>
-
-        <span className="text-slate-600">|</span>
-
-        {/* Tata Busana (TM/TB) Mode Toggle */}
-        <button
-          onClick={() => setTataBusanaMode(!tataBusanaMode)}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors text-[11px] font-semibold ${
-            tataBusanaMode
-              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
-              : 'text-slate-400 hover:text-white bg-slate-800/60'
-          }`}
-          title="Toggle Indonesian Tata Busana Notation (TM Merah / TB Biru / Arah Serat)"
-        >
-          <span>{tataBusanaMode ? '📐 Tata Busana: ON' : '📐 Tata Busana: OFF'}</span>
-        </button>
-
-        <span className="text-slate-600">|</span>
-        <span className="text-slate-400 font-mono">{(viewState.scale * 100).toFixed(0)}%</span>
-
-        {/* Pending Seam Indicator */}
-        {pendingSeamEdge && (
-          <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full text-[11px] font-medium flex items-center gap-1 animate-pulse">
-            <Scissors className="w-3 h-3" /> Select Target Edge to Sew
-          </span>
-        )}
-        {activeTool === 'edit-sew' && (
-          <span className="bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full text-[11px] font-medium">
-            {selectedSeamId ? '✓ Seam Selected — Del to remove, Right-click for options' : 'Click a seam to select'}
-          </span>
-        )}
-        {activeTool === 'free-sew' && !pendingFreeSewEdge && (
-          <span className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full text-[11px] font-medium">
-            🔗 Click a point on an edge to start free-sew
-          </span>
-        )}
-      </div>
-
-      {/* Secondary Context Toolbar (Active when piece is selected) */}
-      {selectedPieceId && (() => {
-        const piece = pieces.find((p) => p.id === selectedPieceId);
-        if (!piece) return null;
-        const swatches = ['#262626', '#f5f5f0', '#4a5340', '#1a2436', '#d4d4d8', '#38bdf8', '#dc2626', '#f59e0b', '#8b5cf6', '#10b981'];
-        return (
-          <div className="absolute top-12 left-4 z-10 flex items-center gap-2 bg-[#171a23]/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-blue-500/50 shadow-2xl text-xs text-slate-200 animate-in fade-in slide-in-from-top-1 duration-150">
-            <span className="text-[11px] text-blue-400 font-bold">{piece.name}</span>
-            <span className="text-slate-600">|</span>
-            <div className="flex items-center gap-1">
-              {swatches.map((col) => (
-                <button
-                  key={col}
-                  onClick={() => updatePieceColor(piece.id, col)}
-                  className="w-4 h-4 rounded-full border border-white/40 hover:scale-125 transition-transform"
-                  style={{ backgroundColor: col }}
-                  title={`Fill with ${col}`}
-                />
-              ))}
-              <input
-                type="color"
-                value={piece.color || '#38bdf8'}
-                onChange={(e) => updatePieceColor(piece.id, e.target.value)}
-                className="w-4 h-4 rounded cursor-pointer border-0 p-0 bg-transparent"
-                title="Pick Custom Color"
-              />
-            </div>
-            <span className="text-slate-600">|</span>
-            <button
-              onClick={() => {
-                pushHistory();
-                addNotchToEdge(piece.id, 0, 0.5);
-                setSeamToast(`Added notch (Tanda Pas) to ${piece.name}`);
-              }}
-              className="px-2 py-0.5 rounded bg-blue-900/50 hover:bg-blue-800/60 text-blue-200 border border-blue-700/50 text-[10px] font-semibold transition-colors"
-              title="Add sewing balance notch on this piece"
-            >
-              + Notch
-            </button>
-            <button
-              onClick={() => duplicatePiece(piece.id)}
-              className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold transition-colors"
-              title="Duplicate Piece (Ctrl+D)"
-            >
-              Duplicate
-            </button>
-            <button
-              onClick={() => deletePiece(piece.id)}
-              className="px-2 py-0.5 rounded bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-[10px] font-semibold transition-colors"
-              title="Delete Piece (Del)"
-            >
-              Delete
-            </button>
-
-            {/* Selected Vertex Action */}
-            {selectedVertexIndex !== null && (
-              <>
-                <span className="text-slate-600">|</span>
-                <span className="text-[11px] text-amber-300 font-bold">Point #{selectedVertexIndex + 1}</span>
-                <button
-                  onClick={() => deleteVertex(selectedPieceId, selectedVertexIndex)}
-                  className="px-2 py-0.5 rounded bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-[10px] font-semibold transition-colors"
-                  title="Delete Vertex (Del/Backspace)"
-                >
-                  Remove Point
-                </button>
-              </>
-            )}
-          </div>
-        );
-      })()}
-
-      {/* Floating Action Buttons: Layers Panel & Avatar Quick Sizer */}
-      <div className="absolute top-3 right-4 z-10 flex items-center gap-2">
+        {/* Floating Action Buttons: Layers Panel & Avatar Quick Sizer (Inside same Row 1, zero overlap!) */}
         <button
           onClick={() => setShowAvatarControls(!showAvatarControls)}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-lg backdrop-blur-md transition-all ${
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all ${
             showAvatarControls
               ? 'bg-blue-600 text-white border-blue-500 shadow-blue-600/20'
-              : 'bg-[#171a23]/90 text-slate-300 hover:text-white border-slate-700/70'
+              : 'bg-slate-800/60 text-slate-300 hover:text-white border-slate-700/70'
           }`}
           title="Edit 2D Avatar Measurements"
         >
@@ -2636,16 +2797,200 @@ export const PatternCanvas: React.FC = () => {
 
         <button
           onClick={() => setShowLayersOverlay(!showLayersOverlay)}
-          className={`flex items-center gap-1 px-3 py-1.5 rounded-xl border text-xs font-semibold shadow-lg backdrop-blur-md transition-all ${
+          className={`flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[11px] font-semibold transition-all ${
             showLayersOverlay
               ? 'bg-blue-600 text-white border-blue-500 shadow-blue-600/20'
-              : 'bg-[#171a23]/90 text-slate-300 hover:text-white border-slate-700/70'
+              : 'bg-slate-800/60 text-slate-300 hover:text-white border-slate-700/70'
           }`}
-          title="Photoshop-like Pattern Layers"
+          title="Pattern Layers"
         >
           <Layers className="w-3.5 h-3.5 text-indigo-400" />
           <span>Layers ({pieces.length})</span>
         </button>
+
+        {/* Pending Seam Indicator */}
+        {pendingSeamEdge && (
+          <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full text-[10px] font-medium flex items-center gap-1 animate-pulse ml-1">
+            <Scissors className="w-3 h-3" /> Select Target Edge to Sew
+          </span>
+        )}
+      </div>
+
+        {/* Row 2: 2D Canvas CAD Drafting & Sublimasi Shelf */}
+        <div className="flex items-center gap-2 bg-[#171a23]/95 backdrop-blur-md px-3 py-1.5 rounded-xl border border-slate-700/80 shadow-2xl text-xs text-slate-200 w-fit">
+        <span className="text-[11px] font-bold text-blue-400 flex items-center gap-1">
+          <span>📐 CAD:</span>
+        </span>
+
+        {/* Tata Busana (TM/TB) Mode Toggle */}
+        <button
+          onClick={() => setTataBusanaMode(!tataBusanaMode)}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors text-[11px] font-semibold ${
+            tataBusanaMode
+              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+              : 'text-slate-400 hover:text-white bg-slate-800/60'
+          }`}
+          title="Toggle Indonesian Tata Busana Notation (TM Merah / TB Biru / Arah Serat)"
+        >
+          <span>{tataBusanaMode ? '📐 Tata Busana: ON' : '📐 Tata Busana: OFF'}</span>
+        </button>
+
+        {/* 2D Avatar Guide Toggle */}
+        <button
+          onClick={() => updateAvatar2D({ visible: !avatar2D.visible })}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-md transition-colors text-[11px] font-semibold ${
+            avatar2D.visible
+              ? 'bg-blue-600/30 text-blue-400 border border-blue-500/40'
+              : 'text-slate-400 hover:text-white bg-slate-800/60'
+          }`}
+          title="Toggle Anatomical 2D Avatar Silhouette Guide"
+        >
+          <User className="w-3 h-3" />
+          <span>Avatar: {avatar2D.visible ? 'ON' : 'OFF'}</span>
+        </button>
+
+        <span className="text-slate-600">|</span>
+
+        {/* Fabric Roll Limit Guide Toggle */}
+        <button
+          onClick={() => setShowRollGuides(!showRollGuides)}
+          className={`flex items-center gap-1 px-2.5 py-0.5 rounded-md transition-colors text-[11px] font-semibold ${
+            showRollGuides
+              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+              : 'text-slate-400 hover:text-white bg-slate-800/60'
+          }`}
+          title="Toggle Sublimation Roll Width Boundary Guides (150cm)"
+        >
+          <span>{showRollGuides ? '📏 Roll 150cm: ON' : '📏 Roll 150cm'}</span>
+        </button>
+
+        <span className="text-slate-600">|</span>
+
+        {/* Action Buttons: Add Note, Add Rect Strip, Add Ref Photo */}
+        <button
+          onClick={() => {
+            setTextModalInput('KOMPONEN GARMEN:\n• TALI 1 X\n• LAPISAN TALI SERUT 1 X\n• BAN PINGGANG 1 X\n• KAIN SERONG 2 X');
+            setShowAddTextModal(true);
+          }}
+          className="px-2.5 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-semibold transition-colors flex items-center gap-1 border border-slate-700/60"
+          title="Add Technical Text Note / Size Chart (F8)"
+        >
+          <span>✍️ + Teks (F8)</span>
+        </button>
+
+        <button
+          onClick={() => setShowAddStripModal(true)}
+          className="px-2.5 py-0.5 rounded-md bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 text-[11px] font-semibold transition-colors flex items-center gap-1 border border-blue-500/40"
+          title="Add Rectangular Component Piece (Waistband, Tie, Pocket)"
+        >
+          <span>📐 + Mal Strip</span>
+        </button>
+
+        <button
+          onClick={() => setShowAddRefModal(true)}
+          className="px-2.5 py-0.5 rounded-md bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 text-[11px] font-semibold transition-colors flex items-center gap-1 border border-purple-500/40"
+          title="Drop Reference Photo or Fitting Prototype onto Canvas"
+        >
+          <span>🖼️ + Foto Ref</span>
+        </button>
+
+        {/* If a piece is selected, show its actions right here inline! */}
+        {selectedPieceId && (() => {
+          const piece = pieces.find((p) => p.id === selectedPieceId);
+          if (!piece) return null;
+          const swatches = ['#262626', '#f5f5f0', '#4a5340', '#1a2436', '#d4d4d8', '#38bdf8', '#dc2626', '#f59e0b', '#8b5cf6', '#10b981'];
+          return (
+            <>
+              <span className="text-slate-600">|</span>
+              <span className="text-[11px] text-blue-300 font-bold max-w-[110px] truncate">{piece.name}</span>
+              <div className="flex items-center gap-1">
+                {swatches.map((col) => (
+                  <button
+                    key={col}
+                    onClick={() => updatePieceColor(piece.id, col)}
+                    className="w-3.5 h-3.5 rounded-full border border-white/40 hover:scale-125 transition-transform"
+                    style={{ backgroundColor: col }}
+                    title={`Fill with ${col}`}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => {
+                  pushHistory();
+                  addNotchToEdge(piece.id, 0, 0.5);
+                  setSeamToast(`Added notch (Tanda Pas) to ${piece.name}`);
+                }}
+                className="px-2 py-0.5 rounded bg-blue-900/50 hover:bg-blue-800/60 text-blue-200 border border-blue-700/50 text-[10px] font-semibold transition-colors"
+                title="Add sewing balance notch on this piece"
+              >
+                + Notch
+              </button>
+              <button
+                onClick={() => duplicatePiece(piece.id)}
+                className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold transition-colors"
+                title="Duplicate Piece (Ctrl+D)"
+              >
+                Duplicate
+              </button>
+              <button
+                onClick={() => deletePiece(piece.id)}
+                className="px-2 py-0.5 rounded bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-[10px] font-semibold transition-colors"
+                title="Delete Piece (Del)"
+              >
+                Delete
+              </button>
+            </>
+          );
+        })()}
+
+        {/* If an annotation is selected, show its actions right here inline! */}
+        {selectedAnnotationId && (() => {
+          const ann = (annotations || []).find((a) => a.id === selectedAnnotationId);
+          if (!ann) return null;
+          return (
+            <>
+              <span className="text-slate-600">|</span>
+              <span className="text-[11px] text-amber-300 font-bold">Teks Terpilih</span>
+              <button
+                onClick={() => {
+                  setTextModalInput(ann.text);
+                  setShowAddTextModal(true);
+                }}
+                className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-semibold transition-colors"
+                title="Edit Text"
+              >
+                Edit Teks
+              </button>
+              <button
+                onClick={() => removeAnnotation(selectedAnnotationId)}
+                className="px-2 py-0.5 rounded bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-[10px] font-semibold transition-colors"
+                title="Delete Annotation"
+              >
+                Hapus Teks
+              </button>
+            </>
+          );
+        })()}
+
+        {/* If a reference image is selected, show its actions right here inline! */}
+        {selectedRefImageId && (() => {
+          const img = (referenceImages || []).find((i) => i.id === selectedRefImageId);
+          if (!img) return null;
+          return (
+            <>
+              <span className="text-slate-600">|</span>
+              <span className="text-[11px] text-purple-300 font-bold max-w-[120px] truncate">{img.name}</span>
+              <button
+                onClick={() => removeReferenceImage(selectedRefImageId)}
+                className="px-2 py-0.5 rounded bg-rose-950/50 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 text-[10px] font-semibold transition-colors"
+                title="Delete Reference Image"
+              >
+                Hapus Foto
+              </button>
+            </>
+          );
+        })()}
+        </div>
       </div>
 
       {/* Photoshop-Style Floating Pattern Layers Panel */}
@@ -2975,6 +3320,256 @@ export const PatternCanvas: React.FC = () => {
           </div>
         );
       })()}
+
+      {/* Modal: Tambah Teks Catatan Teknis / Spek Garmen (CorelDraw F8) */}
+      {showAddTextModal && (
+        <div className="absolute inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181b24] border border-slate-700/90 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="font-bold text-white text-sm flex items-center gap-1.5">
+                <span>✍️ Tambah Teks Catatan Teknis (CorelDraw F8)</span>
+              </span>
+              <button
+                onClick={() => setShowAddTextModal(false)}
+                className="text-slate-400 hover:text-white text-xs"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">
+              Tulis catatan komponen (e.g. "TALI 1 X", "BAN PINGGANG 1 X", atau tabel ukuran) langsung di kanvas:
+            </p>
+            <textarea
+              rows={5}
+              value={textModalInput}
+              onChange={(e) => setTextModalInput(e.target.value)}
+              className="w-full bg-[#111317] border border-slate-700 rounded-xl p-3 text-xs text-slate-200 font-mono focus:border-blue-500 focus:outline-none"
+              placeholder="Tulis catatan teknis..."
+            />
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowAddTextModal(false)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  if (textModalInput.trim()) {
+                    addAnnotation({
+                      text: textModalInput.trim(),
+                      x: 250,
+                      y: 350,
+                      fontSize: 12,
+                      color: canvasTheme === 'white' ? '#0f172a' : '#f8fafc',
+                    });
+                    setSeamToast('Catatan teknis ditambahkan ke kanvas');
+                    setShowAddTextModal(false);
+                  }
+                }}
+                className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-600/30"
+              >
+                Tambahkan ke Kanvas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Tambah Mal Pola Komponen (Rectangle Strip) */}
+      {showAddStripModal && (
+        <div className="absolute inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181b24] border border-slate-700/90 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="font-bold text-white text-sm flex items-center gap-1.5">
+                <span>📐 Buat Mal Pola Komponen / Strip Baru</span>
+              </span>
+              <button
+                onClick={() => setShowAddStripModal(false)}
+                className="text-slate-400 hover:text-white text-xs"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">
+              Pilih template cepat atau atur panjang & lebar komponen (dalam cm):
+            </p>
+
+            {/* Quick preset chips */}
+            <div className="grid grid-cols-2 gap-1.5 text-xs">
+              {[
+                { name: 'TALI 1 X', w: 75, h: 5 },
+                { name: 'BAN PINGGANG 1 X', w: 95, h: 12 },
+                { name: 'LAPISAN TALI 1 X', w: 35, h: 6 },
+                { name: 'KANTONG 2X', w: 18, h: 16 },
+                { name: 'MANSET LENGAN 2X', w: 24, h: 8 },
+                { name: 'BIS SERONG 2 X', w: 45, h: 4 },
+              ].map((chip) => (
+                <button
+                  key={chip.name}
+                  onClick={() => {
+                    setStripNameInput(chip.name);
+                    setStripWidthInput(chip.w);
+                    setStripHeightInput(chip.h);
+                  }}
+                  className="p-2 rounded-lg bg-[#111317] border border-slate-800 hover:border-blue-500/50 text-left text-[11px] text-slate-300 transition-colors"
+                >
+                  <div className="font-semibold text-slate-200">{chip.name}</div>
+                  <div className="text-[10px] text-slate-400">{chip.w} cm × {chip.h} cm</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-slate-800">
+              <div>
+                <label className="text-[11px] text-slate-400 font-medium mb-1 block">Nama Komponen Pola:</label>
+                <input
+                  type="text"
+                  value={stripNameInput}
+                  onChange={(e) => setStripNameInput(e.target.value)}
+                  className="w-full bg-[#111317] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium mb-1 block">Panjang (cm):</label>
+                  <input
+                    type="number"
+                    value={stripWidthInput}
+                    onChange={(e) => setStripWidthInput(Number(e.target.value))}
+                    className="w-full bg-[#111317] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] text-slate-400 font-medium mb-1 block">Lebar / Tinggi (cm):</label>
+                  <input
+                    type="number"
+                    value={stripHeightInput}
+                    onChange={(e) => setStripHeightInput(Number(e.target.value))}
+                    className="w-full bg-[#111317] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 font-mono"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowAddStripModal(false)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  if (stripNameInput.trim() && stripWidthInput > 0 && stripHeightInput > 0) {
+                    addRectanglePiece(stripNameInput.trim(), stripWidthInput, stripHeightInput);
+                    setSeamToast(`Pola ${stripNameInput} (${stripWidthInput}x${stripHeightInput} cm) dibuat`);
+                    setShowAddStripModal(false);
+                  }
+                }}
+                className="px-4 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold shadow-md shadow-blue-600/30"
+              >
+                Buat Pola Potong
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Tambah Foto Referensi / Fitting Prototype (CorelDraw style) */}
+      {showAddRefModal && (
+        <div className="absolute inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#181b24] border border-slate-700/90 rounded-2xl p-5 max-w-md w-full shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span className="font-bold text-white text-sm flex items-center gap-1.5">
+                <span>🖼️ Tambah Foto Referensi / Prototype Fitting</span>
+              </span>
+              <button
+                onClick={() => setShowAddRefModal(false)}
+                className="text-slate-400 hover:text-white text-xs"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">
+              Tempel foto anak fitting atau screenshot size chart ke kanvas seperti di CorelDraw:
+            </p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[11px] text-slate-400 font-medium mb-1 block">Unggah Gambar (File):</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        setRefUrlInput(reader.result as string);
+                        setRefNameInput(file.name.replace(/\.[^/.]+$/, ''));
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="w-full text-xs text-slate-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 font-medium mb-1 block">Atau URL Gambar / DataURL:</label>
+                <input
+                  type="text"
+                  value={refUrlInput}
+                  onChange={(e) => setRefUrlInput(e.target.value)}
+                  placeholder="https://... atau data:image/..."
+                  className="w-full bg-[#111317] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] text-slate-400 font-medium mb-1 block">Label Foto:</label>
+                <input
+                  type="text"
+                  value={refNameInput}
+                  onChange={(e) => setRefNameInput(e.target.value)}
+                  className="w-full bg-[#111317] border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                onClick={() => setShowAddRefModal(false)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold"
+              >
+                Batal
+              </button>
+              <button
+                onClick={() => {
+                  if (refUrlInput.trim()) {
+                    addReferenceImage({
+                      name: refNameInput.trim() || 'Foto Prototype',
+                      url: refUrlInput.trim(),
+                      x: 100,
+                      y: 100,
+                      width: 220,
+                      height: 280,
+                      opacity: 0.9,
+                    });
+                    setSeamToast('Foto referensi ditempel di kanvas');
+                    setShowAddRefModal(false);
+                    setRefUrlInput('');
+                  }
+                }}
+                className="px-4 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold shadow-md shadow-purple-600/30"
+              >
+                Tempel di Kanvas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <canvas
         ref={canvasRef}

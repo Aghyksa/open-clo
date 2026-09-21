@@ -21,6 +21,8 @@ import type {
   GraphicDecal,
   CanvasTheme,
   SublimationPrint,
+  CanvasAnnotation,
+  ReferenceImageItem,
 } from '../types/cad';
 import {
   FABRIC_PRESETS,
@@ -28,7 +30,7 @@ import {
   STITCH_PRESETS,
 } from '../utils/patternPresets';
 
-const STORAGE_KEY_PROJECTS = 'openclo_projects_v8';
+const STORAGE_KEY_PROJECTS = 'openclo_projects_v16';
 const STORAGE_KEY_ACTIVE = 'openclo_active_project_id';
 
 function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string): CloProject {
@@ -99,6 +101,13 @@ function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string): 
       showStitches: true,
       seamAllowanceMm: 12,
     },
+    annotations: [
+      { id: 'ann-main', text: `${tmpl.name.toUpperCase()} // CAD TECH SPEC`, x: 35, y: 110, fontSize: 15, color: '#2563eb', isHeader: true },
+      { id: 'ann-cutting', text: 'PETUNJUK POTONG (CUTTING):\n• Badan Muka (TM) : Potong 1x\n• Badan Belakang (TB) : Potong 1x\n• Lengan (Kiri & Kanan) : Potong 2x\n• Rib Kerah : Potong 1x', x: 35, y: 145, fontSize: 11, color: '#475569' },
+    ],
+    referenceImages: [],
+    fabricRollWidthCm: 150,
+    showRollGuides: false,
   };
 }
 
@@ -228,6 +237,7 @@ interface CloState {
   cutPiece: (pieceId: string, lineStart: { x: number; y: number }, lineEnd: { x: number; y: number }) => boolean;
   addFabricPatch: (type: PatchPresetType, position?: { x: number; y: number }) => void;
   addCustomPiece: (name: string, points: { x: number; y: number }[], position?: { x: number; y: number }) => void;
+  addRectanglePiece: (name: string, widthCm: number, heightCm: number, position?: { x: number; y: number }) => void;
 
   // Graphic / Stamp Layers (Photoshop style)
   addGraphicLayer: (pieceId: string, graphic: Omit<GraphicLayer, 'id'>) => void;
@@ -278,6 +288,14 @@ interface CloState {
   selectedDecalId: string | null;
   decalTextureRevision: number;
 
+  // Freeform 2D Canvas Additions (CorelDraw & Illustrator style)
+  annotations: CanvasAnnotation[];
+  referenceImages: ReferenceImageItem[];
+  selectedAnnotationId: string | null;
+  selectedRefImageId: string | null;
+  fabricRollWidthCm: number;
+  showRollGuides: boolean;
+
   setCanvasViewMode: (mode: CanvasViewMode) => void;
   setMockupScene: (scene: MockupSceneMode) => void;
   setLightingPreset: (preset: StudioLightingPreset) => void;
@@ -294,6 +312,18 @@ interface CloState {
   removeDecal: (id: string) => void;
   reorderDecal: (id: string, direction: 'up' | 'down') => void;
   bumpDecalTextureRevision: () => void;
+
+  // Annotations & Reference Images Actions
+  addAnnotation: (ann: Omit<CanvasAnnotation, 'id'>) => string;
+  updateAnnotation: (id: string, partial: Partial<CanvasAnnotation>) => void;
+  removeAnnotation: (id: string) => void;
+  setSelectedAnnotationId: (id: string | null) => void;
+  addReferenceImage: (img: Omit<ReferenceImageItem, 'id'>) => string;
+  updateReferenceImage: (id: string, partial: Partial<ReferenceImageItem>) => void;
+  removeReferenceImage: (id: string) => void;
+  setSelectedRefImageId: (id: string | null) => void;
+  setShowRollGuides: (show: boolean) => void;
+  setFabricRollWidthCm: (cm: number) => void;
 
   // Drop Animation Actions
   startDropAnimation: () => void;
@@ -339,6 +369,10 @@ export const useCloStore = create<CloState>((set, get) => {
         canvasTheme: updatedState.canvasTheme ?? (p.canvasTheme || state.canvasTheme),
         sublimationPrint: updatedState.sublimationPrint ?? (p.sublimationPrint || state.sublimationPrint),
         tataBusanaMode: updatedState.tataBusanaMode ?? (p.tataBusanaMode ?? state.tataBusanaMode),
+        annotations: updatedState.annotations ?? (p.annotations || state.annotations),
+        referenceImages: updatedState.referenceImages ?? (p.referenceImages || state.referenceImages),
+        fabricRollWidthCm: updatedState.fabricRollWidthCm ?? (p.fabricRollWidthCm || state.fabricRollWidthCm),
+        showRollGuides: updatedState.showRollGuides ?? (p.showRollGuides ?? state.showRollGuides),
         updatedAt: now,
       };
     });
@@ -403,6 +437,13 @@ export const useCloStore = create<CloState>((set, get) => {
     ],
     selectedDecalId: null,
     decalTextureRevision: 0,
+
+    annotations: active.annotations || [],
+    referenceImages: active.referenceImages || [],
+    selectedAnnotationId: null,
+    selectedRefImageId: null,
+    fabricRollWidthCm: active.fabricRollWidthCm || 150,
+    showRollGuides: active.showRollGuides ?? false,
 
     currentMaterial: active.currentMaterial || FABRIC_PRESETS[0],
     customColor: active.customColor || '#262626',
@@ -1297,6 +1338,35 @@ export const useCloStore = create<CloState>((set, get) => {
       });
     },
 
+    addRectanglePiece: (name, widthCm, heightCm, position) => {
+      get().pushHistory();
+      const newId = `piece-${Date.now()}`;
+      const halfW = Math.round((widthCm * 10) / 2);
+      const halfH = Math.round((heightCm * 10) / 2);
+      const pts = [
+        { id: 'r0', x: -halfW, y: -halfH },
+        { id: 'r1', x: halfW, y: -halfH },
+        { id: 'r2', x: halfW, y: halfH },
+        { id: 'r3', x: -halfW, y: halfH },
+      ];
+      const newPiece: PatternPiece = {
+        id: newId,
+        name: name || `Strip ${widthCm}x${heightCm}cm`,
+        points: pts,
+        position: position || { x: 350, y: 300 },
+        rotation: 0,
+        color: '#38bdf8',
+        placement: { origin3D: [0, 0.5, 0.15], rotation3D: [0, 0, 0] },
+      };
+      const updated = [...get().pieces, newPiece];
+      set({
+        pieces: updated,
+        selectedPieceId: newId,
+        simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces: updated }),
+      });
+    },
+
     // ==========================================
     // Graphic / Stamp Layers
     // ==========================================
@@ -1691,6 +1761,85 @@ export const useCloStore = create<CloState>((set, get) => {
       set((state) => ({ decalTextureRevision: state.decalTextureRevision + 1 }));
     },
 
+    // Freeform 2D Canvas Annotations & Reference Images (CorelDraw style)
+    addAnnotation: (ann) => {
+      get().pushHistory();
+      const id = `ann-${Date.now()}`;
+      const newAnn: CanvasAnnotation = { ...ann, id };
+      const updated = [...(get().annotations || []), newAnn];
+      set({
+        annotations: updated,
+        selectedAnnotationId: id,
+        ...syncToActiveProject({ annotations: updated }),
+      });
+      return id;
+    },
+
+    updateAnnotation: (id, partial) => {
+      const updated = (get().annotations || []).map((a) => (a.id === id ? { ...a, ...partial } : a));
+      set({
+        annotations: updated,
+        ...syncToActiveProject({ annotations: updated }),
+      });
+    },
+
+    removeAnnotation: (id) => {
+      get().pushHistory();
+      const updated = (get().annotations || []).filter((a) => a.id !== id);
+      set({
+        annotations: updated,
+        selectedAnnotationId: null,
+        ...syncToActiveProject({ annotations: updated }),
+      });
+    },
+
+    setSelectedAnnotationId: (id) =>
+      set({ selectedAnnotationId: id, selectedPieceId: id ? null : get().selectedPieceId }),
+
+    addReferenceImage: (img) => {
+      get().pushHistory();
+      const id = `ref-${Date.now()}`;
+      const newImg: ReferenceImageItem = { ...img, id };
+      const updated = [...(get().referenceImages || []), newImg];
+      set({
+        referenceImages: updated,
+        selectedRefImageId: id,
+        ...syncToActiveProject({ referenceImages: updated }),
+      });
+      return id;
+    },
+
+    updateReferenceImage: (id, partial) => {
+      const updated = (get().referenceImages || []).map((img) =>
+        img.id === id ? { ...img, ...partial } : img
+      );
+      set({
+        referenceImages: updated,
+        ...syncToActiveProject({ referenceImages: updated }),
+      });
+    },
+
+    removeReferenceImage: (id) => {
+      get().pushHistory();
+      const updated = (get().referenceImages || []).filter((img) => img.id !== id);
+      set({
+        referenceImages: updated,
+        selectedRefImageId: null,
+        ...syncToActiveProject({ referenceImages: updated }),
+      });
+    },
+
+    setSelectedRefImageId: (id) =>
+      set({ selectedRefImageId: id, selectedPieceId: id ? null : get().selectedPieceId }),
+
+    setShowRollGuides: (show) => {
+      set({ showRollGuides: show, ...syncToActiveProject({ showRollGuides: show }) });
+    },
+
+    setFabricRollWidthCm: (cm) => {
+      set({ fabricRollWidthCm: cm, ...syncToActiveProject({ fabricRollWidthCm: cm }) });
+    },
+
     loadPreset: (id: string) => {
       const template = GARMENT_TEMPLATES.find((t) => t.id === id);
       if (template) {
@@ -1713,6 +1862,15 @@ export const useCloStore = create<CloState>((set, get) => {
           hood: defaultCol,
         };
 
+        const templateAnns: CanvasAnnotation[] = id === 'sbl-kids-cutbray' ? [
+          { id: 'ann-1', text: 'POLA CUTBRAY SERUT // SBL KIDS', x: 35, y: 110, fontSize: 14, color: '#9333ea', isHeader: true },
+          { id: 'ann-2', text: 'KOMPONEN GARMEN:\n• TALI 1 X\n• LAPISAN TALI SERUT 1 X\n• BAN PINGGANG 1 X\n• KAIN SERONG 2 X', x: 35, y: 145, fontSize: 11, color: '#334155' },
+          { id: 'ann-3', text: 'SIZE CHART (KIDS):\nNo 2: P 47 x L 31 cm\nNo 4: P 54 x L 37 cm\nNo 6: P 58 x L 39 cm\nNo 8: P 62 x L 41 cm\nNo 10: P 66 x L 43 cm\nNo 12: P 70 x L 45 cm', x: 35, y: 290, fontSize: 10, color: '#475569' },
+        ] : [
+          { id: 'ann-main', text: `${template.name.toUpperCase()} // CAD TECH SPEC`, x: 35, y: 110, fontSize: 14, color: '#2563eb', isHeader: true },
+          { id: 'ann-cutting', text: 'PETUNJUK POTONG (CUTTING):\n• Badan Muka (TM) : Potong 1x\n• Badan Belakang (TB) : Potong 1x\n• Lengan (Kiri & Kanan) : Potong 2x\n• Rib Kerah : Potong 1x', x: 35, y: 145, fontSize: 11, color: '#475569' },
+        ];
+
         const updatedState = {
           activeTemplateId: id,
           pieces: p.pieces,
@@ -1720,8 +1878,10 @@ export const useCloStore = create<CloState>((set, get) => {
           currentMaterial: recFabric,
           customColor: defaultCol,
           colorZones: newColorZones,
+          annotations: templateAnns,
           selectedPieceId: null,
           selectedVertexIndex: null,
+          selectedAnnotationId: null,
           simulationIteration: get().simulationIteration + 1,
           decalTextureRevision: get().decalTextureRevision + 1,
         };

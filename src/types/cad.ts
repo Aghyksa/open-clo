@@ -137,7 +137,30 @@ export type CadTool =
   | 'edit-sew'  // B: Edit Sewing (select, modify, delete seams)
   | 'move'      // H: Pan Viewport
   | 'measure'   // M: Measure edge segment
-  | 'graphic';  // T: Add artwork / graphic stamp
+  | 'text'      // T: Text Annotation on Canvas (CorelDraw F8 style)
+  | 'graphic';  // G: Add artwork / graphic stamp
+
+export interface CanvasAnnotation {
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  fontSize: number;
+  color: string;
+  isHeader?: boolean;
+}
+
+export interface ReferenceImageItem {
+  id: string;
+  name: string;
+  url: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  opacity: number;
+  locked?: boolean;
+}
 
 export interface AvatarConfig {
   gender: 'female' | 'male';
@@ -184,6 +207,10 @@ export interface CloProject {
   canvasTheme?: CanvasTheme;
   sublimationPrint?: SublimationPrint;
   tataBusanaMode?: boolean;
+  annotations?: CanvasAnnotation[];
+  referenceImages?: ReferenceImageItem[];
+  fabricRollWidthCm?: number;
+  showRollGuides?: boolean;
 }
 
 export type ViewportLayout = 'dual' | 'pattern-only' | '3d-only';

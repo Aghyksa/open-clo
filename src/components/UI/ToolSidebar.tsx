@@ -18,6 +18,7 @@ import {
   Unlink,
   Sparkles,
   Bookmark,
+  Type,
 } from 'lucide-react';
 
 interface ToolItem {
@@ -35,6 +36,13 @@ const TOOLS: ToolItem[] = [
     hotkey: 'V',
     icon: MousePointer,
     description: 'Select, scale, rotate and move pattern pieces and decals',
+  },
+  {
+    id: 'text',
+    name: 'Text Annotation (F8)',
+    hotkey: 'T',
+    icon: Type,
+    description: 'Click anywhere on canvas to type production labels, cutting counts, or size specifications',
   },
   {
     id: 'graphic',
