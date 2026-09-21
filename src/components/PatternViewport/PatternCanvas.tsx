@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useCloStore } from '../../store/useCloStore';
+import { drawSublimationPattern } from '../../utils/patternPresets';
 import type { PatternPiece, SeamEdge, AvatarConfig, Avatar2DConfig, PatchPresetType, EdgeCurvature } from '../../types/cad';
 import {
   ZoomIn,
@@ -27,6 +28,11 @@ export const PatternCanvas: React.FC = () => {
     canvasTheme,
     setCanvasTheme,
     updatePieceColor,
+    sublimationPrint,
+    tataBusanaMode,
+    setTataBusanaMode,
+    addNotchToEdge,
+    removeNotch,
     pieces,
     seams,
     selectedPieceId,
@@ -710,9 +716,32 @@ export const PatternCanvas: React.FC = () => {
         : 'rgba(255, 255, 255, 0.06)';
       ctx.fill();
 
+      // Sublimation Pattern Print Fill (Diana's Page 45 & 46)
+      if (sublimationPrint && sublimationPrint !== 'none') {
+        let pMinX = Infinity, pMinY = Infinity, pMaxX = -Infinity, pMaxY = -Infinity;
+        screenPts.forEach((pt) => {
+          if (pt.x < pMinX) pMinX = pt.x;
+          if (pt.y < pMinY) pMinY = pt.y;
+          if (pt.x > pMaxX) pMaxX = pt.x;
+          if (pt.y > pMaxY) pMaxY = pt.y;
+        });
+        ctx.save();
+        ctx.clip();
+        drawSublimationPattern(ctx, sublimationPrint, { minX: pMinX, minY: pMinY, maxX: pMaxX, maxY: pMaxY });
+        ctx.restore();
+      }
+
+      // Tata Busana standard line colors (Garis Merah TM / Garis Biru TB)
+      const isFrontPiece = piece.tataBusanaType === 'TM' || piece.name.toLowerCase().includes('front') || piece.name.toLowerCase().includes('depan');
+      const isBackPiece = piece.tataBusanaType === 'TB' || piece.name.toLowerCase().includes('back') || piece.name.toLowerCase().includes('belakang');
+
       // Stroke Outline
       ctx.strokeStyle = isSelected
         ? '#2563eb'
+        : tataBusanaMode && isFrontPiece
+        ? '#dc2626' // Red for front (TM)
+        : tataBusanaMode && isBackPiece
+        ? '#2563eb' // Blue for back (TB)
         : piece.locked
         ? '#94a3b8'
         : isWhite
@@ -721,6 +750,42 @@ export const PatternCanvas: React.FC = () => {
       ctx.lineWidth = isSelected ? 2.5 : isWhite ? 1.8 : 1.5;
       ctx.lineJoin = 'round';
       ctx.stroke();
+
+      // Draw Sewing Notches (Tanda Pas / Cekikan)
+      if (piece.notches && piece.notches.length > 0) {
+        piece.notches.forEach((notch) => {
+          const sp1 = screenPts[notch.edgeIndex];
+          const nextIdx = (notch.edgeIndex + 1) % screenPts.length;
+          const sp2 = screenPts[nextIdx];
+          if (!sp1 || !sp2) return;
+          const t = notch.param;
+          const nx = sp1.x + (sp2.x - sp1.x) * t;
+          const ny = sp1.y + (sp2.y - sp1.y) * t;
+          const dx = sp2.x - sp1.x;
+          const dy = sp2.y - sp1.y;
+          const len = Math.hypot(dx, dy) || 1;
+          const perpX = -dy / len;
+          const perpY = dx / len;
+
+          ctx.save();
+          ctx.strokeStyle = isSelected ? '#1d4ed8' : '#0f172a';
+          ctx.lineWidth = 2.0;
+          ctx.beginPath();
+          ctx.moveTo(nx - perpX * 8, ny - perpY * 8);
+          ctx.lineTo(nx + perpX * 8, ny + perpY * 8);
+          ctx.stroke();
+
+          if (notch.type === 'double') {
+            const uX = dx / len;
+            const uY = dy / len;
+            ctx.beginPath();
+            ctx.moveTo((nx + uX * 5) - perpX * 8, (ny + uY * 5) - perpY * 8);
+            ctx.lineTo((nx + uX * 5) + perpX * 8, (ny + uY * 5) + perpY * 8);
+            ctx.stroke();
+          }
+          ctx.restore();
+        });
+      }
 
       // Draw Topstitches along seams (if enabled)
       if (stitchSettings.showStitches) {
@@ -759,14 +824,14 @@ export const PatternCanvas: React.FC = () => {
         });
       }
 
-      // Draw Center Direction & Grainline Indicator
+      // Draw Center Direction & Grainline Indicator (Arah Serat Benang)
       const centerScreen = worldToScreen(piece.position.x, piece.position.y);
       ctx.save();
       ctx.translate(centerScreen.x, centerScreen.y);
       ctx.rotate(piece.rotation);
 
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.4)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
+      ctx.lineWidth = 1.2;
       ctx.setLineDash([4, 4]);
       ctx.beginPath();
       ctx.moveTo(0, -35 * viewState.scale);
@@ -779,6 +844,13 @@ export const PatternCanvas: React.FC = () => {
       ctx.lineTo(4, 30 * viewState.scale);
       ctx.stroke();
       ctx.setLineDash([]);
+
+      // Grainline Text
+      ctx.font = '500 8.5px ui-monospace, monospace';
+      ctx.fillStyle = isWhite ? '#64748b' : '#94a3b8';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('↕ Arah Serat', 8, 0);
 
       // Draw Graphic / Artwork Layer (Photoshop-like layer)
       if (piece.graphics) {
@@ -820,6 +892,30 @@ export const PatternCanvas: React.FC = () => {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(labelText, centerScreen.x, pillY + pillH / 2);
+
+      // Dedicated Tata Busana TM / TB Badge (Red / Blue)
+      if (tataBusanaMode && (piece.tataBusanaType || isFrontPiece || isBackPiece)) {
+        const badgeTag = piece.tataBusanaType || (isFrontPiece ? 'TM' : 'TB');
+        const isTM = badgeTag === 'TM';
+        const badgeW = 28;
+        const badgeH = 20;
+        const badgeX = pillX - badgeW - 6;
+        const badgeY = pillY + 1;
+
+        ctx.fillStyle = isTM ? '#dc2626' : '#2563eb';
+        ctx.beginPath();
+        ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 5);
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.font = 'bold 9px ui-sans-serif, system-ui';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeTag, badgeX + badgeW / 2, badgeY + badgeH / 2);
+      }
       ctx.restore();
 
       // Edge Segment Dimensions (Metric labels) with curve arc length approximation
@@ -1492,6 +1588,8 @@ export const PatternCanvas: React.FC = () => {
     editSewHover,
     canvasTheme,
     drawAvatar2DGuide,
+    sublimationPrint,
+    tataBusanaMode,
   ]);
 
   // ==========================================
@@ -1548,6 +1646,23 @@ export const PatternCanvas: React.FC = () => {
       if (activeTool === 'patch') {
         setShowPatchModal(true);
         return;
+      }
+
+      // 0d. Notch Tool: Click edge to place sewing balance notch (Tanda Pas)
+      if (activeTool === 'notch') {
+        for (let i = pieces.length - 1; i >= 0; i--) {
+          const piece = pieces[i];
+          if (!piece.locked && piece.visible !== false) {
+            const edgeHit = findEdgeAt(world.x, world.y, piece, 22);
+            if (edgeHit !== null) {
+              selectPiece(piece.id);
+              pushHistory();
+              addNotchToEdge(piece.id, edgeHit.edgeIndex, edgeHit.param);
+              setSeamToast(`Added notch (Tanda Pas) on ${piece.name}`);
+              return;
+            }
+          }
+        }
       }
 
       // 1. Sew Tool: Click edge (CLO3D Segment Sewing)
@@ -2127,6 +2242,30 @@ export const PatternCanvas: React.FC = () => {
     const sy = e.clientY - rect.top;
     const world = screenToWorld(sx, sy);
 
+    // Check if right-clicked near a notch
+    for (const piece of pieces) {
+      if (piece.notches && piece.notches.length > 0) {
+        for (let nIdx = 0; nIdx < piece.notches.length; nIdx++) {
+          const notch = piece.notches[nIdx];
+          const pts = piece.points;
+          const p1 = pts[notch.edgeIndex];
+          const p2 = pts[(notch.edgeIndex + 1) % pts.length];
+          if (!p1 || !p2) continue;
+          const rot1 = rotatePoint(p1.x, p1.y, piece.rotation);
+          const rot2 = rotatePoint(p2.x, p2.y, piece.rotation);
+          const s1 = worldToScreen(piece.position.x + rot1.x, piece.position.y + rot1.y);
+          const s2 = worldToScreen(piece.position.x + rot2.x, piece.position.y + rot2.y);
+          const nx = s1.x + (s2.x - s1.x) * notch.param;
+          const ny = s1.y + (s2.y - s1.y) * notch.param;
+          if (Math.hypot(sx - nx, sy - ny) < 18) {
+            removeNotch(piece.id, nIdx);
+            setSeamToast('Removed notch (Tanda Pas)');
+            return;
+          }
+        }
+      }
+    }
+
     // Check for seam near right-click → show context menu
     const nearSeam = findSeamNearPoint(sx, sy, 22);
     if (nearSeam) {
@@ -2296,6 +2435,7 @@ export const PatternCanvas: React.FC = () => {
         else if (k === 'b') setActiveTool('edit-sew');
         else if (k === 'h') setActiveTool('move');
         else if (k === 'm') setActiveTool('measure');
+        else if (k === 'u') setActiveTool('notch');
       }
     };
 
@@ -2372,6 +2512,21 @@ export const PatternCanvas: React.FC = () => {
         </button>
 
         <span className="text-slate-600">|</span>
+
+        {/* Tata Busana (TM/TB) Mode Toggle */}
+        <button
+          onClick={() => setTataBusanaMode(!tataBusanaMode)}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors text-[11px] font-semibold ${
+            tataBusanaMode
+              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+              : 'text-slate-400 hover:text-white bg-slate-800/60'
+          }`}
+          title="Toggle Indonesian Tata Busana Notation (TM Merah / TB Biru / Arah Serat)"
+        >
+          <span>{tataBusanaMode ? '📐 Tata Busana: ON' : '📐 Tata Busana: OFF'}</span>
+        </button>
+
+        <span className="text-slate-600">|</span>
         <span className="text-slate-400 font-mono">{(viewState.scale * 100).toFixed(0)}%</span>
 
         {/* Pending Seam Indicator */}
@@ -2420,6 +2575,17 @@ export const PatternCanvas: React.FC = () => {
               />
             </div>
             <span className="text-slate-600">|</span>
+            <button
+              onClick={() => {
+                pushHistory();
+                addNotchToEdge(piece.id, 0, 0.5);
+                setSeamToast(`Added notch (Tanda Pas) to ${piece.name}`);
+              }}
+              className="px-2 py-0.5 rounded bg-blue-900/50 hover:bg-blue-800/60 text-blue-200 border border-blue-700/50 text-[10px] font-semibold transition-colors"
+              title="Add sewing balance notch on this piece"
+            >
+              + Notch
+            </button>
             <button
               onClick={() => duplicatePiece(piece.id)}
               className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-semibold transition-colors"

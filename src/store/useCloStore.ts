@@ -20,6 +20,7 @@ import type {
   StudioLightingPreset,
   GraphicDecal,
   CanvasTheme,
+  SublimationPrint,
 } from '../types/cad';
 import {
   FABRIC_PRESETS,
@@ -27,7 +28,7 @@ import {
   STITCH_PRESETS,
 } from '../utils/patternPresets';
 
-const STORAGE_KEY_PROJECTS = 'openclo_projects_v7';
+const STORAGE_KEY_PROJECTS = 'openclo_projects_v8';
 const STORAGE_KEY_ACTIVE = 'openclo_active_project_id';
 
 function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string): CloProject {
@@ -270,6 +271,8 @@ interface CloState {
   mockupScene: MockupSceneMode;
   lightingPreset: StudioLightingPreset;
   canvasTheme: CanvasTheme;
+  sublimationPrint: SublimationPrint;
+  tataBusanaMode: boolean;
   colorZones: Record<string, string>;
   decals: GraphicDecal[];
   selectedDecalId: string | null;
@@ -279,6 +282,10 @@ interface CloState {
   setMockupScene: (scene: MockupSceneMode) => void;
   setLightingPreset: (preset: StudioLightingPreset) => void;
   setCanvasTheme: (theme: CanvasTheme) => void;
+  setSublimationPrint: (print: SublimationPrint) => void;
+  setTataBusanaMode: (enabled: boolean) => void;
+  addNotchToEdge: (pieceId: string, edgeIndex: number, param: number) => void;
+  removeNotch: (pieceId: string, notchIndex: number) => void;
   setColorZone: (zone: string, color: string) => void;
   setColorZones: (zones: Record<string, string>) => void;
   setSelectedDecalId: (id: string | null) => void;
@@ -330,6 +337,8 @@ export const useCloStore = create<CloState>((set, get) => {
         mockupScene: updatedState.mockupScene ?? (p.mockupScene || state.mockupScene),
         canvasViewMode: updatedState.canvasViewMode ?? (p.canvasViewMode || state.canvasViewMode),
         canvasTheme: updatedState.canvasTheme ?? (p.canvasTheme || state.canvasTheme),
+        sublimationPrint: updatedState.sublimationPrint ?? (p.sublimationPrint || state.sublimationPrint),
+        tataBusanaMode: updatedState.tataBusanaMode ?? (p.tataBusanaMode ?? state.tataBusanaMode),
         updatedAt: now,
       };
     });
@@ -361,6 +370,8 @@ export const useCloStore = create<CloState>((set, get) => {
     // Fashion CAD & 3D Showroom State
     canvasViewMode: active.canvasViewMode || 'pieces',
     canvasTheme: active.canvasTheme || 'white',
+    sublimationPrint: active.sublimationPrint || 'none',
+    tataBusanaMode: active.tataBusanaMode ?? true,
     mockupScene: active.mockupScene || 'ghost',
     lightingPreset: 'ecommerce-white',
     colorZones: active.colorZones || {
@@ -1556,6 +1567,46 @@ export const useCloStore = create<CloState>((set, get) => {
 
     setCanvasTheme: (theme) => {
       set({ canvasTheme: theme, ...syncToActiveProject({ canvasTheme: theme }) });
+    },
+
+    setSublimationPrint: (print) => {
+      set((state) => ({
+        sublimationPrint: print,
+        decalTextureRevision: state.decalTextureRevision + 1,
+        simulationIteration: state.simulationIteration + 1,
+        ...syncToActiveProject({ sublimationPrint: print }),
+      }));
+    },
+
+    setTataBusanaMode: (enabled) => {
+      set({ tataBusanaMode: enabled, ...syncToActiveProject({ tataBusanaMode: enabled }) });
+    },
+
+    addNotchToEdge: (pieceId, edgeIndex, param) => {
+      get().pushHistory();
+      const updatedPieces = get().pieces.map((p) => {
+        if (p.id !== pieceId) return p;
+        const notches = p.notches ? [...p.notches] : [];
+        notches.push({ edgeIndex, param, type: 'single' });
+        return { ...p, notches };
+      });
+      set({
+        pieces: updatedPieces,
+        ...syncToActiveProject({ pieces: updatedPieces }),
+      });
+    },
+
+    removeNotch: (pieceId, notchIndex) => {
+      get().pushHistory();
+      const updatedPieces = get().pieces.map((p) => {
+        if (p.id !== pieceId) return p;
+        const notches = (p.notches || []).filter((_, idx) => idx !== notchIndex);
+        return { ...p, notches };
+      });
+      set({
+        pieces: updatedPieces,
+        ...syncToActiveProject({ pieces: updatedPieces }),
+      });
     },
 
     setColorZone: (zone, color) => {

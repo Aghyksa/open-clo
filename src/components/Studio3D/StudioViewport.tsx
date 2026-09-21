@@ -22,6 +22,7 @@ export const StudioViewport: React.FC = () => {
     setMockupScene,
     lightingPreset,
     setLightingPreset,
+    sublimationPrint,
     decalTextureRevision,
   } = useCloStore();
 
@@ -126,6 +127,7 @@ export const StudioViewport: React.FC = () => {
       decals,
       activeTemplateId,
       customColor,
+      sublimationPrint,
     });
     offscreenCanvasRef.current = offscreen;
 
@@ -198,11 +200,11 @@ export const StudioViewport: React.FC = () => {
     if (!canvasTextureRef.current) return;
 
     generateGarmentTextureCanvas(
-      { colorZones, decals, activeTemplateId, customColor },
+      { colorZones, decals, activeTemplateId, customColor, sublimationPrint },
       offscreenCanvasRef.current || undefined
     );
     canvasTextureRef.current.needsUpdate = true;
-  }, [colorZones, decals, activeTemplateId, customColor, decalTextureRevision]);
+  }, [colorZones, decals, activeTemplateId, customColor, decalTextureRevision, sublimationPrint]);
 
   // 3. Rebuild 3D Model whenever mockupScene or template changes
   useEffect(() => {

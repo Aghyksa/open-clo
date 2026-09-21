@@ -4,6 +4,7 @@ import {
   getAssembledSpec,
   GRAPHIC_PRESETS,
   FASHION_COLOR_PALETTES,
+  drawSublimationPattern,
 } from '../../utils/patternPresets';
 import type { GraphicDecal } from '../../types/cad';
 import {
@@ -30,6 +31,7 @@ export const AssembledFlatCanvas: React.FC = () => {
     updateDecal,
     removeDecal,
     setCanvasViewMode,
+    sublimationPrint,
     decalTextureRevision,
   } = useCloStore();
 
@@ -213,6 +215,190 @@ export const AssembledFlatCanvas: React.FC = () => {
       const isJacket = spec.hasCampCollar;
       const isPolo = spec.hasPoloCollar;
       const isPants = spec.isPants;
+      const isKidsSet = spec.isKidsSet;
+      const isBolero = spec.isBolero;
+
+      if (isKidsSet) {
+        // Draw SBL Kids 2-Piece Set: Ruched Crop Top + Cutbray Flared Pants (PT. Maxxbrother Indonesia)
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = 'round';
+
+        // 1. Ruched Crop Top
+        ctx.fillStyle = bodyColor;
+        ctx.beginPath();
+        ctx.moveTo(-58, -115); // left shoulder
+        ctx.lineTo(-24, -125); // left neck
+        if (isBack) {
+          ctx.quadraticCurveTo(0, -118, 24, -125);
+        } else {
+          ctx.quadraticCurveTo(0, -95, 24, -125); // scoop neck
+        }
+        ctx.lineTo(58, -115); // right shoulder
+        ctx.lineTo(50, -50);  // right armhole
+        ctx.lineTo(44, -15);  // right hem
+        ctx.lineTo(-44, -15); // left hem
+        ctx.lineTo(-50, -50); // left armhole
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Top Sublimation pattern
+        if (sublimationPrint && sublimationPrint !== 'none') {
+          ctx.save();
+          ctx.clip();
+          drawSublimationPattern(ctx, sublimationPrint, { minX: -58, minY: -125, maxX: 58, maxY: -15 });
+          ctx.restore();
+        }
+
+        // Center ruching (serut) channel & gathers on front
+        if (!isBack) {
+          ctx.strokeStyle = 'rgba(15, 23, 42, 0.45)';
+          ctx.lineWidth = 1.2;
+          ctx.setLineDash([3, 2]);
+          ctx.beginPath();
+          ctx.moveTo(0, -95);
+          ctx.lineTo(0, -15);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          // Gather horizontal creases
+          for (let gy = -85; gy <= -25; gy += 15) {
+            ctx.beginPath();
+            ctx.moveTo(-14, gy - 2);
+            ctx.quadraticCurveTo(0, gy + 3, 14, gy - 2);
+            ctx.stroke();
+          }
+
+          // Drawstring cords hanging below hem
+          ctx.strokeStyle = '#f8fafc';
+          ctx.lineWidth = 2.0;
+          ctx.beginPath();
+          ctx.moveTo(-4, -15);
+          ctx.quadraticCurveTo(-10, 5, -6, 20);
+          ctx.moveTo(4, -15);
+          ctx.quadraticCurveTo(10, 5, 6, 20);
+          ctx.stroke();
+          ctx.fillStyle = '#f8fafc';
+          ctx.beginPath();
+          ctx.arc(-6, 20, 2.5, 0, Math.PI * 2);
+          ctx.arc(6, 20, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // 2. High-Waisted Cutbray Flared Pants
+        // Waistband
+        ctx.fillStyle = sleeveColor || '#38bdf8';
+        ctx.beginPath();
+        ctx.rect(-52, 5, 104, 16);
+        ctx.fill();
+        ctx.stroke();
+
+        // Pants Flare Legs
+        ctx.fillStyle = bodyColor;
+        ctx.beginPath();
+        ctx.moveTo(-52, 21);
+        ctx.lineTo(-56, 60);  // hip
+        ctx.lineTo(-30, 105); // knee taper in
+        ctx.lineTo(-68, 165); // bell-bottom flare hem out
+        ctx.lineTo(-14, 165); // inner bell hem
+        ctx.lineTo(-6, 75);   // inner crotch
+        ctx.lineTo(6, 75);
+        ctx.lineTo(14, 165);
+        ctx.lineTo(68, 165);
+        ctx.lineTo(30, 105);
+        ctx.lineTo(56, 60);
+        ctx.lineTo(52, 21);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Pants Sublimation pattern
+        if (sublimationPrint && sublimationPrint !== 'none') {
+          ctx.save();
+          ctx.clip();
+          drawSublimationPattern(ctx, sublimationPrint, { minX: -68, minY: 21, maxX: 68, maxY: 165 });
+          ctx.restore();
+        }
+
+        // Drawstring tie accents on outer flared hem
+        ctx.strokeStyle = '#f8fafc';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-68, 160);
+        ctx.lineTo(-74, 172);
+        ctx.moveTo(68, 160);
+        ctx.lineTo(74, 172);
+        ctx.stroke();
+
+        ctx.restore();
+        return;
+      }
+
+      if (isBolero) {
+        // Draw Cropped Bolero Shrug with Dramatic Puff Sleeves (PT. Maxxbrother Indonesia)
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 2.2;
+        ctx.lineJoin = 'round';
+
+        // 1. Exaggerated Puff Sleeves
+        ctx.fillStyle = sleeveColor || '#f43f5e';
+
+        // Left Puff Sleeve
+        ctx.beginPath();
+        ctx.moveTo(-60, -95);
+        ctx.quadraticCurveTo(-145, -120, -135, -45); // high puff shoulder
+        ctx.lineTo(-55, 15); // tapered forearm
+        ctx.lineTo(-45, -25);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Right Puff Sleeve
+        ctx.beginPath();
+        ctx.moveTo(60, -95);
+        ctx.quadraticCurveTo(145, -120, 135, -45);
+        ctx.lineTo(55, 15);
+        ctx.lineTo(45, -25);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Wrist cuffs
+        ctx.fillStyle = collarColor || '#1e3a8a';
+        ctx.beginPath();
+        ctx.rect(-60, 15, 18, 16);
+        ctx.rect(42, 15, 18, 16);
+        ctx.fill();
+        ctx.stroke();
+
+        // 2. Cropped Center Bodice (Chest level)
+        ctx.fillStyle = bodyColor;
+        ctx.beginPath();
+        ctx.moveTo(-60, -95);
+        ctx.lineTo(-25, -105);
+        if (isBack) {
+          ctx.quadraticCurveTo(0, -98, 25, -105);
+        } else {
+          ctx.quadraticCurveTo(0, -80, 25, -105);
+        }
+        ctx.lineTo(60, -95);
+        ctx.lineTo(50, -35);
+        ctx.lineTo(-50, -35);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        if (sublimationPrint && sublimationPrint !== 'none') {
+          ctx.save();
+          ctx.clip();
+          drawSublimationPattern(ctx, sublimationPrint, { minX: -145, minY: -125, maxX: 145, maxY: 35 });
+          ctx.restore();
+        }
+
+        ctx.restore();
+        return;
+      }
 
       if (isPants) {
         // Draw Cargo Pants Silhouette
@@ -325,6 +511,14 @@ export const AssembledFlatCanvas: React.FC = () => {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+
+      // Body Sublimation pattern
+      if (sublimationPrint && sublimationPrint !== 'none') {
+        ctx.save();
+        ctx.clip();
+        drawSublimationPattern(ctx, sublimationPrint, { minX: -80, minY: -115, maxX: 80, maxY: 125 });
+        ctx.restore();
+      }
 
       // 3. BOTTOM HEM RIB
       ctx.fillStyle = hemColor;
@@ -692,7 +886,7 @@ export const AssembledFlatCanvas: React.FC = () => {
     }
 
     ctx.restore();
-  }, [dims, viewState, colorZones, decals, selectedDecalId, showMeasurements, spec]);
+  }, [dims, viewState, colorZones, decals, selectedDecalId, showMeasurements, spec, sublimationPrint]);
 
   // Re-render when state changes
   useEffect(() => {

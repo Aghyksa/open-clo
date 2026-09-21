@@ -58,11 +58,29 @@ export interface InternalLine {
   points: Point2D[];
 }
 
+export interface PatternNotch {
+  edgeIndex: number;
+  param: number; // 0.0 to 1.0 along edge
+  type?: 'single' | 'double';
+}
+
+export type SublimationPrint =
+  | 'none'
+  | 'retro-check'
+  | 'meadow-floral'
+  | 'sunset-ombre'
+  | 'ocean-marble'
+  | 'street-stars';
+
 export interface PatternPiece {
   id: string;
   name: string;
   points: Point2D[];
   edgeCurvatures?: Record<number, EdgeCurvature>; // keyed by edge index
+  notches?: PatternNotch[];
+  sublimationPrint?: SublimationPrint;
+  tataBusanaType?: 'TM' | 'TB';
+  hasFoldLine?: boolean;
   position: { x: number; y: number };
   rotation: number; // In radians
   color?: string;
@@ -110,6 +128,7 @@ export type CadTool =
   | 'vertex'    // A: Direct Select / Move vertex
   | 'pen'       // P: Add point on edge
   | 'curve'     // C: Curvature tool (bend edge)
+  | 'notch'     // U: Tanda Pas / Sewing Notch Tool
   | 'cut'       // X: Scissor / Slice pattern piece
   | 'patch'     // K: Fabric Patch / Add Fabric Piece
   | 'polygon'   // N: Draw custom polygon pattern piece
@@ -163,6 +182,8 @@ export interface CloProject {
   mockupScene?: MockupSceneMode;
   canvasViewMode?: CanvasViewMode;
   canvasTheme?: CanvasTheme;
+  sublimationPrint?: SublimationPrint;
+  tataBusanaMode?: boolean;
 }
 
 export type ViewportLayout = 'dual' | 'pattern-only' | '3d-only';

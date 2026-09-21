@@ -17,6 +17,7 @@ import {
   Link,
   Unlink,
   Sparkles,
+  Bookmark,
 } from 'lucide-react';
 
 interface ToolItem {
@@ -62,6 +63,13 @@ const TOOLS: ToolItem[] = [
     hotkey: 'C',
     icon: Spline,
     description: 'Click and drag an edge to pull it into an anatomical curved line',
+  },
+  {
+    id: 'notch',
+    name: 'Notch Tool (Tanda Pas)',
+    hotkey: 'U',
+    icon: Bookmark,
+    description: 'Click along any pattern edge to insert a sewing balance notch (tanda pas / cekikan)',
   },
   {
     id: 'cut',

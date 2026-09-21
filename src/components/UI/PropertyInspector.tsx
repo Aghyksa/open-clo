@@ -59,6 +59,10 @@ export const PropertyInspector: React.FC = () => {
     scalePiece,
     removeSeam,
     canvasViewMode,
+    sublimationPrint,
+    setSublimationPrint,
+    tataBusanaMode,
+    setTataBusanaMode,
   } = useCloStore();
 
   const [activeTab, setActiveTab] = useState<InspectorTab>('style');
@@ -367,6 +371,24 @@ ${decals
               </select>
             </div>
 
+            {/* Tata Busana (Indonesian Garment Standard) Toggle */}
+            <div className="bg-[#181b24] p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+              <div>
+                <span className="text-xs font-semibold text-slate-200 block">Tata Busana Standard</span>
+                <span className="text-[10px] text-slate-400">Garis Merah TM / Garis Biru TB & Arah Serat</span>
+              </div>
+              <button
+                onClick={() => setTataBusanaMode(!tataBusanaMode)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  tataBusanaMode
+                    ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20'
+                    : 'bg-slate-800 text-slate-400 border border-slate-700'
+                }`}
+              >
+                {tataBusanaMode ? 'Active' : 'Off'}
+              </button>
+            </div>
+
             {/* Multi-Zone Color Blocking */}
             <div className="bg-[#181b24] p-3.5 rounded-xl border border-slate-800 space-y-3">
               <div className="flex items-center justify-between">
@@ -475,6 +497,54 @@ ${decals
                       <span className="text-[9px] text-slate-300 truncate w-full text-center mt-1">
                         {swatch.name.split(' ')[0]}
                       </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Sublimation & Pattern Prints (Diana's Portfolio & PT. Maxxbrother) */}
+            <div className="bg-[#181b24] p-3.5 rounded-xl border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-200 text-xs flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+                  Sublimation Pattern Prints
+                </span>
+                {sublimationPrint !== 'none' && (
+                  <button
+                    onClick={() => setSublimationPrint('none')}
+                    className="text-[10px] text-rose-400 hover:text-rose-300 font-medium"
+                  >
+                    Clear Pattern
+                  </button>
+                )}
+              </div>
+              <p className="text-[10px] text-slate-400">
+                All-over digital fabric prints (PT. Maxxbrother sublimation standard):
+              </p>
+
+              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                {[
+                  { id: 'none', label: 'Solid Color', icon: '◻️' },
+                  { id: 'retro-check', label: 'Wavy Check', icon: '🏁' },
+                  { id: 'meadow-floral', label: 'Retro Floral', icon: '🌸' },
+                  { id: 'sunset-ombre', label: 'Sunset Ombré', icon: '🌅' },
+                  { id: 'ocean-marble', label: 'Ocean Marble', icon: '🌊' },
+                  { id: 'street-stars', label: 'Graffiti Stars', icon: '⭐' },
+                ].map((p) => {
+                  const isCur = sublimationPrint === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => setSublimationPrint(p.id as any)}
+                      className={`p-2 rounded-lg text-left border transition-all flex flex-col items-center justify-center gap-1 ${
+                        isCur
+                          ? 'bg-purple-950/40 border-purple-500 text-purple-200 font-medium'
+                          : 'bg-[#12141a] border-slate-800 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      <span className="text-base">{p.icon}</span>
+                      <span className="text-[10px] text-center">{p.label}</span>
                     </button>
                   );
                 })}
