@@ -7,6 +7,8 @@ import { PatternCanvas } from './components/PatternViewport/PatternCanvas';
 import { AssembledFlatCanvas } from './components/PatternViewport/AssembledFlatCanvas';
 import { StudioViewport } from './components/Studio3D/StudioViewport';
 import { ControlPanelModal } from './components/UI/ControlPanelModal';
+import { LoginModal } from './components/UI/LoginModal';
+import { UCPModal } from './components/UI/UCPModal';
 import { Activity, Scissors, Compass } from 'lucide-react';
 
 export const App: React.FC = () => {
@@ -170,8 +172,10 @@ export const App: React.FC = () => {
         </div>
       </footer>
 
-      {/* Control Panel Modal */}
+      {/* Modals: Control Panel, Auth, UCP */}
       <ControlPanelModal isOpen={controlPanelOpen} onClose={() => setControlPanelOpen(false)} />
+      <LoginModal />
+      <UCPModal />
     </div>
   );
 };

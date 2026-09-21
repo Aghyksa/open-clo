@@ -257,3 +257,24 @@ export interface GraphicDecal {
 }
 
 export type CanvasTheme = 'white' | 'dark';
+
+export type UserRole = 'superadmin' | 'designer' | 'patternmaker' | 'viewer';
+
+export interface UserAccount {
+  id: string;
+  username: string;
+  password: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  avatar?: string;
+  createdAt: string;
+  lastLogin: string;
+  department?: string;
+}
+
+export interface AuthSession {
+  user: UserAccount | null;
+  isAuthenticated: boolean;
+  token?: string;
+}

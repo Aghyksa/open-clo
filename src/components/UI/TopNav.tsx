@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useCloStore } from '../../store/useCloStore';
+import { useAuthStore } from '../../store/useAuthStore';
 import { exportPatternsToSvg, GARMENT_TEMPLATES, FABRIC_PRESETS } from '../../utils/patternPresets';
 import {
   Shirt,
@@ -12,6 +13,8 @@ import {
   FolderKanban,
   Save,
   Palette,
+  Crown,
+  Lock,
 } from 'lucide-react';
 
 interface TopNavProps {
@@ -19,6 +22,7 @@ interface TopNavProps {
 }
 
 export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
+  const { currentUser, isAuthenticated, setUcpModalOpen, setLoginModalOpen } = useAuthStore();
   const {
     layout,
     setLayout,
@@ -280,6 +284,38 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
             </div>
           )}
         </div>
+
+        {/* User Profile / UCP Trigger Button */}
+        {isAuthenticated && currentUser ? (
+          <button
+            onClick={() => setUcpModalOpen(true)}
+            className="flex items-center gap-2 bg-gradient-to-r from-purple-950/70 to-blue-950/70 hover:from-purple-900 hover:to-blue-900 border border-purple-500/40 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-white shadow-md shadow-purple-950/40 transition-all cursor-pointer"
+            title="Buka UCP (User Control Panel)"
+          >
+            <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-purple-600 to-amber-500 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
+              {currentUser.role === 'superadmin' ? (
+                <Crown className="w-3 h-3 text-amber-300" />
+              ) : (
+                currentUser.username.substring(0, 1).toUpperCase()
+              )}
+            </div>
+            <span className="font-bold text-purple-200">@{currentUser.username}</span>
+            {currentUser.role === 'superadmin' && (
+              <span className="text-[9px] font-extrabold uppercase bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded border border-amber-500/40 hidden sm:inline-block">
+                Superadmin
+              </span>
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={() => setLoginModalOpen(true)}
+            className="flex items-center gap-1.5 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all cursor-pointer"
+            title="Masuk ke Akun OpenCLO"
+          >
+            <Lock className="w-3.5 h-3.5 text-purple-400" />
+            <span>Masuk</span>
+          </button>
+        )}
 
         <a
           href="https://github.com/Aghyksa/open-clo"
