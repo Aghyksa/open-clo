@@ -1793,7 +1793,7 @@ export function createCroppedBoleroPreset(): { pieces: PatternPiece[]; seams: Se
 export interface GarmentTemplate {
   id: string;
   name: string;
-  category: 'Tops' | 'Outerwear' | 'Dresses' | 'Skirts' | 'Bottoms';
+  category: 'Tops' | 'Outerwear' | 'Dresses' | 'Skirts' | 'Bottoms' | 'Sets';
   description: string;
   piecesCount: number;
   icon: string;

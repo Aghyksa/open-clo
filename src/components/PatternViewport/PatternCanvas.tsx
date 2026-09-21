@@ -214,7 +214,7 @@ export const PatternCanvas: React.FC = () => {
   // Dragging state
   const isDraggingRef = useRef(false);
   const dragModeRef = useRef<
-    'pan' | 'piece' | 'vertex' | 'scale' | 'rotate' | 'curve' | 'avatar-guide' | 'cut' | null
+    'pan' | 'piece' | 'vertex' | 'scale' | 'rotate' | 'curve' | 'avatar-guide' | 'cut' | 'annotation' | 'refImage' | null
   >(null);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const draggedPieceIdRef = useRef<string | null>(null);
@@ -337,6 +337,7 @@ export const PatternCanvas: React.FC = () => {
       if (dist <= worldThreshold) {
         return {
           edgeIndex: i,
+          param: t,
           point: { x: projX, y: projY },
         };
       }
@@ -2058,7 +2059,7 @@ export const PatternCanvas: React.FC = () => {
       }
 
       // 4. Select Tool: Check transform handles first (bounding box)
-      if (activeTool === 'select' || activeTool === 'move') {
+      if (activeTool === 'select') {
         // Check if clicked on a canvas annotation (CorelDraw F8 text note)
         for (let i = (annotations || []).length - 1; i >= 0; i--) {
           const ann = annotations[i];
