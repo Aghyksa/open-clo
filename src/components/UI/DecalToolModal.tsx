@@ -1,4 +1,5 @@
-import React, { useState, useRef } from 'react';
+import { prepareArtwork } from '../../utils/decalDrawing';
+import React, { useState, useRef, useEffect } from 'react';
 import { useCloStore } from '../../store/useCloStore';
 import {
   GRAPHIC_PRESETS,
@@ -34,6 +35,8 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
   } = useCloStore();
 
   const [activeTab, setActiveTab] = useState<'upload' | 'typography' | 'presets' | 'layers'>('presets');
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Typography state
@@ -45,48 +48,32 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
   const [textCurvature, setTextCurvature] = useState(0);
   const [textTargetView, setTextTargetView] = useState<'front' | 'back' | 'leftSleeve' | 'rightSleeve'>('front');
 
-  if (!isOpen) return null;
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (isOpen && !dialog.open) dialog.showModal();
+    if (!isOpen && dialog.open) dialog.close();
+    return () => { if (dialog.open) dialog.close(); };
+  }, [isOpen]);
 
   const selectedDecal = decals.find((d) => d.id === selectedDecalId);
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (!dataUrl) return;
-
-      const img = new Image();
-      img.onload = () => {
-        const aspect = img.width / img.height;
-        const targetWidth = 140;
-        const targetHeight = targetWidth / aspect;
-
-        addDecal({
-          type: 'image',
-          content: dataUrl,
-          name: file.name.replace(/\.[^/.]+$/, ''),
-          position: { x: 0, y: -20 },
-          scale: 1,
-          rotation: 0,
-          viewTarget: 'front',
-          blendMode: 'normal',
-          opacity: 0.95,
-          width: targetWidth,
-          height: targetHeight,
-        });
-
-        setActiveTab('layers');
-      };
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file || uploading) return;
+    setUploading(true); setUploadError(null);
+    try {
+      const image = await prepareArtwork(file);
+      addDecal({ type: 'image', ...image, name: file.name.replace(/\.[^/.]+$/, '').slice(0, 100) || 'Artwork',
+        position: { x: 0, y: -20 }, scale: 1, rotation: 0, viewTarget: 'front', blendMode: 'normal', opacity: 1 });
+    } catch (error) { setUploadError((error as Error).message); }
+    finally { setUploading(false); }
   };
 
   const handleAddTypography = () => {
+    if (!textInput.trim()) return;
     const font = FASHION_FONTS.find((f) => f.id === selectedFontId) || FASHION_FONTS[0];
 
     addDecal({
@@ -99,7 +86,7 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
       viewTarget: textTargetView,
       blendMode: 'normal',
       opacity: 1,
-      width: Math.max(120, textInput.length * (fontSize * 0.6)),
+      width: Math.min(2000, Math.max(80, textInput.length * (fontSize * 0.6) + Math.max(0, textInput.length - 1) * letterSpacing)),
       height: fontSize * 1.5,
       fontProps: {
         fontFamily: font.family,
@@ -136,8 +123,8 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#14171f] border border-slate-700/80 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+    <dialog ref={dialogRef} onCancel={onClose} onClose={onClose} aria-label="Artwork studio" className="p-0 bg-transparent w-[680px] text-slate-100 rounded-2xl">
+      <div className="bg-[#14171f] border border-slate-700/80 rounded-2xl w-full max-w-2xl max-h-[85dvh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-[#11131a]">
           <div className="flex items-center gap-3">
@@ -146,10 +133,10 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
             </div>
             <div>
               <h2 className="text-base font-bold text-white tracking-wide">
-                Graphic, Decal & Typography Studio
+                Add artwork
               </h2>
               <p className="text-xs text-slate-400">
-                Place streetwear graphics, typography, or upload transparent logos
+                Choose a preset, type your text or upload a PNG, JPEG or WebP image.
               </p>
             </div>
           </div>
@@ -164,7 +151,7 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-slate-800 bg-[#161922] px-6">
+        <div className="flex flex-wrap border-b border-slate-800 bg-[#161922] px-2 sm:px-6">
           <button
             onClick={() => setActiveTab('presets')}
             className={`flex items-center gap-2 py-3 px-4 text-xs font-semibold border-b-2 transition-all ${
@@ -173,7 +160,7 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Sparkles className="w-4 h-4" /> Graphic Presets
+            <Sparkles className="w-4 h-4" /> Presets
           </button>
           <button
             onClick={() => setActiveTab('typography')}
@@ -183,7 +170,7 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Type className="w-4 h-4" /> Typography & Text
+            <Type className="w-4 h-4" /> Text
           </button>
           <button
             onClick={() => setActiveTab('upload')}
@@ -193,7 +180,7 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Upload className="w-4 h-4" /> Upload Image
+            <Upload className="w-4 h-4" /> Upload
           </button>
           <button
             onClick={() => setActiveTab('layers')}
@@ -203,7 +190,7 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Layers className="w-4 h-4" /> Placed Layers ({decals.length})
+            <Layers className="w-4 h-4" /> Layers ({decals.length})
           </button>
         </div>
 
@@ -217,7 +204,8 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {GRAPHIC_PRESETS.map((preset) => (
-                  <div
+                  <button
+                    aria-label={`Add ${preset.name}`}
                     key={preset.id}
                     onClick={() => handleAddPreset(preset.id)}
                     className="p-4 rounded-xl bg-[#1c202a] border border-slate-800 hover:border-blue-500/60 hover:bg-slate-800/60 cursor-pointer transition-all flex flex-col items-center justify-between group text-center"
@@ -232,7 +220,7 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
                     <div className="text-[10px] text-slate-500 uppercase mt-0.5">
                       {preset.category}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -247,6 +235,8 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
                 </label>
                 <input
                   type="text"
+                  aria-label="Artwork text"
+                  maxLength={80}
                   value={textInput}
                   onChange={(e) => setTextInput(e.target.value)}
                   placeholder="e.g. TOKYO ARCHIVE 26"
@@ -323,13 +313,15 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
 
                 <div>
                   <div className="flex justify-between text-xs text-slate-300 mb-1 font-medium">
-                    <span>Arc Curvature</span>
-                    <span className="text-blue-400">{textCurvature}°</span>
+                    <span>Text curve</span>
+                    <span className="text-blue-400">{Math.round(textCurvature * 100)}%</span>
                   </div>
                   <input
                     type="range"
-                    min={-50}
-                    max={50}
+                    aria-label="Text curve"
+                    min={-1}
+                    max={1}
+                    step={0.05}
                     value={textCurvature}
                     onChange={(e) => setTextCurvature(Number(e.target.value))}
                     className="w-full accent-blue-500"
@@ -414,7 +406,7 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
                   accept="image/png, image/svg+xml, image/jpeg, image/webp"
                   onChange={handleFileUpload}
                   className="hidden"
-                />
+                />{uploading && <p role="status" className="text-xs text-slate-400">Preparing artwork…</p>}{uploadError && <p role="alert" className="text-xs text-red-400">{uploadError}</p>}
               </div>
 
               <div className="text-xs text-slate-400 bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-left">
@@ -570,7 +562,7 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
 
         {/* Footer */}
         <div className="px-6 py-3 border-t border-slate-800 bg-[#11131a] flex items-center justify-between text-xs text-slate-400">
-          <span>Shortcuts: Press [T] to toggle this panel</span>
+          <span>Click artwork on the sketch to move, resize or rotate.</span>
           <button
             onClick={onClose}
             className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-semibold transition-colors"
@@ -579,6 +571,6 @@ export const DecalToolModal: React.FC<DecalToolModalProps> = ({ isOpen, onClose 
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 };

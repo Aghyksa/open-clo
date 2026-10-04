@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@config "../tailwind.config.js";
 
 @layer base {
   body {
@@ -27,4 +26,17 @@
 
 canvas {
   outline: none;
+}
+
+@layer components {
+  .account-input { @apply block w-full mt-2 rounded-lg border border-stone-300 bg-white px-3 py-3 text-stone-900 text-sm outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20; }
+  .workspace-icon { @apply p-2.5 rounded-lg text-stone-500 hover:text-teal-800 hover:bg-stone-100 disabled:opacity-40; }
+}
+button, select { touch-action: manipulation; }
+button:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid #5eead4; outline-offset: 3px; }
+input, textarea { user-select: text; }
+dialog { max-width: calc(100vw - 28px); overflow-y: auto; }
+dialog::backdrop { background: rgba(12, 16, 18, .65); backdrop-filter: blur(3px); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }

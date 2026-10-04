@@ -1,6 +1,13 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useCloStore } from '../../store/useCloStore';
+<<<<<<< Updated upstream
 import { drawSublimationPattern } from '../../utils/patternPresets';
+=======
+import { getPatternBounds, getPatternEdgeLength, PATTERN_UNITS_PER_CM } from '../../utils/patternGeometry';
+import { getGrainlineSegments, getPieceCuttingGeometry } from '../../utils/cuttingGeometry';
+import { dragCurvature, findPatternEdge, isPointInPattern, localPoint, rotationDelta, scalePatternShape, seamLocalPoints, useCanvasPointers } from '../../utils/canvasInteraction';
+import { TOOLS } from '../UI/editorTools';
+>>>>>>> Stashed changes
 import type { PatternPiece, SeamEdge, AvatarConfig, Avatar2DConfig, PatchPresetType, EdgeCurvature } from '../../types/cad';
 import {
   ZoomIn,
@@ -16,7 +23,6 @@ import {
   Copy,
   Trash2,
   Plus,
-  Compass,
   Shapes,
 } from 'lucide-react';
 
@@ -25,6 +31,7 @@ export const PatternCanvas: React.FC = () => {
 
   const {
     setCanvasViewMode,
+<<<<<<< Updated upstream
     canvasTheme,
     setCanvasTheme,
     updatePieceColor,
@@ -49,6 +56,10 @@ export const PatternCanvas: React.FC = () => {
     fabricRollWidthCm,
     setShowRollGuides,
     addRectanglePiece,
+=======
+    activeTemplateId,
+    patternLayoutRevision,
+>>>>>>> Stashed changes
     pieces,
     seams,
     selectedPieceId,
@@ -76,14 +87,15 @@ export const PatternCanvas: React.FC = () => {
     removeSeam,
     updateAvatar2D,
     setAvatarMeasurement,
-    undo,
-    redo,
     setActiveTool,
     cutPiece,
     addFabricPatch,
     addCustomPiece,
     setEdgeCurvature,
-    pushHistory,
+    beginEdit,
+    endEdit,
+    cancelEdit,
+    updatePieceShape,
     // Free-Sew & Edit-Sew
     pendingFreeSewEdge,
     setPendingFreeSewEdge,
@@ -101,6 +113,31 @@ export const PatternCanvas: React.FC = () => {
     offsetX: 25,
     offsetY: 65,
   });
+
+  const [showSeams, setShowSeams] = useState(false);
+  const [showDimensions, setShowDimensions] = useState(false);
+  const [showBodyGuide, setShowBodyGuide] = useState(false);
+  const sewingTool = ['sew', 'free-sew', 'edit-sew'].includes(activeTool);
+  const pieceById = React.useMemo(() => new Map(pieces.map((piece) => [piece.id, piece])), [pieces]);
+  const cuttingById = React.useMemo(() => new Map(pieces.map((piece) => [piece.id, getPieceCuttingGeometry(piece)])), [pieces]);
+
+  const fitView = useCallback((targetPieces = useCloStore.getState().pieces) => {
+    const visible = targetPieces.filter((piece) => piece.visible !== false && piece.points.length >= 3);
+    if (!visible.length || !canvasDims.width || !canvasDims.height) return;
+    const bounds = visible.map((piece) => getPatternBounds(piece, true));
+    const left = Math.min(...bounds.map((b) => b.minX)), top = Math.min(...bounds.map((b) => b.minY));
+    const width = Math.max(...bounds.map((b) => b.maxX)) - left;
+    const height = Math.max(...bounds.map((b) => b.maxY)) - top;
+    const scale = Math.max(0.08, Math.min(1.5, (canvasDims.width - 64) / Math.max(1, width),
+      (canvasDims.height - 180) / Math.max(1, height)));
+    setViewState({ scale, offsetX: (canvasDims.width - width * scale) / 2 - left * scale,
+      offsetY: 100 + (canvasDims.height - 180 - height * scale) / 2 - top * scale });
+  }, [canvasDims.width, canvasDims.height]);
+  const pieceSet = pieces.map((piece) => piece.id).join(',');
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => fitView());
+    return () => cancelAnimationFrame(frame);
+  }, [fitView, activeTemplateId, pieceSet, patternLayoutRevision]);
 
   // Layers panel overlay toggle
   const [showLayersOverlay, setShowLayersOverlay] = useState(false);
@@ -222,7 +259,8 @@ export const PatternCanvas: React.FC = () => {
   const dragHandleRef = useRef<string | null>(null); // 'nw', 'ne', 'se', 'sw', 'n', 's', 'e', 'w', 'rot'
   const initialPiecePosRef = useRef({ x: 0, y: 0 });
   const initialPieceRotationRef = useRef(0);
-  const initialPointsRef = useRef<{ x: number; y: number }[]>([]);
+  const initialShapeRef = useRef<Pick<PatternPiece, 'points' | 'edgeCurvatures' | 'internalLines' | 'cutting'>>({ points: [] });
+  const initialDragAngleRef = useRef(0);
   const initialVertexPosRef = useRef({ x: 0, y: 0 });
 
   // Curve tool drag state
@@ -231,6 +269,7 @@ export const PatternCanvas: React.FC = () => {
     edgeIndex: number;
     startMouse: { x: number; y: number }; // world coords at drag start
     initialCurvature: EdgeCurvature | null;
+    controlWeight: number;
   } | null>(null);
 
   // Transform (bounding box) state for select tool
@@ -271,32 +310,12 @@ export const PatternCanvas: React.FC = () => {
 
   // Helper: Un-rotate world point around piece position
   const unrotateFromPiece = (wx: number, wy: number, piece: PatternPiece) => {
-    const dx = wx - piece.position.x;
-    const dy = wy - piece.position.y;
-    const cos = Math.cos(-piece.rotation);
-    const sin = Math.sin(-piece.rotation);
-    return {
-      x: dx * cos - dy * sin,
-      y: dx * sin + dy * cos,
-    };
+    return localPoint({ x: wx, y: wy }, piece.position, piece.rotation);
   };
 
   // Check point in polygon (accounts for piece rotation)
   const isPointInPiece = (wx: number, wy: number, piece: PatternPiece) => {
-    const local = unrotateFromPiece(wx, wy, piece);
-    let inside = false;
-    const pts = piece.points;
-    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-      const xi = pts[i].x,
-        yi = pts[i].y;
-      const xj = pts[j].x,
-        yj = pts[j].y;
-      const intersect =
-        yi > local.y !== yj > local.y &&
-        local.x < ((xj - xi) * (local.y - yi)) / (yj - yi) + xi;
-      if (intersect) inside = !inside;
-    }
-    return inside;
+    return piece.visible !== false && isPointInPattern(piece, { x: wx, y: wy });
   };
 
   // Find vertex under mouse
@@ -313,6 +332,7 @@ export const PatternCanvas: React.FC = () => {
 
   // Find edge under mouse
   const findEdgeAt = (wx: number, wy: number, piece: PatternPiece, threshold = 14) => {
+<<<<<<< Updated upstream
     const local = unrotateFromPiece(wx, wy, piece);
     const worldThreshold = threshold / viewState.scale;
     const pts = piece.points;
@@ -343,73 +363,61 @@ export const PatternCanvas: React.FC = () => {
       }
     }
     return null;
+=======
+    return piece.visible === false ? null : findPatternEdge(piece, { x: wx, y: wy }, threshold / viewState.scale);
+>>>>>>> Stashed changes
   };
 
   // Find edge with parameter t (0-1 along edge) for free-sew
   const findEdgeWithParam = (wx: number, wy: number, piece: PatternPiece, threshold = 14) => {
-    const local = unrotateFromPiece(wx, wy, piece);
-    const worldThreshold = threshold / viewState.scale;
-    const pts = piece.points;
-    for (let i = 0; i < pts.length; i++) {
-      const nextIdx = (i + 1) % pts.length;
-      const x1 = pts[i].x, y1 = pts[i].y;
-      const x2 = pts[nextIdx].x, y2 = pts[nextIdx].y;
-      const dx = x2 - x1, dy = y2 - y1;
-      const lenSq = dx * dx + dy * dy;
-      if (lenSq === 0) continue;
-      let t = ((local.x - x1) * dx + (local.y - y1) * dy) / lenSq;
-      t = Math.max(0, Math.min(1, t));
-      const projX = x1 + t * dx, projY = y1 + t * dy;
-      const dist = Math.hypot(local.x - projX, local.y - projY);
-      if (dist <= worldThreshold) {
-        const rot = rotatePoint(projX, projY, piece.rotation);
-        return {
-          edgeIndex: i,
-          param: t,
-          worldPoint: { x: piece.position.x + rot.x, y: piece.position.y + rot.y },
-        };
-      }
-    }
-    return null;
+    const hit = findEdgeAt(wx, wy, piece, threshold);
+    if (!hit) return null;
+    const rot = rotatePoint(hit.point.x, hit.point.y, piece.rotation);
+    return { edgeIndex: hit.edgeIndex, param: hit.param,
+      worldPoint: { x: piece.position.x + rot.x, y: piece.position.y + rot.y } };
+  };
+
+  const seamScreenPoints = useCallback((piece: PatternPiece, edge: SeamEdge) => seamLocalPoints(piece, edge).map((point) => {
+    const rotated = rotatePoint(point.x, point.y, piece.rotation);
+    return worldToScreen(piece.position.x + rotated.x, piece.position.y + rotated.y);
+  }), [worldToScreen]);
+  const traceSeam = (ctx: CanvasRenderingContext2D, points: { x: number; y: number }[]) => {
+    if (!points.length) return;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    points.slice(1).forEach((point) => ctx.lineTo(point.x, point.y));
+    ctx.stroke();
+  };
+  const seamMidpoint = (points: { x: number; y: number }[]) => {
+    const before = points[Math.floor((points.length - 1) / 2)], after = points[Math.ceil((points.length - 1) / 2)];
+    return { x: (before.x + after.x) / 2, y: (before.y + after.y) / 2 };
+  };
+  const seamLength = (piece: PatternPiece, edge: SeamEdge) => {
+    if (!edge.internalLineId) return getEdgeLength(piece, edge.edgeIndex, edge.paramStart, edge.paramEnd);
+    const points = seamLocalPoints(piece, edge);
+    return points.length < 2 ? 0 : Math.round(Math.hypot(points[1].x - points[0].x, points[1].y - points[0].y)
+      / PATTERN_UNITS_PER_CM * 10) / 10;
   };
 
   // Find seam near screen point (for edit-sew tool)
   const findSeamNearPoint = (sx: number, sy: number, threshold = 18): string | null => {
     for (const seam of seams) {
-      const pieceA = pieces.find((p) => p.id === seam.edgeA.pieceId);
-      const pieceB = pieces.find((p) => p.id === seam.edgeB.pieceId);
-      if (!pieceA || !pieceB) continue;
-      const ptsA = pieceA.points;
-      const ptsB = pieceB.points;
-      const p1A = ptsA[seam.edgeA.edgeIndex];
-      const p2A = ptsA[(seam.edgeA.edgeIndex + 1) % ptsA.length];
-      const p1B = ptsB[seam.edgeB.edgeIndex];
-      const p2B = ptsB[(seam.edgeB.edgeIndex + 1) % ptsB.length];
-      if (!p1A || !p2A || !p1B || !p2B) continue;
-
-      const rot1A = rotatePoint(p1A.x, p1A.y, pieceA.rotation);
-      const rot2A = rotatePoint(p2A.x, p2A.y, pieceA.rotation);
-      const rot1B = rotatePoint(p1B.x, p1B.y, pieceB.rotation);
-      const rot2B = rotatePoint(p2B.x, p2B.y, pieceB.rotation);
-      const midA = worldToScreen(
-        pieceA.position.x + (rot1A.x + rot2A.x) / 2,
-        pieceA.position.y + (rot1A.y + rot2A.y) / 2
-      );
-      const midB = worldToScreen(
-        pieceB.position.x + (rot1B.x + rot2B.x) / 2,
-        pieceB.position.y + (rot1B.y + rot2B.y) / 2
-      );
-
-      // Check distance to edge segments A and B, and to the arc midpoint
-      const distA = distToSegment(sx, sy, midA.x, midA.y, midB.x, midB.y);
-      if (distA <= threshold) return seam.id;
-      // Check distance to each edge highlight
-      const sA1 = worldToScreen(pieceA.position.x + rot1A.x, pieceA.position.y + rot1A.y);
-      const sA2 = worldToScreen(pieceA.position.x + rot2A.x, pieceA.position.y + rot2A.y);
-      const sB1 = worldToScreen(pieceB.position.x + rot1B.x, pieceB.position.y + rot1B.y);
-      const sB2 = worldToScreen(pieceB.position.x + rot2B.x, pieceB.position.y + rot2B.y);
-      if (distToSegment(sx, sy, sA1.x, sA1.y, sA2.x, sA2.y) <= threshold) return seam.id;
-      if (distToSegment(sx, sy, sB1.x, sB1.y, sB2.x, sB2.y) <= threshold) return seam.id;
+      const pieceA = pieceById.get(seam.edgeA.pieceId), pieceB = pieceById.get(seam.edgeB.pieceId);
+      if (!pieceA || !pieceB || pieceA.visible === false || pieceB.visible === false) continue;
+      const pathA = seamScreenPoints(pieceA, seam.edgeA), pathB = seamScreenPoints(pieceB, seam.edgeB);
+      if (pathA.length < 2 || pathB.length < 2) continue;
+      const midA = seamMidpoint(pathA), midB = seamMidpoint(pathB);
+      const distance = Math.hypot(midB.x - midA.x, midB.y - midA.y) || 1, bow = Math.min(distance * 0.25, 60);
+      const cx = (midA.x + midB.x) / 2 - (midB.y - midA.y) / distance * bow;
+      const cy = (midA.y + midB.y) / 2 + (midB.x - midA.x) / distance * bow;
+      const arc = Array.from({ length: 21 }, (_, index) => {
+        const t = index / 20, inverse = 1 - t;
+        return { x: inverse * inverse * midA.x + 2 * inverse * t * cx + t * t * midB.x,
+          y: inverse * inverse * midA.y + 2 * inverse * t * cy + t * t * midB.y };
+      });
+      for (const path of [pathA, pathB, arc]) for (let i = 1; i < path.length; i++) {
+        if (distToSegment(sx, sy, path[i - 1].x, path[i - 1].y, path[i].x, path[i].y) <= threshold) return seam.id;
+      }
     }
     return null;
   };
@@ -424,35 +432,13 @@ export const PatternCanvas: React.FC = () => {
     return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
   };
 
-  // Helper: compute edge length in cm
-  const getEdgeLength = (piece: PatternPiece, edgeIndex: number, paramStart = 0, paramEnd = 1) => {
-    const pts = piece.points;
-    const p1 = pts[edgeIndex];
-    const p2 = pts[(edgeIndex + 1) % pts.length];
-    if (!p1 || !p2) return 0;
-    const fullLen = Math.hypot(p2.x - p1.x, p2.y - p1.y) / 10;
-    return Math.round(fullLen * Math.abs(paramEnd - paramStart) * 10) / 10;
-  };
-
-  // Get piece bounding box in local coords
-  const getPieceLocalBounds = (piece: PatternPiece) => {
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity;
-    piece.points.forEach((pt) => {
-      if (pt.x < minX) minX = pt.x;
-      if (pt.y < minY) minY = pt.y;
-      if (pt.x > maxX) maxX = pt.x;
-      if (pt.y > maxY) maxY = pt.y;
-    });
-    return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
-  };
+  const getEdgeLength = (piece: PatternPiece, edge: number, start = 0, end = 1) =>
+    Math.round(getPatternEdgeLength(piece, edge, start, end) * 10) / 10;
 
   // Check if mouse hits transform handles (bounding box)
   const findTransformHandleAt = (wx: number, wy: number, piece: PatternPiece) => {
     const local = unrotateFromPiece(wx, wy, piece);
-    const bounds = getPieceLocalBounds(piece);
+    const bounds = getPatternBounds(piece);
     const handleSize = 16 / viewState.scale;
 
     const handles: { id: string; x: number; y: number }[] = [
@@ -488,15 +474,15 @@ export const PatternCanvas: React.FC = () => {
     ctx.save();
     ctx.globalAlpha = av2d.opacity;
 
-    // Body dimensions scaled to pattern units (10 units = 1 cm)
+    // Body measurements use the same scale as the cloth mesh.
     // Front view center
     const centerX = av2d.position.x;
     const centerY = av2d.position.y;
 
-    const shoulderHalfW = ((av.shoulderWidth || 40) * 10) / 2;
-    const bustHalfW = ((av.chestCircumference / Math.PI) * 10) / 2 * 1.08;
-    const waistHalfW = ((av.waistCircumference / Math.PI) * 10) / 2 * 1.02;
-    const hipHalfW = ((av.hipsCircumference / Math.PI) * 10) / 2 * 1.12;
+    const shoulderHalfW = ((av.shoulderWidth || 40) * PATTERN_UNITS_PER_CM) / 2;
+    const bustHalfW = ((av.chestCircumference / Math.PI) * PATTERN_UNITS_PER_CM) / 2 * 1.08;
+    const waistHalfW = ((av.waistCircumference / Math.PI) * PATTERN_UNITS_PER_CM) / 2 * 1.02;
+    const hipHalfW = ((av.hipsCircumference / Math.PI) * PATTERN_UNITS_PER_CM) / 2 * 1.12;
 
     const viewsToDraw =
       av2d.view === 'both' ? ['front', 'back'] : [av2d.view];
@@ -665,9 +651,14 @@ export const PatternCanvas: React.FC = () => {
     const width = rect.width;
     const height = rect.height;
 
+<<<<<<< Updated upstream
     // 1. Studio Artboard Background
     const isWhite = canvasTheme === 'white';
     ctx.fillStyle = isWhite ? '#ffffff' : '#111317';
+=======
+    // 1. Studio Background
+    ctx.fillStyle = '#f7f5ef';
+>>>>>>> Stashed changes
     ctx.fillRect(0, 0, width, height);
 
     // 2. CAD Grid
@@ -675,7 +666,11 @@ export const PatternCanvas: React.FC = () => {
     const startX = ((viewState.offsetX % gridSize) + gridSize) % gridSize;
     const startY = ((viewState.offsetY % gridSize) + gridSize) % gridSize;
 
+<<<<<<< Updated upstream
     ctx.strokeStyle = isWhite ? '#f1f5f9' : '#181b22';
+=======
+    ctx.strokeStyle = '#e9e5dc';
+>>>>>>> Stashed changes
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let x = startX; x < width; x += gridSize) {
@@ -706,7 +701,7 @@ export const PatternCanvas: React.FC = () => {
     ctx.stroke();
 
     // 3. Draw 2D Avatar Silhouette Background (CLO3D feature)
-    drawAvatar2DGuide(ctx, avatar, avatar2D);
+    if (showBodyGuide) drawAvatar2DGuide(ctx, avatar, avatar2D);
 
     // 3b. Draw Sublimation Fabric Roll Width Limits (Garis Batas Lebar Kain)
     if (showRollGuides) {
@@ -861,6 +856,7 @@ export const PatternCanvas: React.FC = () => {
       }
       ctx.closePath();
 
+<<<<<<< Updated upstream
       ctx.fillStyle = piece.color
         ? (isWhite ? `${piece.color}2e` : `${piece.color}44`)
         : isSelected
@@ -870,6 +866,13 @@ export const PatternCanvas: React.FC = () => {
         : isWhite
         ? '#f8fafc'
         : 'rgba(255, 255, 255, 0.06)';
+=======
+      ctx.fillStyle = isSelected
+        ? 'rgba(218, 164, 73, 0.18)'
+        : piece.locked
+        ? 'rgba(100, 116, 139, 0.08)'
+        : '#ffffff';
+>>>>>>> Stashed changes
       ctx.fill();
 
       // Sublimation Pattern Print Fill (Diana's Page 45 & 46)
@@ -892,6 +895,7 @@ export const PatternCanvas: React.FC = () => {
       const isBackPiece = piece.tataBusanaType === 'TB' || piece.name.toLowerCase().includes('back') || piece.name.toLowerCase().includes('belakang');
 
       // Stroke Outline
+<<<<<<< Updated upstream
       ctx.strokeStyle = isSelected
         ? '#2563eb'
         : tataBusanaMode && isFrontPiece
@@ -904,6 +908,10 @@ export const PatternCanvas: React.FC = () => {
         ? '#0f172a'
         : '#64748b';
       ctx.lineWidth = isSelected ? 2.5 : isWhite ? 1.8 : 1.5;
+=======
+      ctx.strokeStyle = isSelected ? '#a86614' : piece.locked ? '#a8a29e' : '#57534e';
+      ctx.lineWidth = isSelected ? 2.5 : 1.5;
+>>>>>>> Stashed changes
       ctx.lineJoin = 'round';
       ctx.stroke();
 
@@ -944,16 +952,11 @@ export const PatternCanvas: React.FC = () => {
       }
 
       // Draw Topstitches along seams (if enabled)
-      if (stitchSettings.showStitches) {
+      if (stitchSettings.showStitches && (isSelected || showSeams || sewingTool)) {
         seams.forEach((seam) => {
-          let edgeIdx: number | null = null;
-          if (seam.edgeA.pieceId === piece.id) edgeIdx = seam.edgeA.edgeIndex;
-          else if (seam.edgeB.pieceId === piece.id) edgeIdx = seam.edgeB.edgeIndex;
-
-          if (edgeIdx !== null && screenPts[edgeIdx]) {
-            const nextIdx = (edgeIdx + 1) % pts.length;
-            const p1 = screenPts[edgeIdx];
-            const p2 = screenPts[nextIdx];
+          const edge = seam.edgeA.pieceId === piece.id ? seam.edgeA
+            : seam.edgeB.pieceId === piece.id ? seam.edgeB : null;
+          if (edge) {
 
             ctx.save();
             ctx.strokeStyle = seam.threadColor || stitchSettings.defaultColor || '#f8fafc';
@@ -971,20 +974,22 @@ export const PatternCanvas: React.FC = () => {
               ctx.setLineDash([4, 3]);
             }
 
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.stroke();
+            traceSeam(ctx, seamScreenPoints(piece, edge));
             ctx.restore();
           }
         });
       }
 
+<<<<<<< Updated upstream
       // Draw Center Direction & Grainline Indicator (Arah Serat Benang)
+=======
+      // Cutting instructions are drawn only from recorded metadata, in the panel's local coordinates.
+>>>>>>> Stashed changes
       const centerScreen = worldToScreen(piece.position.x, piece.position.y);
       ctx.save();
       ctx.translate(centerScreen.x, centerScreen.y);
       ctx.rotate(piece.rotation);
+<<<<<<< Updated upstream
 
       ctx.strokeStyle = 'rgba(148, 163, 184, 0.5)';
       ctx.lineWidth = 1.2;
@@ -1000,6 +1005,29 @@ export const PatternCanvas: React.FC = () => {
       ctx.lineTo(4, 30 * viewState.scale);
       ctx.stroke();
       ctx.setLineDash([]);
+=======
+      const cutting = cuttingById.get(piece.id)!;
+      if (cutting.cutOutline) {
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        cutting.cutOutline.forEach((point, i) => {
+          if (i === 0) ctx.moveTo(point.x * viewState.scale, point.y * viewState.scale);
+          else ctx.lineTo(point.x * viewState.scale, point.y * viewState.scale);
+        });
+        ctx.closePath();
+        ctx.stroke();
+      }
+      const markLines = [...(cutting.grainline ? getGrainlineSegments(cutting.grainline) : []), ...cutting.notches];
+      ctx.lineWidth = 1.5;
+      markLines.forEach((line, i) => {
+        ctx.strokeStyle = i < markLines.length - cutting.notches.length ? '#166534' : '#1e293b';
+        ctx.beginPath();
+        ctx.moveTo(line.start.x * viewState.scale, line.start.y * viewState.scale);
+        ctx.lineTo(line.end.x * viewState.scale, line.end.y * viewState.scale);
+        ctx.stroke();
+      });
+>>>>>>> Stashed changes
 
       // Grainline Text
       ctx.font = '500 8.5px ui-monospace, monospace';
@@ -1026,6 +1054,7 @@ export const PatternCanvas: React.FC = () => {
 
       ctx.restore();
 
+<<<<<<< Updated upstream
       // Piece Label (Unified Pill Badge with Integrated TM/TB tag & zero collision)
       let minPtY = Infinity, maxPtY = -Infinity;
       pts.forEach((p) => {
@@ -1093,10 +1122,38 @@ export const PatternCanvas: React.FC = () => {
         ctx.fillText(labelText, centerScreen.x, pillY + pillH / 2);
       }
       ctx.restore();
+=======
+      // Piece Label
+      ctx.font = '500 12px ui-sans-serif, system-ui';
+      ctx.fillStyle = isSelected ? '#854d0e' : '#334155';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const labelBounds = getPatternBounds(piece, true);
+      const labelWidth = Math.max(50, labelBounds.width * viewState.scale + 12);
+      const labelLines: string[] = [];
+      let labelLine = '';
+      for (const word of piece.name.split(' ')) {
+        const next = labelLine ? `${labelLine} ${word}` : word;
+        if (labelLine && ctx.measureText(next).width > labelWidth) { labelLines.push(labelLine); labelLine = word; }
+        else labelLine = next;
+      }
+      labelLines.push(labelLine);
+      const thinPiece = labelBounds.height * viewState.scale < 30;
+      const labelY = thinPiece ? worldToScreen(0, labelBounds.minY).y - 10 - (Math.min(3, labelLines.length) - 1) * 14
+        : centerScreen.y + 48 * viewState.scale;
+      labelLines.slice(0, 3).forEach((line, i) => ctx.fillText(line, centerScreen.x,
+        labelY + i * 14, labelWidth));
+      if (piece.cutting) {
+        ctx.font = '10px ui-sans-serif, system-ui';
+        cutting.labels.forEach((line, i) => ctx.fillText(line, centerScreen.x,
+          labelY + Math.min(3, labelLines.length) * 14 + i * 13, Math.max(100, labelWidth)));
+      }
+>>>>>>> Stashed changes
 
       // Edge Segment Dimensions (Metric labels) with curve arc length approximation
-      for (let i = 0; i < pts.length; i++) {
+      if (showDimensions || (isSelected && activeTool === 'measure')) for (let i = 0; i < pts.length; i++) {
         const nextIdx = (i + 1) % pts.length;
+<<<<<<< Updated upstream
         const p1 = pts[i];
         const p2 = pts[nextIdx];
         const curv = curvatures[i];
@@ -1120,6 +1177,9 @@ export const PatternCanvas: React.FC = () => {
         } else {
           lengthCm = (Math.hypot(p2.x - p1.x, p2.y - p1.y) / 10).toFixed(1);
         }
+=======
+        const lengthCm = getPatternEdgeLength(piece, i).toFixed(1);
+>>>>>>> Stashed changes
 
         // Only draw segment dimension if piece is selected (or in measure tool) and segment >= 6 cm
         const numCm = parseFloat(lengthCm);
@@ -1130,6 +1190,7 @@ export const PatternCanvas: React.FC = () => {
           const midX = (sp1.x + sp2.x) / 2;
           const midY = (sp1.y + sp2.y) / 2;
 
+<<<<<<< Updated upstream
           ctx.save();
           ctx.font = '600 9.5px ui-monospace, monospace';
           const dimText = `${lengthCm} cm`;
@@ -1148,6 +1209,11 @@ export const PatternCanvas: React.FC = () => {
           ctx.fillText(dimText, midX, midY - 7);
           ctx.restore();
         }
+=======
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(`E${i + 1} · ${lengthCm} cm`, midX, midY - 6);
+>>>>>>> Stashed changes
       }
 
       // Draw Vertices handles (Direct Select tool A, Pen tool P, Curvature tool C)
@@ -1227,7 +1293,7 @@ export const PatternCanvas: React.FC = () => {
 
       // Photoshop-Style Bounding Box & Transform Handles (Select Tool V)
       if (isSelected && activeTool === 'select' && !piece.locked) {
-        const bounds = getPieceLocalBounds(piece);
+        const bounds = getPatternBounds(piece);
         const nw = worldToScreen(
           piece.position.x + rotatePoint(bounds.minX, bounds.minY, piece.rotation).x,
           piece.position.y + rotatePoint(bounds.minX, bounds.minY, piece.rotation).y
@@ -1261,7 +1327,7 @@ export const PatternCanvas: React.FC = () => {
 
         // Rotation Handle at Top
         const midTopLocal = { x: (bounds.minX + bounds.maxX) / 2, y: bounds.minY };
-        const rotHandleLocal = { x: (bounds.minX + bounds.maxX) / 2, y: bounds.minY - 30 };
+        const rotHandleLocal = { x: (bounds.minX + bounds.maxX) / 2, y: bounds.minY - 35 / viewState.scale };
         const midTopScreen = worldToScreen(
           piece.position.x + rotatePoint(midTopLocal.x, midTopLocal.y, piece.rotation).x,
           piece.position.y + rotatePoint(midTopLocal.x, midTopLocal.y, piece.rotation).y
@@ -1319,18 +1385,14 @@ export const PatternCanvas: React.FC = () => {
         pendingSeamEdge.pieceId === piece.id &&
         screenPts[pendingSeamEdge.edgeIndex]
       ) {
-        const idx1 = pendingSeamEdge.edgeIndex;
-        const idx2 = (idx1 + 1) % pts.length;
-        ctx.beginPath();
-        ctx.moveTo(screenPts[idx1].x, screenPts[idx1].y);
-        ctx.lineTo(screenPts[idx2].x, screenPts[idx2].y);
+        const path = seamScreenPoints(piece, pendingSeamEdge);
         ctx.strokeStyle = '#f59e0b';
         ctx.lineWidth = 4;
-        ctx.stroke();
+        traceSeam(ctx, path);
 
         // Directional notch indicator (CLO3D style)
-        const notchX = screenPts[idx1].x * 0.75 + screenPts[idx2].x * 0.25;
-        const notchY = screenPts[idx1].y * 0.75 + screenPts[idx2].y * 0.25;
+        const notch = path[Math.round((path.length - 1) * 0.25)];
+        const notchX = notch.x, notchY = notch.y;
         ctx.fillStyle = '#f59e0b';
         ctx.beginPath();
         ctx.arc(notchX, notchY, 4.5, 0, Math.PI * 2);
@@ -1345,18 +1407,14 @@ export const PatternCanvas: React.FC = () => {
         screenPts[sewHover.edgeIndex] &&
         (!pendingSeamEdge || pendingSeamEdge.pieceId !== piece.id || pendingSeamEdge.edgeIndex !== sewHover.edgeIndex)
       ) {
-        const idx1 = sewHover.edgeIndex;
-        const idx2 = (idx1 + 1) % pts.length;
-        ctx.beginPath();
-        ctx.moveTo(screenPts[idx1].x, screenPts[idx1].y);
-        ctx.lineTo(screenPts[idx2].x, screenPts[idx2].y);
+        const path = seamScreenPoints(piece, { pieceId: piece.id, edgeIndex: sewHover.edgeIndex });
         ctx.strokeStyle = '#38bdf8';
         ctx.lineWidth = 3.5;
-        ctx.stroke();
+        traceSeam(ctx, path);
 
         // Hover Notch
-        const notchX = screenPts[idx1].x * 0.75 + screenPts[idx2].x * 0.25;
-        const notchY = screenPts[idx1].y * 0.75 + screenPts[idx2].y * 0.25;
+        const notch = path[Math.round((path.length - 1) * 0.25)];
+        const notchX = notch.x, notchY = notch.y;
         ctx.fillStyle = '#38bdf8';
         ctx.beginPath();
         ctx.arc(notchX, notchY, 4.5, 0, Math.PI * 2);
@@ -1367,15 +1425,8 @@ export const PatternCanvas: React.FC = () => {
     // 4b. CLO3D Interactive Rubber-Band Sewing Preview Line
     if (activeTool === 'sew' && pendingSeamEdge && mouseScreenPos) {
       const pA = pieces.find((p) => p.id === pendingSeamEdge.pieceId);
-      if (pA && pA.points[pendingSeamEdge.edgeIndex]) {
-        const p1A = pA.points[pendingSeamEdge.edgeIndex];
-        const p2A = pA.points[(pendingSeamEdge.edgeIndex + 1) % pA.points.length];
-        const rot1A = rotatePoint(p1A.x, p1A.y, pA.rotation);
-        const rot2A = rotatePoint(p2A.x, p2A.y, pA.rotation);
-        const midA = worldToScreen(
-          pA.position.x + (rot1A.x + rot2A.x) / 2,
-          pA.position.y + (rot1A.y + rot2A.y) / 2
-        );
+      if (pA && pA.visible !== false && pA.points[pendingSeamEdge.edgeIndex]) {
+        const midA = seamMidpoint(seamScreenPoints(pA, pendingSeamEdge));
 
         const targetPos = sewHover ? sewHover.midScreen : mouseScreenPos;
 
@@ -1399,7 +1450,7 @@ export const PatternCanvas: React.FC = () => {
 
         // If hovering target edge, show live length comparison pill (CLO3D segment match)
         if (sewHover) {
-          const lenA = Math.round((Math.hypot(p2A.x - p1A.x, p2A.y - p1A.y) / 10) * 10) / 10;
+          const lenA = seamLength(pA, pendingSeamEdge);
           const lenB = sewHover.lenCm;
           const diff = Math.abs(Math.round((lenA - lenB) * 10) / 10);
           const isMatching = diff <= 1.5;
@@ -1437,6 +1488,7 @@ export const PatternCanvas: React.FC = () => {
       ctx.stroke();
     }
 
+<<<<<<< Updated upstream
     // 6. Draw Virtual Seam Links — color-coded arcs, direction notches, labels (only active in sewing tools)
     const isSewingActive = activeTool === 'sew' || activeTool === 'edit-sew' || activeTool === 'free-sew' || selectedSeamId !== null;
     if (isSewingActive) {
@@ -1452,14 +1504,17 @@ export const PatternCanvas: React.FC = () => {
       const p1B = ptsB[seam.edgeB.edgeIndex];
       const p2B = ptsB[(seam.edgeB.edgeIndex + 1) % ptsB.length];
       if (!p1A || !p2A || !p1B || !p2B) return;
+=======
+    // 6. Draw Virtual Seam Links — color-coded arcs, direction notches, labels
+    if (showSeams || sewingTool) seams.forEach((seam, sIdx) => {
+      const pieceA = pieceById.get(seam.edgeA.pieceId), pieceB = pieceById.get(seam.edgeB.pieceId);
+      if (!pieceA || !pieceB || pieceA.visible === false || pieceB.visible === false) return;
+      const pathA = seamScreenPoints(pieceA, seam.edgeA), pathB = seamScreenPoints(pieceB, seam.edgeB);
+      if (pathA.length < 2 || pathB.length < 2) return;
+>>>>>>> Stashed changes
 
       // Compute lengths for color coding
-      const psA = seam.edgeA.paramStart ?? 0;
-      const peA = seam.edgeA.paramEnd ?? 1;
-      const psB = seam.edgeB.paramStart ?? 0;
-      const peB = seam.edgeB.paramEnd ?? 1;
-      const lenA = getEdgeLength(pieceA, seam.edgeA.edgeIndex, psA, peA);
-      const lenB = getEdgeLength(pieceB, seam.edgeB.edgeIndex, psB, peB);
+      const lenA = seamLength(pieceA, seam.edgeA), lenB = seamLength(pieceB, seam.edgeB);
       const lenDiff = Math.abs(lenA - lenB);
       const avgLen = (lenA + lenB) / 2;
       const diffPct = avgLen > 0 ? (lenDiff / avgLen) * 100 : 0;
@@ -1473,18 +1528,8 @@ export const PatternCanvas: React.FC = () => {
       const isSelected = selectedSeamId === seam.id;
       const isHovered = editSewHover === seam.id;
 
-      const rot1A = rotatePoint(p1A.x, p1A.y, pieceA.rotation);
-      const rot2A = rotatePoint(p2A.x, p2A.y, pieceA.rotation);
-      const rot1B = rotatePoint(p1B.x, p1B.y, pieceB.rotation);
-      const rot2B = rotatePoint(p2B.x, p2B.y, pieceB.rotation);
-
-      const sA1 = worldToScreen(pieceA.position.x + rot1A.x, pieceA.position.y + rot1A.y);
-      const sA2 = worldToScreen(pieceA.position.x + rot2A.x, pieceA.position.y + rot2A.y);
-      const sB1 = worldToScreen(pieceB.position.x + rot1B.x, pieceB.position.y + rot1B.y);
-      const sB2 = worldToScreen(pieceB.position.x + rot2B.x, pieceB.position.y + rot2B.y);
-
-      const midA = { x: (sA1.x + sA2.x) / 2, y: (sA1.y + sA2.y) / 2 };
-      const midB = { x: (sB1.x + sB2.x) / 2, y: (sB1.y + sB2.y) / 2 };
+      const sA1 = pathA[0], sA2 = pathA[pathA.length - 1], sB1 = pathB[0], sB2 = pathB[pathB.length - 1];
+      const midA = seamMidpoint(pathA), midB = seamMidpoint(pathB);
 
       // Highlight edges with colored glow
       ctx.save();
@@ -1492,15 +1537,9 @@ export const PatternCanvas: React.FC = () => {
       ctx.lineWidth = isSelected ? 4 : isHovered ? 3.5 : 2.5;
       ctx.globalAlpha = isSelected ? 1 : isHovered ? 0.9 : 0.6;
       // Edge A
-      ctx.beginPath();
-      ctx.moveTo(sA1.x, sA1.y);
-      ctx.lineTo(sA2.x, sA2.y);
-      ctx.stroke();
+      traceSeam(ctx, pathA);
       // Edge B
-      ctx.beginPath();
-      ctx.moveTo(sB1.x, sB1.y);
-      ctx.lineTo(sB2.x, sB2.y);
-      ctx.stroke();
+      traceSeam(ctx, pathB);
       ctx.globalAlpha = 1;
 
       // Selected glow
@@ -1509,8 +1548,8 @@ export const PatternCanvas: React.FC = () => {
         ctx.shadowBlur = 12;
         ctx.strokeStyle = seamColor;
         ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(sA1.x, sA1.y); ctx.lineTo(sA2.x, sA2.y); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(sB1.x, sB1.y); ctx.lineTo(sB2.x, sB2.y); ctx.stroke();
+        traceSeam(ctx, pathA);
+        traceSeam(ctx, pathB);
         ctx.shadowBlur = 0;
       }
       ctx.restore();
@@ -1646,15 +1685,9 @@ export const PatternCanvas: React.FC = () => {
     if (activeTool === 'free-sew' && pendingFreeSewEdge) {
       const piece = pieces.find(p => p.id === pendingFreeSewEdge.pieceId);
       if (piece) {
-        const pts = piece.points;
-        const p1 = pts[pendingFreeSewEdge.edgeIndex];
-        const p2 = pts[(pendingFreeSewEdge.edgeIndex + 1) % pts.length];
-        if (p1 && p2) {
+        if (piece.visible !== false && piece.points[pendingFreeSewEdge.edgeIndex]) {
           const pS = pendingFreeSewEdge.paramStart;
-          const wx = p1.x + (p2.x - p1.x) * pS;
-          const wy = p1.y + (p2.y - p1.y) * pS;
-          const rot = rotatePoint(wx, wy, piece.rotation);
-          const sp = worldToScreen(piece.position.x + rot.x, piece.position.y + rot.y);
+          const sp = seamScreenPoints(piece, { ...pendingFreeSewEdge, paramStart: pS, paramEnd: pS })[0];
 
           ctx.save();
           ctx.beginPath();
@@ -1762,6 +1795,7 @@ export const PatternCanvas: React.FC = () => {
     pendingFreeSewEdge,
     selectedSeamId,
     editSewHover,
+<<<<<<< Updated upstream
     canvasTheme,
     drawAvatar2DGuide,
     sublimationPrint,
@@ -1772,12 +1806,22 @@ export const PatternCanvas: React.FC = () => {
     selectedRefImageId,
     showRollGuides,
     fabricRollWidthCm,
+=======
+    showSeams,
+    showDimensions,
+    showBodyGuide,
+    drawAvatar2DGuide,
+    sewingTool,
+    pieceById,
+    cuttingById,
+    seamScreenPoints,
+>>>>>>> Stashed changes
   ]);
 
   // ==========================================
   // Mouse Handlers (Photoshop & CAD Tools)
   // ==========================================
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -1789,8 +1833,8 @@ export const PatternCanvas: React.FC = () => {
     dragStartRef.current = { x: sx, y: sy };
     setSeamContextMenu(null); // Dismiss any open context menu
 
-    // Middle click or Space/Move tool -> Pan
-    if (e.button === 1 || e.shiftKey || activeTool === 'move') {
+    // The modifier for constrained edits is Shift; the hand tool pans.
+    if (e.button === 1 || activeTool === 'move') {
       dragModeRef.current = 'pan';
       return;
     }
@@ -1970,6 +2014,7 @@ export const PatternCanvas: React.FC = () => {
             }
           }
         }
+<<<<<<< Updated upstream
         // Then check if clicked on an edge to insert anchor point across all pieces
         for (let i = pieces.length - 1; i >= 0; i--) {
           const piece = pieces[i];
@@ -1983,6 +2028,16 @@ export const PatternCanvas: React.FC = () => {
               setSeamToast(`Added anchor point on ${piece.name}`);
               return;
             }
+=======
+        // Then check edge click to add a point
+        for (const piece of pieces) {
+          if (piece.locked) continue;
+          const edgeHit = findEdgeAt(world.x, world.y, piece, 15);
+          if (edgeHit !== null) {
+            selectPiece(piece.id);
+            addVertexToEdge(piece.id, edgeHit.edgeIndex, edgeHit.point, edgeHit.param);
+            return;
+>>>>>>> Stashed changes
           }
         }
         // If clicked on empty space, start / continue drafting custom polygon piece
@@ -2011,6 +2066,7 @@ export const PatternCanvas: React.FC = () => {
       // 3. Curve Tool: Drag edge to bend (Illustrator-style click+drag)
       if (activeTool === 'curve') {
         for (const piece of pieces) {
+          if (piece.visible === false || piece.locked) continue;
           // First check if clicking on an existing curve control point
           const curvs = piece.edgeCurvatures || {};
           for (const [key, curv] of Object.entries(curvs)) {
@@ -2026,12 +2082,13 @@ export const PatternCanvas: React.FC = () => {
             const dist = Math.hypot(world.x - cpWorldX, world.y - cpWorldY);
             if (dist <= 14 / viewState.scale) {
               selectPiece(piece.id);
-              pushHistory();
+              beginEdit();
               curveDragRef.current = {
                 pieceId: piece.id,
                 edgeIndex: edgeIdx,
                 startMouse: { x: world.x, y: world.y },
                 initialCurvature: { ...curv },
+                controlWeight: 1,
               };
               dragModeRef.current = 'curve';
               isDraggingRef.current = true;
@@ -2043,13 +2100,14 @@ export const PatternCanvas: React.FC = () => {
           const edgeHit = findEdgeAt(world.x, world.y, piece);
           if (edgeHit !== null) {
             selectPiece(piece.id);
-            pushHistory();
+            beginEdit();
             const existingCurv = curvs[edgeHit.edgeIndex] || null;
             curveDragRef.current = {
               pieceId: piece.id,
               edgeIndex: edgeHit.edgeIndex,
               startMouse: { x: world.x, y: world.y },
               initialCurvature: existingCurv ? { ...existingCurv } : null,
+              controlWeight: Math.max(0.25, 2 * edgeHit.param * (1 - edgeHit.param)),
             };
             dragModeRef.current = 'curve';
             isDraggingRef.current = true;
@@ -2097,16 +2155,18 @@ export const PatternCanvas: React.FC = () => {
 
       if (activeTool === 'select' && selectedPieceId) {
         const piece = pieces.find((p) => p.id === selectedPieceId);
-        if (piece && !piece.locked) {
+        if (piece && piece.visible !== false && !piece.locked) {
           const handle = findTransformHandleAt(world.x, world.y, piece);
           if (handle) {
             draggedPieceIdRef.current = piece.id;
             dragHandleRef.current = handle;
             initialPiecePosRef.current = { ...piece.position };
             initialPieceRotationRef.current = piece.rotation;
-            initialPointsRef.current = JSON.parse(JSON.stringify(piece.points));
+            initialShapeRef.current = { points: piece.points, edgeCurvatures: piece.edgeCurvatures, internalLines: piece.internalLines, cutting: piece.cutting };
+            initialDragAngleRef.current = Math.atan2(world.y - piece.position.y, world.x - piece.position.x);
+            beginEdit();
 
-            const bounds = getPieceLocalBounds(piece);
+            const bounds = getPatternBounds(piece);
             transformBoundsRef.current = bounds;
 
             if (handle === 'rot') {
@@ -2125,13 +2185,13 @@ export const PatternCanvas: React.FC = () => {
                 e: { x: bounds.minX, y: (bounds.minY + bounds.maxY) / 2 },
               };
               transformAnchorRef.current = anchorMap[handle] || { x: 0, y: 0 };
-              pushHistory();
             }
             return;
           }
         }
       }
 
+<<<<<<< Updated upstream
       // 5. Check vertex click (Direct Select Tool A / Node Tool) across ALL pieces
       if (activeTool === 'vertex' || activeTool === 'select') {
         let hitPiece: PatternPiece | null = null;
@@ -2146,6 +2206,25 @@ export const PatternCanvas: React.FC = () => {
               hitPiece = p;
               vIdx = hit;
             }
+=======
+      // 5. Check vertex click (Direct Select Tool A)
+      if (selectedPieceId && (activeTool === 'vertex' || activeTool === 'select')) {
+        const piece = pieces.find((p) => p.id === selectedPieceId);
+        if (piece && piece.visible !== false && !piece.locked) {
+          const vIdx = findVertexAt(world.x, world.y, piece);
+          if (vIdx !== null) {
+            selectVertex(vIdx);
+            dragModeRef.current = 'vertex';
+            draggedPieceIdRef.current = piece.id;
+            draggedVertexRef.current = vIdx;
+            initialVertexPosRef.current = {
+              x: piece.points[vIdx].x,
+              y: piece.points[vIdx].y,
+            };
+            initialPieceRotationRef.current = piece.rotation;
+            beginEdit();
+            return;
+>>>>>>> Stashed changes
           }
         }
 
@@ -2190,10 +2269,11 @@ export const PatternCanvas: React.FC = () => {
 
       if (clickedPiece) {
         selectPiece(clickedPiece.id);
-        if (!clickedPiece.locked) {
+        if (!clickedPiece.locked && activeTool === 'select') {
           dragModeRef.current = 'piece';
           draggedPieceIdRef.current = clickedPiece.id;
           initialPiecePosRef.current = { ...clickedPiece.position };
+          beginEdit();
         }
       } else {
         selectPiece(null);
@@ -2202,7 +2282,7 @@ export const PatternCanvas: React.FC = () => {
     }
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -2230,8 +2310,7 @@ export const PatternCanvas: React.FC = () => {
           const pts = piece.points;
           const p1 = pts[edgeHit.edgeIndex];
           const p2 = pts[(edgeHit.edgeIndex + 1) % pts.length];
-          const distWorld = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-          const lenCm = Math.round((distWorld / 10) * 10) / 10;
+          const lenCm = getEdgeLength(piece, edgeHit.edgeIndex);
           const rot1 = rotatePoint(p1.x, p1.y, piece.rotation);
           const rot2 = rotatePoint(p2.x, p2.y, piece.rotation);
           const startScreen = worldToScreen(piece.position.x + rot1.x, piece.position.y + rot1.y);
@@ -2345,19 +2424,17 @@ export const PatternCanvas: React.FC = () => {
       const piece = pieces.find((p) => p.id === draggedPieceIdRef.current);
       if (!piece) return;
 
-      // Project mouse movement to unrotated local space
-      const localWorld = unrotateFromPiece(world.x, world.y, piece);
+      const localDelta = localPoint({ x: dx / viewState.scale, y: dy / viewState.scale }, { x: 0, y: 0 }, initialPieceRotationRef.current);
       updatePieceVertex(draggedPieceIdRef.current, draggedVertexRef.current, {
-        x: Math.round(localWorld.x),
-        y: Math.round(localWorld.y),
+        x: initialVertexPosRef.current.x + localDelta.x,
+        y: initialVertexPosRef.current.y + localDelta.y,
       });
     } else if (dragModeRef.current === 'rotate' && draggedPieceIdRef.current) {
       const piece = pieces.find((p) => p.id === draggedPieceIdRef.current);
       if (!piece) return;
 
-      // Compute angle from piece center to mouse
-      const center = worldToScreen(piece.position.x, piece.position.y);
-      const angle = Math.atan2(sy - center.y, sx - center.x) + Math.PI / 2;
+      const angle = initialPieceRotationRef.current + rotationDelta(
+        Math.atan2(world.y - piece.position.y, world.x - piece.position.x), initialDragAngleRef.current);
       // Snap to 15° increments when Shift is held
       const finalAngle = e.shiftKey ? Math.round(angle / (Math.PI / 12)) * (Math.PI / 12) : angle;
       setPieceRotation(draggedPieceIdRef.current, finalAngle);
@@ -2412,42 +2489,16 @@ export const PatternCanvas: React.FC = () => {
       scaleX = Math.max(0.05, Math.abs(scaleX)) * Math.sign(scaleX || 1);
       scaleY = Math.max(0.05, Math.abs(scaleY)) * Math.sign(scaleY || 1);
 
-      // Apply scale relative to anchor point using initial points
-      const newPoints = initialPointsRef.current.map((pt, idx) => ({
-        ...piece.points[idx],
-        x: Math.round(anchor.x + (pt.x - anchor.x) * scaleX),
-        y: Math.round(anchor.y + (pt.y - anchor.y) * scaleY),
-      }));
-
-      const updatedPieces = pieces.map((p) =>
-        p.id === piece.id ? { ...p, points: newPoints } : p
-      );
-      // Direct set without pushHistory (already pushed on mouseDown)
-      useCloStore.setState({
-        pieces: updatedPieces,
-        simulationIteration: useCloStore.getState().simulationIteration + 1,
-      });
+      const shape = scalePatternShape(initialShapeRef.current, scaleX, scaleY, anchor);
+      updatePieceShape(piece.id, shape.points, shape.edgeCurvatures, shape.internalLines, shape.cutting);
     } else if (dragModeRef.current === 'curve' && curveDragRef.current) {
       // Curve tool: interactive drag to adjust Bezier control point
       const cDrag = curveDragRef.current;
       const piece = pieces.find((p) => p.id === cDrag.pieceId);
       if (!piece) return;
 
-      const pts = piece.points;
-      const p1 = pts[cDrag.edgeIndex];
-      const p2 = pts[(cDrag.edgeIndex + 1) % pts.length];
-
-      // Project mouse into local piece coordinates
-      const localMouse = unrotateFromPiece(world.x, world.y, piece);
-
-      // The control point = mouse position in local coords minus edge midpoint
-      const midX = (p1.x + p2.x) / 2;
-      const midY = (p1.y + p2.y) / 2;
-
-      const newCurvature: EdgeCurvature = {
-        cpx: localMouse.x - midX,
-        cpy: localMouse.y - midY,
-      };
+      const newCurvature = dragCurvature(cDrag.initialCurvature,
+        { x: world.x - cDrag.startMouse.x, y: world.y - cDrag.startMouse.y }, piece.rotation, cDrag.controlWeight);
 
       // If curvature is very small, remove it
       if (Math.abs(newCurvature.cpx) < 2 && Math.abs(newCurvature.cpy) < 2) {
@@ -2479,7 +2530,22 @@ export const PatternCanvas: React.FC = () => {
     draggedPieceIdRef.current = null;
     draggedVertexRef.current = null;
     dragHandleRef.current = null;
+    endEdit();
   };
+
+  const cancelDrag = useCallback(() => {
+    cancelEdit();
+    isDraggingRef.current = false;
+    dragModeRef.current = null;
+    draggedPieceIdRef.current = null;
+    draggedVertexRef.current = null;
+    dragHandleRef.current = null;
+    curveDragRef.current = null;
+    setCutLine(null);
+  }, [cancelEdit]);
+  const pointerHandlers = useCanvasPointers({ view: viewState, setView: setViewState,
+    minScale: 0.08, maxScale: 3, onDown: handleMouseDown, onMove: handleMouseMove,
+    onUp: handleMouseUp, onCancel: cancelDrag });
 
   const handleContextMenu = (e: React.MouseEvent<HTMLCanvasElement>) => {
     e.preventDefault();
@@ -2588,7 +2654,7 @@ export const PatternCanvas: React.FC = () => {
     }
   };
 
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
+  const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
     const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
     const canvas = canvasRef.current;
@@ -2598,14 +2664,19 @@ export const PatternCanvas: React.FC = () => {
     const mouseY = e.clientY - rect.top;
 
     setViewState((prev) => {
-      const newScale = Math.max(0.2, Math.min(3.0, prev.scale * zoomFactor));
+      const newScale = Math.max(0.08, Math.min(3.0, prev.scale * zoomFactor));
       return {
         scale: newScale,
         offsetX: mouseX - (mouseX - prev.offsetX) * (newScale / prev.scale),
         offsetY: mouseY - (mouseY - prev.offsetY) * (newScale / prev.scale),
       };
     });
-  };
+  }, []);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    canvas?.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas?.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
   // Track which tool was active before Space was pressed (for temporary hand tool)
   const spaceToolRef = useRef<string | null>(null);
@@ -2616,7 +2687,9 @@ export const PatternCanvas: React.FC = () => {
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLSelectElement ||
-        e.target instanceof HTMLTextAreaElement
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && (e.target.isContentEditable || !!e.target.closest('button'))) ||
+        document.querySelector('dialog[open]')
       ) {
         return;
       }
@@ -2633,6 +2706,10 @@ export const PatternCanvas: React.FC = () => {
 
       // Escape = return to Select tool / deselect
       if (e.key === 'Escape') {
+        cancelDrag();
+        setDrawingPolygonPoints([]);
+        setPolygonMousePos(null);
+        setSeamContextMenu(null);
         if (activeTool !== 'select') {
           setActiveTool('select');
         } else {
@@ -2665,27 +2742,13 @@ export const PatternCanvas: React.FC = () => {
         }
       }
 
-      // Undo: Ctrl+Z / Cmd+Z
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
-        e.preventDefault();
-        undo();
-      }
-
-      // Redo: Ctrl+Y or Ctrl+Shift+Z
-      if (
-        ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') ||
-        ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z')
-      ) {
-        e.preventDefault();
-        redo();
-      }
-
       // Duplicate: Ctrl+D
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         if (selectedPieceId) duplicatePiece(selectedPieceId);
       }
 
+<<<<<<< Updated upstream
       // Hotkeys for CAD & Cutting tools (when no text input active)
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         const k = e.key.toLowerCase();
@@ -2704,6 +2767,8 @@ export const PatternCanvas: React.FC = () => {
         else if (k === 'u') setActiveTool('notch');
         else if (k === 't' || e.key === 'F8') setActiveTool('text');
       }
+=======
+>>>>>>> Stashed changes
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -2720,6 +2785,7 @@ export const PatternCanvas: React.FC = () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
+<<<<<<< Updated upstream
   }, [selectedPieceId, selectedVertexIndex, activeTool, deleteVertex, deletePiece, duplicatePiece, undo, redo, setActiveTool, selectPiece, selectedSeamId, removeSeam, setSelectedSeamId, selectedRefImageId, selectedAnnotationId, removeReferenceImage, removeAnnotation]);
 
   return (
@@ -2992,11 +3058,36 @@ export const PatternCanvas: React.FC = () => {
           );
         })()}
         </div>
+=======
+  }, [selectedPieceId, selectedVertexIndex, activeTool, deleteVertex, deletePiece, duplicatePiece, setActiveTool, selectPiece, selectedSeamId, removeSeam, setSelectedSeamId, cancelDrag]);
+
+  return (
+    <div className="relative w-full h-full bg-[#111317] overflow-hidden flex flex-col select-none">
+      <div className="absolute top-0 left-0 right-0 z-10 border-b border-stone-200 bg-[#f7f5ef]/95 text-stone-600">
+        <div className="px-4 py-3 flex items-center justify-between gap-2">
+          <span className="font-semibold text-sm text-stone-800">Pattern editor</span>
+          <button onClick={() => setCanvasViewMode('assembled')} className="text-[11px] hover:text-stone-950">Sketch & artwork</button>
+        </div>
+        <div className="flex items-center gap-1 px-3 pb-2 flex-wrap text-[11px]">
+          <button onClick={() => setShowSeams(!showSeams)} aria-pressed={showSeams || sewingTool}
+            className={`px-2 py-1 rounded ${showSeams || sewingTool ? 'bg-amber-100 text-amber-900' : 'hover:bg-stone-200'}`}>Seams</button>
+          <button onClick={() => setShowDimensions(!showDimensions)} aria-pressed={showDimensions}
+            className={`px-2 py-1 rounded ${showDimensions ? 'bg-amber-100 text-amber-900' : 'hover:bg-stone-200'}`}>Sizes</button>
+          <button onClick={() => { setShowBodyGuide(!showBodyGuide); updateAvatar2D({ visible: !showBodyGuide }); }}
+            aria-pressed={showBodyGuide} className={`px-2 py-1 rounded ${showBodyGuide ? 'bg-amber-100 text-amber-900' : 'hover:bg-stone-200'}`}><User className="w-3 h-3 inline mr-1" />Body guide</button>
+          <button onClick={() => setShowLayersOverlay(!showLayersOverlay)} className="px-2 py-1 rounded hover:bg-stone-200">Pieces</button>
+          <button onClick={() => setShowAvatarControls(!showAvatarControls)} className="px-2 py-1 rounded hover:bg-stone-200">Body size</button>
+        </div>
+      </div>
+      <div className="absolute bottom-16 left-4 right-4 z-10 pointer-events-none text-[11px] text-stone-600 leading-relaxed bg-[#f7f5ef]/90 rounded-md px-2 py-1">
+        {TOOLS.find((tool) => tool.id === activeTool)?.description}
+        {pendingSeamEdge && <span className="block font-semibold text-amber-800">Now choose the edge to join it to.</span>}
+>>>>>>> Stashed changes
       </div>
 
       {/* Photoshop-Style Floating Pattern Layers Panel */}
       {showLayersOverlay && (
-        <div className="absolute top-14 right-4 z-20 w-72 bg-[#161821]/95 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl p-3.5 text-xs text-slate-200 animate-in fade-in slide-in-from-top-2 duration-150">
+        <div className="absolute top-24 right-4 z-20 w-72 bg-[#161821]/95 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl p-3.5 text-xs text-slate-200 animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-2">
             <span className="font-bold text-white flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-blue-400" /> Pattern Layers
@@ -3024,7 +3115,7 @@ export const PatternCanvas: React.FC = () => {
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
                     <span
-                      className="w-2.5 h-2.5 rounded-full border border-white/20 flex-shrink-0"
+                      className="w-2.5 h-2.5 rounded-full border border-white/20 shrink-0"
                       style={{ backgroundColor: p.color || '#3b82f6' }}
                     />
                     <span className="truncate font-medium text-xs">{p.name}</span>
@@ -3081,7 +3172,7 @@ export const PatternCanvas: React.FC = () => {
 
       {/* Floating 2D Avatar Body Sizing Overlay */}
       {showAvatarControls && (
-        <div className="absolute top-14 right-4 z-20 w-80 bg-[#161821]/95 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl p-4 text-xs text-slate-200 animate-in fade-in slide-in-from-top-2 duration-150 space-y-3">
+        <div className="absolute top-24 right-4 z-20 w-80 bg-[#161821]/95 backdrop-blur-md border border-slate-700/80 rounded-2xl shadow-2xl p-4 text-xs text-slate-200 animate-in fade-in slide-in-from-top-2 duration-150 space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800">
             <span className="font-bold text-white flex items-center gap-1.5">
               <User className="w-3.5 h-3.5 text-blue-400" /> 2D Avatar Body Measurements
@@ -3199,9 +3290,9 @@ export const PatternCanvas: React.FC = () => {
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
-          onClick={() => setViewState({ scale: 0.75, offsetX: 120, offsetY: 70 })}
+          onClick={() => fitView()}
           className="p-1.5 hover:bg-slate-700/60 rounded-lg text-slate-300 hover:text-white transition-colors"
-          title="Reset View"
+          title="Fit all pieces"
         >
           <Maximize2 className="w-4 h-4" />
         </button>
@@ -3210,7 +3301,7 @@ export const PatternCanvas: React.FC = () => {
           className="px-2 py-1 bg-blue-600/30 hover:bg-blue-600/50 text-blue-300 hover:text-white text-xs font-semibold rounded-lg transition-colors ml-1"
           title="Return to Assembled Flat View"
         >
-          ← Flat View
+          Sketch
         </button>
       </div>
 
@@ -3574,13 +3665,10 @@ export const PatternCanvas: React.FC = () => {
 
       <canvas
         ref={canvasRef}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
+        {...pointerHandlers}
         onDoubleClick={handleDoubleClick}
-        onWheel={handleWheel}
         onContextMenu={handleContextMenu}
-        className={`w-full h-full block ${
+        className={`w-full h-full block touch-none ${
           activeTool === 'move'
             ? 'cursor-grab'
             : activeTool === 'pen'

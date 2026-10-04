@@ -152,7 +152,7 @@ export const ControlPanelModal: React.FC<ControlPanelModalProps> = ({ isOpen, on
         {/* Header */}
         <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-[#171a22]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/30">
+            <div className="w-10 h-10 rounded-xl bg-linear-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-blue-600/30">
               <FolderKanban className="w-5 h-5" />
             </div>
             <div>
@@ -396,7 +396,7 @@ export const ControlPanelModal: React.FC<ControlPanelModalProps> = ({ isOpen, on
                       ) : (
                         <div className="flex items-center gap-2 flex-1 min-w-0">
                           <span
-                            className="w-3 h-3 rounded-full border border-white/20 flex-shrink-0"
+                            className="w-3 h-3 rounded-full border border-white/20 shrink-0"
                             style={{ backgroundColor: proj.customColor || '#38bdf8' }}
                           />
                           <h4 className="font-bold text-sm text-white truncate">{proj.name}</h4>
@@ -411,7 +411,7 @@ export const ControlPanelModal: React.FC<ControlPanelModalProps> = ({ isOpen, on
                       )}
 
                       {isActive && (
-                        <span className="text-[10px] font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 flex-shrink-0">
+                        <span className="text-[10px] font-semibold text-blue-400 bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
                           <Check className="w-3 h-3" /> Active
                         </span>
                       )}

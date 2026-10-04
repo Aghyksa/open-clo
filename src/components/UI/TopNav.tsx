@@ -13,19 +13,30 @@ import {
   FolderKanban,
   Save,
   Palette,
+<<<<<<< Updated upstream
   Crown,
   Lock,
+=======
+  HelpCircle,
+>>>>>>> Stashed changes
 } from 'lucide-react';
 
 interface TopNavProps {
   onOpenControlPanel: () => void;
+  onOpenHelp: () => void;
 }
 
+<<<<<<< Updated upstream
 export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
   const { currentUser, isAuthenticated, setUcpModalOpen, setLoginModalOpen } = useAuthStore();
+=======
+export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel, onOpenHelp }) => {
+>>>>>>> Stashed changes
   const {
     layout,
     setLayout,
+    canvasViewMode,
+    setCanvasViewMode,
     pieces,
     loadPreset,
     activeTemplateId,
@@ -73,7 +84,9 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
   };
 
   const handleExportJson = () => {
-    const data = JSON.stringify({ pieces }, null, 2);
+    const state = useCloStore.getState();
+    const project = state.projects.find((item) => item.id === state.activeProjectId);
+    const data = JSON.stringify({ ...project, schemaVersion: 1 }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -90,21 +103,21 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
   };
 
   return (
-    <header className="h-14 bg-[#12141a] border-b border-slate-800 px-4 flex items-center justify-between z-20 select-none">
+    <header className="min-h-14 shrink-0 bg-[#12141a] border-b border-slate-800 px-4 py-2 flex flex-wrap items-center justify-between gap-2 z-20 select-none">
       {/* Brand & Version Badge */}
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
+        <div className="w-8 h-8 rounded-lg bg-linear-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
           <Shirt className="w-5 h-5" />
         </div>
         <div>
           <div className="flex items-center gap-2">
             <span className="font-bold text-sm tracking-wide text-white">OpenCLO</span>
             <span className="text-[10px] uppercase tracking-wider font-semibold bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/30">
-              Pro CAD
+              Studio
             </span>
           </div>
           <p className="text-[10px] text-slate-400 hidden sm:block">
-            Open-Source 3D Garment CAD & Cloth Simulation
+            Fashion design, from pattern to preview
           </p>
         </div>
       </div>
@@ -113,30 +126,30 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
       <div className="flex items-center gap-2">
         {/* Viewport Layout Switcher */}
         <div className="flex items-center bg-[#191c24] p-1 rounded-xl border border-slate-700/60 text-xs">
-          <button
-            onClick={() => setLayout('pattern-only')}
+          {activeTemplateId !== 'custom-pattern' && <button
+            onClick={() => { setCanvasViewMode('assembled'); setLayout(window.matchMedia('(max-width: 1023px)').matches ? 'pattern-only' : 'dual'); }}
             className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-colors ${
-              layout === 'pattern-only'
+              layout !== '3d-only' && canvasViewMode === 'assembled'
                 ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="2D Fashion CAD Canvas"
-          >
-            <Square className="w-3.5 h-3.5" />
-            <span>2D CAD Flat</span>
-          </button>
-
-          <button
-            onClick={() => setLayout('dual')}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-colors ${
-              layout === 'dual'
-                ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-            title="Dual Studio (2D CAD + 3D Showroom)"
+            title="Choose colors, fabric and artwork with a 3D preview"
           >
             <Columns className="w-3.5 h-3.5" />
-            <span>Dual Studio</span>
+            <span>Design</span>
+          </button>}
+
+          <button
+            onClick={() => { setCanvasViewMode('pieces'); setLayout(window.matchMedia('(max-width: 1023px)').matches ? 'pattern-only' : 'dual'); }}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-colors ${
+              layout !== '3d-only' && canvasViewMode === 'pieces'
+                ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+            title="Edit the pattern and see its 3D result"
+          >
+            <Square className="w-3.5 h-3.5" />
+            <span>Pattern</span>
           </button>
 
           <button
@@ -146,16 +159,16 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
                 ? 'bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
-            title="3D Multi-Scene Showroom"
+            title="Check the garment from every angle"
           >
             <Box className="w-3.5 h-3.5" />
-            <span>3D Showroom</span>
+            <span>3D preview</span>
           </button>
         </div>
       </div>
 
       {/* Right: Projects, Template, Fabric, Color, Save, Export */}
-      <div className="flex items-center gap-2 relative">
+      <div className="flex flex-wrap items-center gap-2 relative w-full min-w-0 xl:w-auto">
         {downloadSuccess && (
           <div className="hidden lg:flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-md">
             <Check className="w-3.5 h-3.5" /> {downloadSuccess}
@@ -165,19 +178,21 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
         {/* Projects Button */}
         <button
           onClick={onOpenControlPanel}
-          className="flex items-center gap-1.5 bg-[#1a1d26] hover:bg-slate-700/60 text-slate-300 hover:text-white text-xs font-medium px-2 py-1.5 rounded-lg border border-slate-700/60 transition-colors"
-          title="Manage Projects (Create, Delete, Switch)"
+          className="flex items-center gap-1.5 whitespace-nowrap bg-[#1a1d26] hover:bg-slate-700/60 text-slate-300 hover:text-white text-xs font-medium px-2 py-1.5 rounded-lg border border-slate-700/60 transition-colors"
+          title="Back to your workspace" aria-label="My workspace"
         >
-          <FolderKanban className="w-3.5 h-3.5 text-indigo-400" />
+          <FolderKanban className="w-3.5 h-3.5 text-indigo-400" /><span>My workspace</span>
         </button>
 
+        <button onClick={onOpenHelp} aria-label="Open user guide" className="p-2 text-slate-400 hover:text-white"><HelpCircle size={18} /></button>
         {/* Garment Template Select */}
         <select
           value={activeTemplateId}
           onChange={(e) => loadPreset(e.target.value)}
-          className="bg-[#1a1d26] text-slate-200 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700/80 focus:outline-none focus:border-blue-500 font-medium cursor-pointer max-w-[210px]"
+          className="bg-[#1a1d26] text-slate-200 text-xs px-2.5 py-1.5 rounded-lg border border-slate-700/80 focus:outline-none focus:border-blue-500 font-medium cursor-pointer min-w-[140px] sm:min-w-0 max-w-[240px] basis-[140px] sm:basis-auto flex-1 sm:flex-none order-1 sm:order-none"
           title="Switch Garment Template"
         >
+          {activeTemplateId === 'custom-pattern' && <option value="custom-pattern">Imported pattern</option>}
           {GARMENT_TEMPLATES.map((tmpl) => (
             <option key={tmpl.id} value={tmpl.id}>
               {tmpl.icon} {tmpl.name}
@@ -190,7 +205,7 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
           <button
             onClick={() => setFabricOpen(!fabricOpen)}
             className="flex items-center gap-1 bg-[#1a1d26] hover:bg-slate-700/60 text-slate-300 hover:text-white text-xs font-medium px-2 py-1.5 rounded-lg border border-slate-700/60 transition-colors"
-            title={`Fabric: ${currentMaterial.name}`}
+            title={`Fabric: ${currentMaterial.name}`} aria-label="Choose fabric and color"
           >
             <Palette className="w-3.5 h-3.5 text-amber-400" />
             <ChevronDown className="w-3 h-3" />
@@ -215,13 +230,13 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
                   }`}
                 >
                   <span
-                    className="w-5 h-5 rounded border border-white/20 flex-shrink-0"
+                    className="w-5 h-5 rounded border border-white/20 shrink-0"
                     style={{ backgroundColor: fab.color }}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="font-medium">{fab.name}</div>
                     <div className="text-[10px] text-slate-400 truncate">
-                      {fab.category} • {fab.density}gsm • Stretch: {(fab.stretchStiffness * 100).toFixed(0)}%
+                      {fab.category} • {fab.density}gsm • {fab.stretchStiffness > .8 ? 'Firm' : fab.stretchStiffness > .5 ? 'Flexible' : 'Soft'}
                     </div>
                   </div>
                   {currentMaterial.id === fab.id && <Check className="w-3.5 h-3.5 text-blue-400" />}
@@ -270,6 +285,7 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
               ? 'bg-[#1a1d26] text-slate-400 border-slate-700/60'
               : 'bg-emerald-600/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-600/30'
           }`}
+<<<<<<< Updated upstream
           title={
             !isAuthenticated
               ? 'Masuk untuk menyimpan proyek ke akun Anda'
@@ -277,12 +293,15 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
               ? `Semua perubahan tersimpan di akun @${currentUser?.username}`
               : 'Simpan perubahan ke akun Anda (Ctrl+S)'
           }
+=======
+          title={isSaved ? 'All changes saved' : 'Save changes (Ctrl+S)'} aria-label={isSaved ? 'Saved to your account' : 'Save changes'}
+>>>>>>> Stashed changes
         >
-          <Save className="w-3.5 h-3.5" />
+          <Save className="w-3.5 h-3.5" /><span>{isSaved ? 'Saved' : 'Save'}</span>
         </button>
 
         {/* Export Button */}
-        <div className="relative">
+        <div className="relative order-2 sm:order-none">
           <button
             onClick={() => setExportOpen(!exportOpen)}
             className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-1.5 rounded-lg shadow-md transition-colors"
@@ -303,7 +322,7 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
               >
                 <span className="font-medium">2D Pattern (.SVG)</span>
                 <span className="text-[10px] text-slate-400">
-                  1:1 Scale Vector for plotter & pattern cutter
+                  Full-size outlines, cutting notes & 100 mm check square
                 </span>
               </button>
 
@@ -313,7 +332,7 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
               >
                 <span className="font-medium">Project File (.JSON)</span>
                 <span className="text-[10px] text-slate-400">
-                  Full CAD specs, seams & textile physics
+                  Pattern, seams, fabric, colors and artwork
                 </span>
               </button>
             </div>

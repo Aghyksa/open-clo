@@ -1,0 +1,64 @@
+import assert from 'node:assert/strict';
+import { createServer } from 'vite';
+import { createApplication } from './server/app.mjs';
+const storage = new Map();
+globalThis.localStorage = { getItem: (key) => storage.get(key) || null, setItem: (key, value) => storage.set(key, value) };
+const vite = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
+const { normalizeProject } = await vite.ssrLoadModule('/src/utils/projectData.ts');
+const app = createApplication({ databasePath: ':memory:', normalizeProject, secureCookies: false });
+await new Promise((resolve) => app.server.listen(0, '127.0.0.1', resolve));
+const base = `http://127.0.0.1:${app.server.address().port}`, realFetch = globalThis.fetch;
+let cookie, offline = false;
+globalThis.fetch = async (url, options = {}) => {
+  if (offline) throw new Error('offline');
+  const response = await realFetch(base + url, { ...options, headers: { ...options.headers, Origin: base, Cookie: cookie || '' } });
+  if (response.headers.has('set-cookie')) cookie = response.headers.get('set-cookie').split(';')[0];
+  return response;
+};
+try {
+  const { useWorkspaceStore: workspace } = await vite.ssrLoadModule('/src/store/useWorkspaceStore.ts');
+  const { useCloStore: editor } = await vite.ssrLoadModule('/src/store/useCloStore.ts');
+  await workspace.getState().initialize(); assert.equal(workspace.getState().status, 'signed-out');
+  assert.equal(await workspace.getState().authenticate('register', { name: 'Alice', email: 'alice@example.test', password: 'alice-secret-phrase-2026' }), true, workspace.getState().error);
+  assert.equal(workspace.getState().designs.length, 0, 'new accounts have no other browser designs');
+  await workspace.getState().createDesign('Alice hoodie', 'heavyweight-hoodie');
+  const id = editor.getState().activeProjectId;
+  assert.equal(editor.getState().isSaved, true, editor.getState().saveError);
+  editor.getState().setColorZone('body', '#047857'); await editor.getState().saveActiveProject();
+  await workspace.getState().returnToWorkspace(); assert.equal(workspace.getState().designs.length, 1);
+  await workspace.getState().openDesign(id); assert.equal(editor.getState().colorZones.body, '#047857', 'reopening uses saved design data');
+  offline = true; editor.getState().setColorZone('body', '#be123c'); await editor.getState().saveActiveProject();
+  assert.equal(editor.getState().isSaved, false); assert.ok(editor.getState().saveError);
+  assert.equal(editor.getState().colorZones.body, '#be123c', 'connection failure preserves pending work');
+  await workspace.getState().returnToWorkspace(); assert.equal(workspace.getState().page, 'editor', 'unsaved work cannot be discarded by workspace navigation');
+  offline = false; await editor.getState().saveActiveProject(); assert.equal(editor.getState().isSaved, true, editor.getState().saveError);
+  await realFetch(base + '/api/auth/logout', { method: 'POST', headers: { Origin: base, Cookie: cookie, 'Content-Type': 'application/json' }, body: '{}' });
+  editor.getState().setColorZone('body', '#0284c7'); await editor.getState().saveActiveProject();
+  assert.equal(workspace.getState().needsReauthentication, true);
+  assert.equal(await workspace.getState().reauthenticate('alice-secret-phrase-2026'), true);
+  assert.equal(editor.getState().isSaved, true);
+  assert.equal(editor.getState().colorZones.body, '#0284c7', 'session recovery preserves pending editor work');
+  await workspace.getState().signOut();
+  assert.equal(await workspace.getState().authenticate('register', { name: 'Bob', email: 'bob@example.test', password: 'bob-secret-phrase-2026' }), true);
+  assert.equal(workspace.getState().designs.length, 0); await workspace.getState().createDesign('Bob tee', 'tshirt');
+  await workspace.getState().returnToWorkspace(); assert.equal(workspace.getState().designs.length, 1);
+  assert.ok(!workspace.getState().designs.some((design) => design.id === id), 'switching accounts never copies Alice’s cached editor state');
+  await workspace.getState().signOut();
+  await workspace.getState().authenticate('login', { email: 'alice@example.test', password: 'alice-secret-phrase-2026' });
+  await workspace.getState().openDesign(id); assert.equal(editor.getState().colorZones.body, '#0284c7');
+  editor.getState().saveProjectAs('Alice hoodie copy'); await editor.getState().saveActiveProject();
+  await workspace.getState().returnToWorkspace(); assert.equal(workspace.getState().designs.length, 2);
+  await workspace.getState().openDesign(id);
+  const switched = await realFetch(base + '/api/auth/login', { method: 'POST', headers: { Origin: base, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'bob@example.test', password: 'bob-secret-phrase-2026' }) });
+  cookie = switched.headers.get('set-cookie').split(';')[0];
+  editor.getState().setColorZone('body', '#a16207'); await editor.getState().saveActiveProject();
+  assert.equal(editor.getState().isSaved, false, 'a cookie from another account cannot receive pending designs');
+  assert.equal(workspace.getState().needsReauthentication, true);
+  assert.equal(await workspace.getState().reauthenticate('alice-secret-phrase-2026'), true);
+  assert.equal(editor.getState().isSaved, true);
+  console.log('workspace check OK: real API autosave, reopen, network retry, navigation guard, account switch isolation and design copies');
+} finally {
+  globalThis.fetch = realFetch;
+  await new Promise((resolve) => app.server.close(resolve)); app.close(); await vite.close();
+}

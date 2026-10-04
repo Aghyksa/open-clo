@@ -2,9 +2,84 @@ import type {
   PatternPiece,
   FabricMaterial,
   SeamConnection,
+  SeamEdge,
   StitchType,
   SublimationPrint,
 } from '../types/cad';
+import { getPatternBounds, PATTERN_UNITS_PER_CM } from './patternGeometry';
+import { getGrainlineSegments, getPieceCuttingGeometry } from './cuttingGeometry';
+
+interface ChainRef {
+  pieceId: string;
+  points: { x: number; y: number }[];
+  edgeIndex: number;
+  reverse?: boolean;
+  internalLineId?: string;
+}
+
+function chainEdgeLength(ref: ChainRef): number {
+  const a = ref.points[ref.edgeIndex];
+  const b = ref.points[(ref.edgeIndex + 1) % ref.points.length];
+  return Math.hypot(b.x - a.x, b.y - a.y);
+}
+
+function chainCuts(chain: ChainRef[]): number[] {
+  const total = chain.reduce((sum, ref) => sum + chainEdgeLength(ref), 0) || 1;
+  const cuts = [0];
+  let acc = 0;
+  for (const ref of chain) {
+    acc += chainEdgeLength(ref) / total;
+    cuts.push(Math.min(1, acc));
+  }
+  return cuts;
+}
+
+/**
+ * Sew two edge chains by matching arc length, splitting wherever either side changes edge.
+ * Lets a rib band attach across a whole neckline, or a sleeve cap across two armhole edges.
+ */
+function sewChain(
+  idPrefix: string,
+  chainA: ChainRef[],
+  chainB: ChainRef[],
+  stitchType: StitchType = 'overlock',
+  strength = 1,
+): SeamConnection[] {
+  const cutsA = chainCuts(chainA);
+  const cutsB = chainCuts(chainB);
+  const marks = Array.from(new Set([...cutsA, ...cutsB])).sort((x, y) => x - y);
+
+  const slice = (chain: ChainRef[], cuts: number[], u0: number, u1: number): SeamEdge => {
+    const mid = (u0 + u1) / 2;
+    let i = 0;
+    while (i < chain.length - 1 && mid > cuts[i + 1]) i++;
+    const span = cuts[i + 1] - cuts[i] || 1;
+    const clamp = (v: number) => Math.min(1, Math.max(0, v));
+    let start = clamp((u0 - cuts[i]) / span);
+    let end = clamp((u1 - cuts[i]) / span);
+    if (chain[i].reverse) {
+      start = 1 - start;
+      end = 1 - end;
+    }
+    return { pieceId: chain[i].pieceId, edgeIndex: chain[i].edgeIndex, paramStart: start, paramEnd: end,
+      ...(chain[i].internalLineId ? { internalLineId: chain[i].internalLineId } : {}) };
+  };
+
+  const seams: SeamConnection[] = [];
+  for (let k = 0; k + 1 < marks.length; k++) {
+    const u0 = marks[k];
+    const u1 = marks[k + 1];
+    if (u1 - u0 < 1e-6) continue;
+    seams.push({
+      id: `${idPrefix}-${k}`,
+      edgeA: slice(chainA, cutsA, u0, u1),
+      edgeB: slice(chainB, cutsB, u0, u1),
+      strength,
+      stitchType,
+    });
+  }
+  return seams;
+}
 
 export interface StitchPreset {
   id: StitchType;
@@ -18,6 +93,7 @@ export interface StitchPreset {
 }
 
 export const STITCH_PRESETS: StitchPreset[] = [
+  { id: 'topstitch', name: 'Topstitch', code: 'Topstitch', description: 'Visible stitching along a pocket or finished edge.', defaultSpacingMm: 3, seamAllowanceMm: 6, defaultStrength: 1.2, patternLabel: '— — —' },
   {
     id: 'single-needle',
     name: 'Single Needle Lockstitch',
@@ -377,56 +453,24 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
     },
   ];
 
+  const F = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-front', points: frontPoints, edgeIndex, reverse });
+  const B = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-back', points: backPoints, edgeIndex, reverse });
+  const SL = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-sleeve-l', points: sleeveLPoints, edgeIndex, reverse });
+  const SR = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-sleeve-r', points: sleeveRPoints, edgeIndex, reverse });
+  const CO = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-collar', points: collarPoints, edgeIndex, reverse });
+
   const seams: SeamConnection[] = [
-    {
-      id: 'seam-shoulder-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-shoulder-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 5 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-side-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 9 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 7 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-side-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 11 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 9 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-sleeve-l',
-      edgeA: { pieceId: 'piece-sleeve-l', edgeIndex: 2 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 13 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-sleeve-r',
-      edgeA: { pieceId: 'piece-sleeve-r', edgeIndex: 2 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 7 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-collar-front',
-      edgeA: { pieceId: 'piece-collar', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 2 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
+    ...sewChain('seam-shoulder-l', [F(0)], [B(0)], 'single-needle'),
+    ...sewChain('seam-shoulder-r', [F(5)], [B(3)], 'single-needle'),
+    ...sewChain('seam-side-r', [F(8), F(9)], [B(6), B(7)]),
+    ...sewChain('seam-side-l', [F(11), F(12)], [B(9), B(10)]),
+    ...sewChain('seam-armhole-l-front', [SL(3), SL(4), SL(5)], [F(6), F(7)]),
+    ...sewChain('seam-armhole-l-back', [SL(2, true), SL(1, true), SL(0, true)], [B(4), B(5)]),
+    ...sewChain('seam-armhole-r-front', [SR(3), SR(4), SR(5)], [F(14, true), F(13, true)]),
+    ...sewChain('seam-armhole-r-back', [SR(2, true), SR(1, true), SR(0, true)], [B(12, true), B(11, true)]),
+    ...sewChain('seam-underarm-l', [SL(6)], [SL(9, true)]),
+    ...sewChain('seam-underarm-r', [SR(6)], [SR(9, true)]),
+    ...sewChain('seam-collar', [CO(2)], [F(4, true), F(3, true), F(2, true), F(1, true), B(1), B(2)], 'single-needle'),
   ];
 
   return { pieces, seams };
@@ -574,13 +618,15 @@ export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConne
   ];
 
   const hoodPoints = [
-    { id: 'hd0', x: -70, y: -120 },
-    { id: 'hd1', x: 30, y: -130 },
+    { id: 'hd0', x: -80, y: -150 },
+    { id: 'hd1', x: 45, y: -150 },
     { id: 'hd2', x: 90, y: -70 },
-    { id: 'hd3', x: 90, y: 50 },
-    { id: 'hd4', x: -40, y: 60 },
-    { id: 'hd5', x: -80, y: 10 },
+    { id: 'hd3', x: 90, y: 55 },
+    { id: 'hd4', x: -85, y: 65 },
+    { id: 'hd5', x: -100, y: -55 },
   ];
+  const pocketPlacement = pocketPoints.map((point, index) => ({ ...point, id: `pocket-mark-${index}`, y: point.y + 90 }));
+  pocketPlacement.push({ ...pocketPlacement[0], id: 'pocket-mark-close' });
 
   const sleeveLPoints = [
     { id: 'hsl0', x: -105, y: -20 },
@@ -603,6 +649,7 @@ export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConne
       rotation: 0,
       color: '#475569',
       placement: { origin3D: [0, 0.4, 0.17], rotation3D: [0, 0, 0] },
+      internalLines: [{ id: 'pocket-placement', type: 'pocket', points: pocketPlacement }],
       graphics: [
         {
           id: 'h-print',
@@ -638,13 +685,22 @@ export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConne
       placement: { origin3D: [0, 0.2, 0.18], rotation3D: [0, 0, 0] },
     },
     {
-      id: 'piece-hood',
-      name: 'Hood Side Panel',
+      id: 'piece-hood-l',
+      name: 'Left Hood Side',
       points: hoodPoints,
       position: { x: 620, y: 590 },
       rotation: 0,
       color: '#94a3b8',
-      placement: { origin3D: [0, 0.6, 0.0], rotation3D: [0, 0, 0] },
+      placement: { origin3D: [0.11, 0.6, 0.0], rotation3D: [0, 0, 0], surface: 'hood' },
+    },
+    {
+      id: 'piece-hood-r',
+      name: 'Right Hood Side',
+      points: hoodPoints.map((point) => ({ ...point })),
+      position: { x: 560, y: 90 },
+      rotation: 0,
+      color: '#94a3b8',
+      placement: { origin3D: [-0.11, 0.6, 0.0], rotation3D: [0, 0, 0], surface: 'hood' },
     },
     {
       id: 'piece-sleeve-l',
@@ -666,63 +722,29 @@ export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConne
     },
   ];
 
+  const F = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-front', points: frontPoints, edgeIndex, reverse });
+  const B = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-back', points: backPoints, edgeIndex, reverse });
+  const SL = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-sleeve-l', points: sleeveLPoints, edgeIndex, reverse });
+  const SR = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-sleeve-r', points: sleeveRPoints, edgeIndex, reverse });
+  const PK = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-pocket', points: pocketPoints, edgeIndex, reverse });
+  const HD = (side: 'l' | 'r', edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: `piece-hood-${side}`, points: hoodPoints, edgeIndex, reverse });
+  const PA = (edgeIndex: number): ChainRef => ({ pieceId: 'piece-front', points: pocketPlacement, edgeIndex, internalLineId: 'pocket-placement' });
+
   const seams: SeamConnection[] = [
-    {
-      id: 'seam-hoodie-sh-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
-      strength: 1.2,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-hoodie-sh-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 5 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
-      strength: 1.2,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-hoodie-sd-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 8 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 6 },
-      strength: 1.2,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-hoodie-sd-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 10 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 8 },
-      strength: 1.2,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-hoodie-sleeve-l',
-      edgeA: { pieceId: 'piece-sleeve-l', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 12 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-hoodie-sleeve-r',
-      edgeA: { pieceId: 'piece-sleeve-r', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 6 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-hoodie-hood',
-      edgeA: { pieceId: 'piece-hood', edgeIndex: 3 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 1 },
-      strength: 1.2,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-hoodie-pocket',
-      edgeA: { pieceId: 'piece-pocket', edgeIndex: 3 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 9 },
-      strength: 1.2,
-      stitchType: 'topstitch',
-    },
+    ...sewChain('seam-hoodie-sh-l', [F(0)], [B(0)], 'double-needle', 1.2),
+    ...sewChain('seam-hoodie-sh-r', [F(5)], [B(3)], 'double-needle', 1.2),
+    ...sewChain('seam-hoodie-sd-r', [F(8)], [B(6)], 'overlock', 1.2),
+    ...sewChain('seam-hoodie-sd-l', [F(10)], [B(8)], 'overlock', 1.2),
+    ...sewChain('seam-hoodie-armhole-l-front', [SL(2), SL(3)], [F(6), F(7)]),
+    ...sewChain('seam-hoodie-armhole-l-back', [SL(1, true), SL(0, true)], [B(4), B(5)]),
+    ...sewChain('seam-hoodie-armhole-r-front', [SR(2), SR(3)], [F(12, true), F(11, true)]),
+    ...sewChain('seam-hoodie-armhole-r-back', [SR(1, true), SR(0, true)], [B(10, true), B(9, true)]),
+    ...sewChain('seam-hoodie-underarm-l', [SL(4)], [SL(6, true)]),
+    ...sewChain('seam-hoodie-underarm-r', [SR(4)], [SR(6, true)]),
+    ...sewChain('seam-hoodie-hood-l', [HD('l', 3)], [B(2), F(4, true), F(3, true)], 'double-needle', 1.2),
+    ...sewChain('seam-hoodie-hood-r', [HD('r', 3)], [B(1, true), F(1), F(2)], 'double-needle', 1.2),
+    ...[0, 1, 2].flatMap((edge) => sewChain(`seam-hoodie-center-${edge}`, [HD('l', edge)], [HD('r', edge)], 'double-needle', 1.2)),
+    ...[0, 2, 3, 4].flatMap((edge) => sewChain(`seam-hoodie-pocket-${edge}`, [PK(edge)], [PA(edge)], 'topstitch', 1.2)),
   ];
 
   return { pieces, seams };
@@ -837,56 +859,26 @@ export function createBomberJacketPreset(): { pieces: PatternPiece[]; seams: Sea
     },
   ];
 
+  const FL = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-bomber-front-l', points: frontLeft, edgeIndex, reverse });
+  const FR = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-bomber-front-r', points: frontRight, edgeIndex, reverse });
+  const BK = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-bomber-back', points: backPoints, edgeIndex, reverse });
+  const SL = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-bomber-sleeve-l', points: sleeveLPoints, edgeIndex, reverse });
+  const SR = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-bomber-sleeve-r', points: sleeveRPoints, edgeIndex, reverse });
+  const CO = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-bomber-collar', points: collarPoints, edgeIndex, reverse });
+
   const seams: SeamConnection[] = [
-    {
-      id: 'seam-bomber-zipper',
-      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 2 },
-      edgeB: { pieceId: 'piece-bomber-front-r', edgeIndex: 5 },
-      strength: 1.5,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-bomber-sh-l',
-      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 0 },
-      strength: 1.3,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-bomber-sh-r',
-      edgeA: { pieceId: 'piece-bomber-front-r', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 3 },
-      strength: 1.3,
-      stitchType: 'double-needle',
-    },
-    {
-      id: 'seam-bomber-sd-l',
-      edgeA: { pieceId: 'piece-bomber-front-l', edgeIndex: 4 },
-      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 7 },
-      strength: 1.2,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-bomber-sd-r',
-      edgeA: { pieceId: 'piece-bomber-front-r', edgeIndex: 3 },
-      edgeB: { pieceId: 'piece-bomber-back', edgeIndex: 5 },
-      strength: 1.2,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-bomber-sleeve-l',
-      edgeA: { pieceId: 'piece-bomber-sleeve-l', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-bomber-front-l', edgeIndex: 5 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-bomber-sleeve-r',
-      edgeA: { pieceId: 'piece-bomber-sleeve-r', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-bomber-front-r', edgeIndex: 2 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
+    ...sewChain('seam-bomber-zipper', [FL(2)], [FR(5)], 'double-needle', 1.5),
+    ...sewChain('seam-bomber-sh-l', [FL(0)], [BK(0)], 'double-needle', 1.3),
+    ...sewChain('seam-bomber-sh-r', [FR(1)], [BK(3)], 'double-needle', 1.3),
+    ...sewChain('seam-bomber-sd-l', [FL(4)], [BK(7)], 'single-needle', 1.2),
+    ...sewChain('seam-bomber-sd-r', [FR(3)], [BK(5)], 'single-needle', 1.2),
+    ...sewChain('seam-bomber-armhole-l-front', [SL(2), SL(3)], [FR(2)]),
+    ...sewChain('seam-bomber-armhole-l-back', [SL(1, true), SL(0, true)], [BK(4)]),
+    ...sewChain('seam-bomber-armhole-r-front', [SR(2), SR(3)], [FL(5, true)]),
+    ...sewChain('seam-bomber-armhole-r-back', [SR(1, true), SR(0, true)], [BK(8, true)]),
+    ...sewChain('seam-bomber-underarm-l', [SL(4)], [SL(6, true)]),
+    ...sewChain('seam-bomber-underarm-r', [SR(4)], [SR(6, true)]),
+    ...sewChain('seam-bomber-collar', [CO(2)], [FR(0, true), FL(1, true), BK(1), BK(2)], 'single-needle', 1.2),
   ];
 
   return { pieces, seams };
@@ -1116,7 +1108,12 @@ export function createOversizedTeePreset(): { pieces: PatternPiece[]; seams: Sea
       id: 'piece-front',
       name: 'Oversized Front',
       points: frontPoints,
+<<<<<<< Updated upstream
       position: { x: 200, y: 220 },
+=======
+      edgeCurvatures: { 2: { cpx: 0, cpy: 10 }, 3: { cpx: 0, cpy: 10 } },
+      position: { x: 190, y: 270 },
+>>>>>>> Stashed changes
       rotation: 0,
       color: '#10b981',
       placement: { origin3D: [0, 0.4, 0.17], rotation3D: [0, 0, 0] },
@@ -1159,49 +1156,24 @@ export function createOversizedTeePreset(): { pieces: PatternPiece[]; seams: Sea
     },
   ];
 
+  const F = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-front', points: frontPoints, edgeIndex, reverse });
+  const B = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-back', points: backPoints, edgeIndex, reverse });
+  const SL = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-sleeve-l', points: sleeveLPoints, edgeIndex, reverse });
+  const SR = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-sleeve-r', points: sleeveRPoints, edgeIndex, reverse });
+  const CO = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-collar', points: collarPoints, edgeIndex, reverse });
+
   const seams: SeamConnection[] = [
-    {
-      id: 'seam-over-shoulder-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-over-shoulder-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 5 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-over-side-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 8 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 6 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-over-side-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 10 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 8 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-over-sleeve-l',
-      edgeA: { pieceId: 'piece-sleeve-l', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 12 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-over-sleeve-r',
-      edgeA: { pieceId: 'piece-sleeve-r', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 6 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
+    ...sewChain('seam-over-shoulder-l', [F(0)], [B(0)], 'single-needle'),
+    ...sewChain('seam-over-shoulder-r', [F(5)], [B(3)], 'single-needle'),
+    ...sewChain('seam-over-side-r', [F(8)], [B(6)]),
+    ...sewChain('seam-over-side-l', [F(10)], [B(8)]),
+    ...sewChain('seam-over-armhole-l-front', [SL(2), SL(3)], [F(6), F(7)]),
+    ...sewChain('seam-over-armhole-l-back', [SL(1, true), SL(0, true)], [B(4), B(5)]),
+    ...sewChain('seam-over-armhole-r-front', [SR(2), SR(3)], [F(12, true), F(11, true)]),
+    ...sewChain('seam-over-armhole-r-back', [SR(1, true), SR(0, true)], [B(10, true), B(9, true)]),
+    ...sewChain('seam-over-underarm-l', [SL(4)], [SL(6, true)]),
+    ...sewChain('seam-over-underarm-r', [SR(4)], [SR(6, true)]),
+    ...sewChain('seam-over-collar', [CO(2)], [F(4, true), F(3, true), F(2, true), F(1, true), B(1), B(2)], 'single-needle'),
   ];
 
   return { pieces, seams };
@@ -1237,7 +1209,7 @@ export function createSkirtPreset(): { pieces: PatternPiece[]; seams: SeamConnec
       position: { x: 180, y: 250 },
       rotation: 0,
       color: '#f59e0b',
-      placement: { origin3D: [0, 0.0, 0.14], rotation3D: [0, 0, 0] },
+      placement: { origin3D: [0, 0.0, 0.14], rotation3D: [0, 0, 0], anchorY: 1.06 },
     },
     {
       id: 'piece-back-skirt',
@@ -1246,7 +1218,7 @@ export function createSkirtPreset(): { pieces: PatternPiece[]; seams: SeamConnec
       position: { x: 460, y: 250 },
       rotation: 0,
       color: '#d97706',
-      placement: { origin3D: [0, 0.0, -0.10], rotation3D: [0, Math.PI, 0] },
+      placement: { origin3D: [0, 0.0, -0.10], rotation3D: [0, Math.PI, 0], anchorY: 1.06 },
     },
   ];
 
@@ -1366,56 +1338,24 @@ export function createPoloPreset(): { pieces: PatternPiece[]; seams: SeamConnect
     },
   ];
 
+  const F = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-front', points: frontPoints, edgeIndex, reverse });
+  const B = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-back', points: backPoints, edgeIndex, reverse });
+  const SL = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-sleeve-l', points: sleeveLPoints, edgeIndex, reverse });
+  const SR = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-sleeve-r', points: sleeveRPoints, edgeIndex, reverse });
+  const CO = (edgeIndex: number, reverse?: boolean): ChainRef => ({ pieceId: 'piece-collar', points: collarPoints, edgeIndex, reverse });
+
   const seams: SeamConnection[] = [
-    {
-      id: 'seam-polo-sh-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 0 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-polo-sh-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 4 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 3 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-polo-sd-r',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 6 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 5 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-polo-sd-l',
-      edgeA: { pieceId: 'piece-front', edgeIndex: 8 },
-      edgeB: { pieceId: 'piece-back', edgeIndex: 7 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-polo-sleeve-l',
-      edgeA: { pieceId: 'piece-sleeve-l', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 9 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-polo-sleeve-r',
-      edgeA: { pieceId: 'piece-sleeve-r', edgeIndex: 1 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 5 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-polo-collar',
-      edgeA: { pieceId: 'piece-collar', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-front', edgeIndex: 1 },
-      strength: 1.2,
-      stitchType: 'double-needle',
-    },
+    ...sewChain('seam-polo-sh-l', [F(0)], [B(0)], 'single-needle'),
+    ...sewChain('seam-polo-sh-r', [F(4)], [B(3)], 'single-needle'),
+    ...sewChain('seam-polo-sd-r', [F(6)], [B(5)]),
+    ...sewChain('seam-polo-sd-l', [F(8)], [B(7)]),
+    ...sewChain('seam-polo-armhole-l-front', [SL(2), SL(3)], [F(5)]),
+    ...sewChain('seam-polo-armhole-l-back', [SL(1, true), SL(0, true)], [B(4)]),
+    ...sewChain('seam-polo-armhole-r-front', [SR(2), SR(3)], [F(9, true)]),
+    ...sewChain('seam-polo-armhole-r-back', [SR(1, true), SR(0, true)], [B(8, true)]),
+    ...sewChain('seam-polo-underarm-l', [SL(4)], [SL(6, true)]),
+    ...sewChain('seam-polo-underarm-r', [SR(4)], [SR(6, true)]),
+    ...sewChain('seam-polo-collar', [CO(2)], [F(3, true), F(2, true), F(1, true), B(1), B(2)], 'double-needle', 1.2),
   ];
 
   return { pieces, seams };
@@ -1833,7 +1773,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
   },
   {
     id: 'uniqlo-u-boxy-tee',
-    name: 'Uniqlo U AIRism Boxy Tee',
+    name: 'Oversized T-shirt',
     category: 'Tops',
     icon: '👕',
     description: 'Iconic streetwear cut inspired by Christophe Lemaire: dropped shoulders, wide sleeves hitting the elbow, and tight 1.25" thick knit ribbed collar.',
@@ -1846,11 +1786,11 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
   },
   {
     id: 'heavyweight-hoodie',
-    name: 'GU / Uniqlo Heavy Hoodie',
+    name: 'Pullover hoodie',
     category: 'Outerwear',
     icon: '🧥',
-    description: 'Heavyweight 400+ GSM French Terry pullover hoodie featuring a structured stand-up double-layer hood, deep kangaroo pocket, and heavy 2x2 rib cuffs and hem.',
-    piecesCount: 6,
+    description: 'French Terry pullover with a sewn two-panel hood, kangaroo pocket and long tapered sleeves.',
+    piecesCount: 7,
     recommendedFabric: 'french-terry',
     recommendedColor: '#3d4a3e',
     brandInspiration: 'GU Heavyweight 400gsm',
@@ -1859,11 +1799,11 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
   },
   {
     id: 'full-zip-hoodie',
-    name: 'Uniqlo Full-Zip Sweat Hoodie',
+    name: 'Pullover hoodie · grey',
     category: 'Outerwear',
     icon: '🧥',
-    description: 'Full-zip streetwear track hoodie with smooth center metal zipper, split kangaroo front pockets, and comfortable relaxed drop-shoulder cut.',
-    piecesCount: 6,
+    description: 'Pullover hoodie pattern in grey with a hood and long sleeves.',
+    piecesCount: 7,
     recommendedFabric: 'french-terry',
     recommendedColor: '#949ba4',
     brandInspiration: 'Uniqlo LifeWear Sweat',
@@ -1872,7 +1812,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
   },
   {
     id: 'coach-jacket',
-    name: 'Uniqlo Utility Coach Jacket',
+    name: 'Bomber jacket',
     category: 'Outerwear',
     icon: '🧥',
     description: 'Minimalist street workwear jacket featuring a classic pointed turn-down collar, snap-button / zip placket, welt hand pockets, and straight hem.',
@@ -1885,10 +1825,10 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
   },
   {
     id: 'pique-polo',
-    name: 'Uniqlo Dry Pique Polo Shirt',
+    name: 'Polo shirt',
     category: 'Tops',
     icon: '👔',
-    description: 'Clean preppy polo featuring a firm textured knit ribbed collar, 2-button front placket, ribbed sleeve bands, and stepped side vents.',
+    description: 'Polo pattern with a ribbed collar, front neckline opening and short sleeves.',
     piecesCount: 5,
     recommendedFabric: 'cotton-jersey',
     recommendedColor: '#f4f1ea',
@@ -1898,10 +1838,10 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
   },
   {
     id: 'camp-shirt',
-    name: 'Uniqlo Open Collar Vacation Shirt',
+    name: 'Crewneck T-shirt · sand',
     category: 'Tops',
     icon: '👔',
-    description: 'Relaxed short-sleeve resort shirt with retro notched camp collar, clean front button placket, left chest patch pocket, and airy drape.',
+    description: 'Classic crewneck T-shirt pattern in a warm sand color.',
     piecesCount: 5,
     recommendedFabric: 'cotton-jersey',
     recommendedColor: '#c2a68c',
@@ -1911,7 +1851,7 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
   },
   {
     id: 'tshirt',
-    name: 'Supima Classic Crewneck Tee',
+    name: 'Classic T-shirt',
     category: 'Tops',
     icon: '👕',
     description: 'Everyday staple classic fit crewneck t-shirt with tailored shoulder line, neat armhole drape, and single-needle finish.',
@@ -1924,10 +1864,10 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
   },
   {
     id: 'cargo-pants',
-    name: 'GU Wide-Leg Parachute Pants',
-    category: 'Bottoms',
-    icon: '👖',
-    description: 'Modern relaxed cargo bottoms with elastic waistband, drawcord tie, side utility cargo flap pockets, and wide straight leg silhouette.',
+    name: 'A-line skirt',
+    category: 'Skirts',
+    icon: '👗',
+    description: 'Two-panel flared skirt, sewn along the sides and supported at the waist.',
     piecesCount: 2,
     recommendedFabric: 'heavy-denim',
     recommendedColor: '#262626',
@@ -1941,58 +1881,87 @@ export const GARMENT_TEMPLATES: GarmentTemplate[] = [
 // SVG Production Export
 // ==========================================
 export function exportPatternsToSvg(pieces: PatternPiece[]): string {
+  const valid = pieces.filter((piece) => piece.points.length >= 3);
+  const cutting = valid.map(getPieceCuttingGeometry);
+  const padding = 12;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-
-  pieces.forEach(p => {
-    p.points.forEach(pt => {
-      const wx = p.position.x + pt.x;
-      const wy = p.position.y + pt.y;
-      if (wx < minX) minX = wx;
-      if (wy < minY) minY = wy;
-      if (wx > maxX) maxX = wx;
-      if (wy > maxY) maxY = wy;
-    });
+  const include = (point: { x: number; y: number }) => {
+    minX = Math.min(minX, point.x); minY = Math.min(minY, point.y);
+    maxX = Math.max(maxX, point.x); maxY = Math.max(maxY, point.y);
+  };
+  valid.forEach((piece, index) => {
+    const bounds = getPatternBounds(piece, true), local = getPatternBounds(piece);
+    include({ x: bounds.minX, y: bounds.minY }); include({ x: bounds.maxX, y: bounds.maxY });
+    const cos = Math.cos(piece.rotation), sin = Math.sin(piece.rotation);
+    const world = (p: { x: number; y: number }) => ({ x: piece.position.x + p.x * cos - p.y * sin,
+      y: piece.position.y + p.x * sin + p.y * cos });
+    cutting[index].cutOutline?.forEach((point) => include(world(point)));
+    cutting[index].notches.forEach((line) => { include(world(line.start)); include(world(line.end)); });
+    const center = (local.minX + local.maxX) / 2;
+    const labelWidth = Math.max(piece.name.length, ...cutting[index].labels.map((label) => label.length)) * 3;
+    for (const x of [center - labelWidth / 2, center + labelWidth / 2]) {
+      include(world({ x, y: local.minY }));
+      include(world({ x, y: local.maxY + 8 + cutting[index].labels.length * 4 }));
+    }
   });
-
-  const padding = 50;
-  const width = Math.max(800, (maxX - minX) + padding * 2);
-  const height = Math.max(600, (maxY - minY) + padding * 2);
+  if (!valid.length) minX = minY = maxX = maxY = 0;
+  const calibrationX = minX, calibrationY = maxY + 12;
+  const width = Math.max(360, maxX - minX) + padding * 2;
+  const height = calibrationY + 76 - minY + padding * 2;
   const viewBox = `${minX - padding} ${minY - padding} ${width} ${height}`;
-
-  let paths = '';
-  pieces.forEach(piece => {
-    if (piece.points.length < 3) return;
-    let d = `M ${piece.position.x + piece.points[0].x} ${piece.position.y + piece.points[0].y}`;
-    for (let i = 1; i < piece.points.length; i++) {
-      d += ` L ${piece.position.x + piece.points[i].x} ${piece.position.y + piece.points[i].y}`;
+  const escape = (text: string) => text.replace(/[&<>"']/g, (char) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[char]!);
+  const paths = valid.map((piece, index) => {
+    let d = `M ${piece.points[0].x} ${piece.points[0].y}`;
+    for (let i = 0; i < piece.points.length; i++) {
+      const a = piece.points[i], b = piece.points[(i + 1) % piece.points.length];
+      const curve = piece.edgeCurvatures?.[i];
+      d += curve ? ` Q ${(a.x + b.x) / 2 + curve.cpx} ${(a.y + b.y) / 2 + curve.cpy} ${b.x} ${b.y}`
+        : ` L ${b.x} ${b.y}`;
     }
     d += ' Z';
-
-    let graphicsSvg = '';
-    if (piece.graphics) {
-      piece.graphics.forEach(g => {
-        const gx = piece.position.x + g.x;
-        const gy = piece.position.y + g.y;
-        graphicsSvg += `
-        <text x="${gx}" y="${gy}" font-family="sans-serif" font-size="${g.fontSize || 12}" font-weight="700" fill="${g.color}" text-anchor="middle" opacity="${g.opacity}">${g.content}</text>`;
-      });
-    }
-
-    paths += `
-    <g id="${piece.id}" class="pattern-piece">
-      <path d="${d}" fill="${piece.color || '#3b82f6'}" fill-opacity="0.25" stroke="#2563eb" stroke-width="2" stroke-linejoin="round" />
-      <text x="${piece.position.x}" y="${piece.position.y}" font-family="sans-serif" font-size="14" font-weight="600" fill="#1e293b" text-anchor="middle">${piece.name}</text>
+    const graphicsSvg = (piece.graphics || []).map((g) =>
+      `<text x="${g.x}" y="${g.y}" transform="rotate(${g.rotation * 180 / Math.PI} ${g.x} ${g.y})" font-size="${(g.fontSize || 12) * g.scale}" fill="${escape(g.color)}" text-anchor="middle" opacity="${g.opacity}">${escape(g.content)}</text>`).join('\n');
+    const internalSvg = (piece.internalLines || []).filter((line) => line.points.length > 1).map((line) =>
+      `<polyline data-line="${escape(line.id)}" points="${line.points.map((point) => `${point.x},${point.y}`).join(' ')}" fill="none" stroke="#64748b" stroke-width="0.3" stroke-dasharray="2 2" />`).join('\n');
+    const local = getPatternBounds(piece);
+    const marks = cutting[index];
+    const linePath = (lines: { start: { x: number; y: number }; end: { x: number; y: number } }[]) =>
+      lines.map((line) => `M ${line.start.x} ${line.start.y} L ${line.end.x} ${line.end.y}`).join(' ');
+    const grainlineSvg = marks.grainline ? `<path data-grainline="${piece.cutting?.grainlineAngle}" d="${linePath(getGrainlineSegments(marks.grainline))}" fill="none" stroke="#166534" stroke-width="0.4" />` : '';
+    const notchesSvg = marks.notches.length ? `<path data-notch="registration" d="${linePath(marks.notches)}" fill="none" stroke="#1e293b" stroke-width="0.4" />` : '';
+    const cutSvg = marks.cutOutline ? `<polygon data-cut-outline="allowance-added" points="${marks.cutOutline.map((p) => `${p.x},${p.y}`).join(' ')}" fill="none" stroke="#2563eb" stroke-width="0.4" />` : '';
+    const labelsSvg = marks.labels.map((label, i) => `<text x="${(local.minX + local.maxX) / 2}" y="${local.maxY + 6 + i * 4}" font-family="sans-serif" font-size="3" fill="#1e293b" text-anchor="middle">${escape(label)}</text>`).join('\n');
+    return `
+    <g id="${escape(piece.id)}" transform="translate(${piece.position.x} ${piece.position.y}) rotate(${piece.rotation * 180 / Math.PI})">
+      <title>${escape(piece.name)}: ${escape(marks.allowanceMessage)}</title>
+      <path data-pattern-outline="allowance-basis" d="${d}" fill="none" stroke="#1e293b" stroke-width="0.4" stroke-linejoin="round" />
+      <text x="${(local.minX + local.maxX) / 2}" y="${(local.minY + local.maxY) / 2}" font-family="sans-serif" font-size="3" fill="#1e293b" text-anchor="middle">${escape(piece.name)}</text>
       ${graphicsSvg}
+      ${internalSvg}
+      ${cutSvg}
+      ${grainlineSvg}
+      ${notchesSvg}
+      ${labelsSvg}
     </g>`;
-  });
-
+  }).join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${width}" height="${height}">
-  <style>
-    .pattern-piece:hover path { stroke: #1d4ed8; stroke-width: 3; }
-  </style>
-  <rect width="100%" height="100%" fill="#ffffff" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${(width / PATTERN_UNITS_PER_CM * 10).toFixed(3)}mm" height="${(height / PATTERN_UNITS_PER_CM * 10).toFixed(3)}mm">
+  <title>OpenCLO true-scale pattern export</title>
+  <rect data-export-background="true" x="${minX - padding}" y="${minY - padding}" width="${width}" height="${height}" fill="#ffffff" />
   ${paths}
+  <rect data-calibration="true" data-calibration-mm="100" x="${calibrationX}" y="${calibrationY}" width="60" height="60" fill="none" stroke="#1e293b" stroke-width="0.4" />
+  <g font-family="sans-serif" font-size="3" fill="#1e293b">
+    <text x="${calibrationX}" y="${calibrationY + 66}">100 × 100 mm calibration</text>
+    <text x="${calibrationX + 72}" y="${calibrationY + 5}">Print at 100% / actual size. Disable fit to page.</text>
+    <text x="${calibrationX + 72}" y="${calibrationY + 12}">Measure the square before cutting.</text>
+    <text x="${calibrationX + 72}" y="${calibrationY + 24}">Black: original outline. Blue: generated cut allowance.</text>
+    <text x="${calibrationX + 72}" y="${calibrationY + 31}">Green: recorded grainline. Short ticks: notch registration.</text>
+    <text x="${calibrationX + 72}" y="${calibrationY + 43}">Check that the original outline is the sewing line</text>
+    <text x="${calibrationX + 72}" y="${calibrationY + 50}">before adding allowance. Verify fold edges and cut quantities.</text>
+    <text x="${calibrationX + 72}" y="${calibrationY + 62}">Curved, concave or fold pieces: allowance recorded only,</text>
+    <text x="${calibrationX + 72}" y="${calibrationY + 69}">not added. Draft and check those cut lines separately.</text>
+  </g>
 </svg>`;
 }
 
@@ -2057,7 +2026,7 @@ export const GRAPHIC_PRESETS: GraphicPresetItem[] = [
     id: 'tokyo-box-logo',
     name: 'Tokyo Minimalist Box Stamp',
     category: 'streetwear',
-    svg: `<svg viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="196" height="56" fill="#000000" stroke="#ffffff" stroke-width="2"/><text x="100" y="38" fill="#ffffff" font-family="sans-serif" font-size="20" font-weight="900" text-anchor="middle" letter-spacing="3">TOKYO / ARCHIVE</text></svg>`,
+    svg: `<svg viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg"><rect x="2" y="2" width="196" height="56" fill="#000000" stroke="#ffffff" stroke-width="2"/><text x="100" y="38" fill="#ffffff" font-family="sans-serif" font-size="18" font-weight="900" text-anchor="middle" textLength="176" lengthAdjust="spacingAndGlyphs">TOKYO / ARCHIVE</text></svg>`,
     defaultWidth: 160,
     defaultHeight: 48,
   },
@@ -2143,7 +2112,7 @@ export const ASSEMBLED_GARMENT_SPECS: Record<string, AssembledGarmentSpec> = {
   },
   'uniqlo-u-boxy-tee': {
     templateId: 'uniqlo-u-boxy-tee',
-    name: 'Uniqlo U AIRism Boxy Tee',
+    name: 'Oversized T-shirt',
     halfChestCm: 62,
     bodyLengthCm: 74,
     shoulderDropCm: 56,
@@ -2151,7 +2120,7 @@ export const ASSEMBLED_GARMENT_SPECS: Record<string, AssembledGarmentSpec> = {
   },
   'heavyweight-hoodie': {
     templateId: 'heavyweight-hoodie',
-    name: 'GU / Uniqlo Heavy Pullover Hoodie',
+    name: 'Pullover hoodie',
     hasKangarooPocket: true,
     hasHood: true,
     halfChestCm: 64,
@@ -2161,10 +2130,9 @@ export const ASSEMBLED_GARMENT_SPECS: Record<string, AssembledGarmentSpec> = {
   },
   'full-zip-hoodie': {
     templateId: 'full-zip-hoodie',
-    name: 'Uniqlo Full-Zip Sweat Hoodie',
+    name: 'Pullover hoodie · grey',
     hasKangarooPocket: true,
     hasHood: true,
-    hasZipper: true,
     halfChestCm: 63,
     bodyLengthCm: 71,
     shoulderDropCm: 57,
@@ -2172,7 +2140,7 @@ export const ASSEMBLED_GARMENT_SPECS: Record<string, AssembledGarmentSpec> = {
   },
   'coach-jacket': {
     templateId: 'coach-jacket',
-    name: 'Uniqlo Utility Coach Jacket',
+    name: 'Bomber jacket',
     hasCampCollar: true,
     hasZipper: true,
     hasChestPocket: true,
@@ -2183,7 +2151,7 @@ export const ASSEMBLED_GARMENT_SPECS: Record<string, AssembledGarmentSpec> = {
   },
   'pique-polo': {
     templateId: 'pique-polo',
-    name: 'Uniqlo Dry Pique Polo Shirt',
+    name: 'Polo shirt',
     hasPoloCollar: true,
     halfChestCm: 54,
     bodyLengthCm: 71,
@@ -2192,9 +2160,7 @@ export const ASSEMBLED_GARMENT_SPECS: Record<string, AssembledGarmentSpec> = {
   },
   'camp-shirt': {
     templateId: 'camp-shirt',
-    name: 'Uniqlo Open Collar Vacation Shirt',
-    hasCampCollar: true,
-    hasChestPocket: true,
+    name: 'Crewneck T-shirt · sand',
     halfChestCm: 59,
     bodyLengthCm: 72,
     shoulderDropCm: 51,
@@ -2202,7 +2168,7 @@ export const ASSEMBLED_GARMENT_SPECS: Record<string, AssembledGarmentSpec> = {
   },
   'tshirt': {
     templateId: 'tshirt',
-    name: 'Supima Classic Crewneck Tee',
+    name: 'Classic T-shirt',
     halfChestCm: 53,
     bodyLengthCm: 70,
     shoulderDropCm: 45,
@@ -2210,8 +2176,8 @@ export const ASSEMBLED_GARMENT_SPECS: Record<string, AssembledGarmentSpec> = {
   },
   'cargo-pants': {
     templateId: 'cargo-pants',
-    name: 'GU Wide-Leg Parachute Pants',
-    isPants: true,
+    name: 'A-line skirt',
+    isPants: false,
     halfChestCm: 42, // waist half width
     bodyLengthCm: 104, // outseam length
     shoulderDropCm: 32, // leg opening
@@ -2219,8 +2185,16 @@ export const ASSEMBLED_GARMENT_SPECS: Record<string, AssembledGarmentSpec> = {
   },
 };
 
-export function getAssembledSpec(templateId: string): AssembledGarmentSpec {
-  return ASSEMBLED_GARMENT_SPECS[templateId] || ASSEMBLED_GARMENT_SPECS['uniqlo-u-boxy-tee'];
+export function getAssembledSpec(templateId: string, pieces?: PatternPiece[]): AssembledGarmentSpec {
+  const base = ASSEMBLED_GARMENT_SPECS[templateId] || ASSEMBLED_GARMENT_SPECS['uniqlo-u-boxy-tee'];
+  if (!pieces?.length) return base;
+  const body = pieces.find((piece) => piece.id === 'piece-front')
+    || pieces.find((piece) => piece.id.includes('back')) || pieces[0];
+  const bounds = getPatternBounds(body);
+  const sleeve = pieces.find((piece) => piece.id.includes('sleeve'));
+  return { ...base, halfChestCm: Number((bounds.width / PATTERN_UNITS_PER_CM).toFixed(1)),
+    bodyLengthCm: Number((bounds.height / PATTERN_UNITS_PER_CM).toFixed(1)),
+    sleeveLengthCm: sleeve ? Number((getPatternBounds(sleeve).height / PATTERN_UNITS_PER_CM).toFixed(1)) : 0 };
 }
 
 export function drawSublimationPattern(

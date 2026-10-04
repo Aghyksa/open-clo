@@ -6,34 +6,43 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   quality-check:
-    name: Lint, Typecheck & Build
+    name: Lint, Regression Checks & Build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run TypeScript Check & Vite Build
-        run: npm run build
+      - name: Run release gate
+        run: npm run verify
 
   docker-build:
-    name: Build & Publish Ultra-Light Docker Image
+    name: Build, Smoke Test & Publish Docker Image
     needs: quality-check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
       packages: write
@@ -45,14 +54,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -62,12 +63,68 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,format=short
 
-      - name: Build and push Docker image
+      - name: Build Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          load: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Smoke test production image
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="$(head -n 1 <<< "$IMAGE_TAGS")"
+          container="openclo-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          trap 'docker logs "$container"; docker rm -f "$container"' EXIT
+          docker run -d --name "$container" -p 127.0.0.1::3001 -e PUBLIC_ORIGIN=https://studio.example.test "$image"
+          docker exec "$container" node --check /app/server/main.mjs
+          port="$(docker port "$container" 3001/tcp)"
+          base="http://127.0.0.1:${port##*:}"
+          curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 1 "$base/healthz"
+          test "$(curl -fsS "$base/healthz")" = healthy
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$base/api/projects")" = 401
+          asset="$(curl -fsS "$base/" | sed -nE 's/.*src="([^"]+\.js)".*/\1/p')"
+          test -n "$asset"
+          for path in / /healthz /design/project /models/mannequin.glb "$asset" /assets/missing.js /models/missing.glb /.env; do
+            headers="$(curl -sSI "$base$path")"
+            case "$path" in
+              /assets/missing.js|/models/missing.glb|/.env) expected=404 ;;
+              *) expected=200 ;;
+            esac
+            grep -q "^HTTP/1.1 $expected " <<< "$headers"
+            grep -qi '^X-Frame-Options: SAMEORIGIN' <<< "$headers"
+            grep -qi '^X-Content-Type-Options: nosniff' <<< "$headers"
+            grep -qi '^Referrer-Policy: strict-origin-when-cross-origin' <<< "$headers"
+            if [[ "$path" = "$asset" ]]; then
+              grep -qi '^Cache-Control: public, max-age=31536000, immutable' <<< "$headers"
+              grep -qi '^Content-Type: application/javascript' <<< "$headers"
+            else
+              grep -qi '^Cache-Control: no-cache' <<< "$headers"
+            fi
+          done
+          curl -sS -D - -o /dev/null -H 'Accept-Encoding: gzip' "$base$asset" | grep -qi '^Content-Encoding: gzip'
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish tested image
+        if: github.event_name == 'push'
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r image; do
+            docker push "$image"
+          done <<< "$IMAGE_TAGS"

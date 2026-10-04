@@ -1,5 +1,9 @@
+import { drawDecalText } from '../../utils/decalDrawing';
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useCloStore } from '../../store/useCloStore';
+import { getPatternBounds, getPatternColorZone, getGarmentColorZones, getGarmentSketchScale } from '../../utils/patternGeometry';
+import { findDecalHandle, isPointInDecal, rotationDelta, useCanvasPointers } from '../../utils/canvasInteraction';
+import type { PatternPiece } from '../../types/cad';
 import {
   getAssembledSpec,
   GRAPHIC_PRESETS,
@@ -23,6 +27,9 @@ export const AssembledFlatCanvas: React.FC = () => {
 
   const {
     activeTemplateId,
+    pieces,
+    activeTool,
+    setActiveTool,
     colorZones,
     setColorZone,
     decals,
@@ -33,10 +40,21 @@ export const AssembledFlatCanvas: React.FC = () => {
     setCanvasViewMode,
     sublimationPrint,
     decalTextureRevision,
+    beginEdit,
+    endEdit,
+    cancelEdit,
   } = useCloStore();
 
   const [decalModalOpen, setDecalModalOpen] = useState(false);
-  const [showMeasurements, setShowMeasurements] = useState(true);
+  const [showMeasurements, setShowMeasurements] = useState(false);
+  const [sketchView, setSketchView] = useState<'front' | 'back' | 'both' | 'leftSleeve' | 'rightSleeve'>('front');
+  const selectedArtworkTarget = decals.find((item) => item.id === selectedDecalId)?.viewTarget;
+  useEffect(() => {
+    if (!selectedArtworkTarget) return;
+    const frame = requestAnimationFrame(() => setSketchView(selectedArtworkTarget));
+    return () => cancelAnimationFrame(frame);
+  }, [selectedDecalId, selectedArtworkTarget]);
+  const artboardWidth = sketchView === 'both' ? 860 : 470;
   const [activeZonePicker, setActiveZonePicker] = useState<string | null>(null);
 
   // Viewport Pan & Zoom
@@ -62,7 +80,7 @@ export const AssembledFlatCanvas: React.FC = () => {
   // Cache for loaded images
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
-  const spec = getAssembledSpec(activeTemplateId);
+  const spec = React.useMemo(() => getAssembledSpec(activeTemplateId, pieces), [activeTemplateId, pieces]);
 
   // Keyboard Delete shortcut for selected decal
   useEffect(() => {
@@ -70,7 +88,9 @@ export const AssembledFlatCanvas: React.FC = () => {
       if (
         e.target instanceof HTMLInputElement ||
         e.target instanceof HTMLSelectElement ||
-        e.target instanceof HTMLTextAreaElement
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable) ||
+        document.querySelector('dialog[open]')
       ) {
         return;
       }
@@ -78,45 +98,37 @@ export const AssembledFlatCanvas: React.FC = () => {
         e.preventDefault();
         removeDecal(selectedDecalId);
       }
-      if (e.key.toLowerCase() === 't') {
-        setDecalModalOpen(true);
-      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedDecalId, removeDecal]);
 
   // Handle Resize
-  const [dims, setDims] = useState({ width: 800, height: 600 });
+  const [dims, setSizes] = useState({ width: 800, height: 600 });
   useEffect(() => {
     const updateSize = () => {
       if (!canvasRef.current?.parentElement) return;
       const rect = canvasRef.current.parentElement.getBoundingClientRect();
-      setDims({ width: rect.width, height: rect.height });
+      setSizes({ width: rect.width, height: rect.height });
     };
     updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    const observer = new ResizeObserver(updateSize);
+    if (canvasRef.current?.parentElement) observer.observe(canvasRef.current.parentElement);
+    return () => observer.disconnect();
   }, []);
 
   const renderCanvasRef = useRef<(() => void) | null>(null);
 
-  // Center view on mount or template change
+  const fitView = useCallback(() => {
+    const scale = Math.max(0.2, Math.min(1.05, (dims.width - 24) / artboardWidth, (dims.height - 64) / 600));
+    setViewState({ scale, offsetX: (dims.width - artboardWidth * scale) / 2,
+      offsetY: 12 + Math.max(0, (dims.height - 64 - 600 * scale) / 2) });
+  }, [dims.width, dims.height, artboardWidth]);
+
   useEffect(() => {
-    // oxlint-disable-next-line react/set-state-in-effect
-    setViewState(() => {
-      const artboardW = 860;
-      const artboardH = 600;
-      const targetScale = Math.max(0.65, Math.min(1.05, Math.min((dims.width - 60) / artboardW, (dims.height - 110) / artboardH)));
-      const offX = Math.max(30, (dims.width - artboardW * targetScale) / 2);
-      const offY = Math.max(72, (dims.height - artboardH * targetScale) / 2);
-      return {
-        scale: targetScale,
-        offsetX: offX,
-        offsetY: offY,
-      };
-    });
-  }, [activeTemplateId, dims.width, dims.height]);
+    const frame = requestAnimationFrame(fitView);
+    return () => cancelAnimationFrame(frame);
+  }, [fitView, activeTemplateId]);
 
   // Main Canvas Render
   const renderCanvas = useCallback(() => {
@@ -139,7 +151,6 @@ export const AssembledFlatCanvas: React.FC = () => {
     ctx.scale(viewState.scale, viewState.scale);
 
     // 2. Draw White CAD Card Artboards
-    const artboardWidth = 860;
     const artboardHeight = 600;
 
     // Subtle drop shadow for artboard sheet
@@ -176,32 +187,51 @@ export const AssembledFlatCanvas: React.FC = () => {
     // 3. Render Title & Specifications Header
     ctx.fillStyle = '#0f172a';
     ctx.font = 'bold 13px Inter, sans-serif';
-    ctx.fillText(`${spec.name.toUpperCase()} // COMMERCIAL SPEC`, 28, 36);
+    ctx.fillText(`${spec.name.toUpperCase()} / STYLE SKETCH`, 28, 36);
 
     ctx.fillStyle = '#64748b';
     ctx.font = '10px ui-monospace, monospace';
     ctx.fillText(
-      `HALF-CHEST: ${spec.halfChestCm} cm | BODY LENGTH: ${spec.bodyLengthCm} cm | SHOULDER: ${spec.shoulderDropCm} cm | CAD SCALE: 1:1`,
+      `PANEL: ${spec.halfChestCm} × ${spec.bodyLengthCm} cm · FROM YOUR PATTERN`,
       28,
       52
     );
 
     // Centers for Front and Back views
     const frontCenter = { x: 235, y: 315 };
-    const backCenter = { x: 625, y: 315 };
+    const backCenter = { x: sketchView === 'back' ? 235 : 625, y: 315 };
 
     // View Labels
     ctx.fillStyle = '#2563eb';
     ctx.font = 'bold 11px Inter, sans-serif';
-    ctx.fillText('[FRONT VIEW]', frontCenter.x - 38, 92);
-    ctx.fillText('[BACK VIEW]', backCenter.x - 36, 92);
+    if (sketchView !== 'back') ctx.fillText(sketchView.includes('Sleeve') ? `[${sketchView === 'leftSleeve' ? 'LEFT' : 'RIGHT'} SLEEVE]` : '[FRONT VIEW]', frontCenter.x - 38, 92);
+    if (sketchView === 'back' || sketchView === 'both') ctx.fillText('[BACK VIEW]', backCenter.x - 36, 92);
 
     // ==========================================
     // Helper function to draw garment silhouette
     // ==========================================
+    const tracePiece = (piece: PatternPiece) => {
+      if (piece.points.length < 3) return;
+      ctx.beginPath();
+      ctx.moveTo(piece.points[0].x, piece.points[0].y);
+      piece.points.forEach((a, i) => {
+        const b = piece.points[(i + 1) % piece.points.length], curve = piece.edgeCurvatures?.[i];
+        if (curve) ctx.quadraticCurveTo((a.x + b.x) / 2 + curve.cpx, (a.y + b.y) / 2 + curve.cpy, b.x, b.y);
+        else ctx.lineTo(b.x, b.y);
+      });
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    };
     const drawGarment = (center: { x: number; y: number }, isBack: boolean) => {
+      const sleeveView = sketchView === 'leftSleeve' || sketchView === 'rightSleeve';
+      const body = (sleeveView ? pieces.find((p) => getPatternColorZone(p.id) === sketchView) : undefined) || pieces.find((piece) => piece.id === (isBack ? 'piece-back' : 'piece-front'))
+        || pieces.find((piece) => piece.id.includes(isBack ? 'back' : 'front')) || pieces[0];
+      if (!body) return;
+      const bounds = getPatternBounds(body), scale = getGarmentSketchScale(body);
       ctx.save();
       ctx.translate(center.x, center.y);
+<<<<<<< Updated upstream
 
       const bodyColor = colorZones.body || '#262626';
       const collarColor = colorZones.collar || bodyColor;
@@ -448,61 +478,40 @@ export const AssembledFlatCanvas: React.FC = () => {
       ctx.fillStyle = sleeveColor;
       ctx.strokeStyle = '#0f172a';
       ctx.lineWidth = 2.2;
+=======
+      ctx.scale(scale, scale);
+      ctx.lineWidth = 1.8 / scale;
+>>>>>>> Stashed changes
       ctx.lineJoin = 'round';
-
-      const sleeveLength = isHoodie || isJacket ? 155 : isBoxy ? 85 : 65;
-      const sleeveWidth = isBoxy ? 56 : 46;
-
-      // Left Sleeve
-      ctx.beginPath();
-      ctx.moveTo(-75, -100);
-      ctx.lineTo(-145, -75 + (isHoodie ? 60 : 20));
-      ctx.lineTo(-145 + (isHoodie ? 20 : 15), -75 + sleeveLength);
-      ctx.lineTo(-75 + 10, -35);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Right Sleeve
-      ctx.beginPath();
-      ctx.moveTo(75, -100);
-      ctx.lineTo(145, -75 + (isHoodie ? 60 : 20));
-      ctx.lineTo(145 - (isHoodie ? 20 : 15), -75 + sleeveLength);
-      ctx.lineTo(75 - 10, -35);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Wrist Cuffs (for Hoodie/Jackets)
-      if (isHoodie || isJacket) {
-        ctx.fillStyle = cuffColor;
-        ctx.beginPath();
-        ctx.rect(-145, -75 + sleeveLength - 16, sleeveWidth, 16);
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.rect(145 - sleeveWidth, -75 + sleeveLength - 16, sleeveWidth, 16);
-        ctx.fill();
-        ctx.stroke();
+      ctx.strokeStyle = '#292524';
+      const sleeves = pieces.filter((piece) => piece.id.includes('sleeve'));
+      for (let i = 0; i < (sleeveView ? 0 : Math.min(2, sleeves.length)); i++) {
+        const sleeve = sleeves[i], side = i === 0 ? -1 : 1;
+        const sleeveBounds = getPatternBounds(sleeve);
+        ctx.save();
+        ctx.translate(side * bounds.width * 0.47, -bounds.height * 0.43);
+        ctx.rotate(-side * (sleeveBounds.height > bounds.height * 0.45 ? Math.PI / 6 : Math.PI / 3));
+        ctx.translate(0, -sleeveBounds.minY);
+        ctx.fillStyle = colorZones[side < 0 ? 'leftSleeve' : 'rightSleeve'] || colorZones.sleeves || colorZones.body || '#262626';
+        tracePiece(sleeve);
+        ctx.restore();
       }
-
-      // 2. MAIN BODY
-      ctx.fillStyle = bodyColor;
-      ctx.beginPath();
-      ctx.moveTo(-75, -100); // left shoulder
-      ctx.lineTo(-35, -112); // left neck
-      if (isBack) {
-        // High back neck curve
-        ctx.quadraticCurveTo(0, -106, 35, -112);
-      } else if (isPolo || isJacket) {
-        // V cut for placket
-        ctx.lineTo(0, -75);
-        ctx.lineTo(35, -112);
-      } else {
-        // Deep front crew neckline
-        ctx.quadraticCurveTo(0, -90, 35, -112);
+      ctx.translate(-(bounds.minX + bounds.maxX) / 2, -(bounds.minY + bounds.maxY) / 2);
+      const hood = !sleeveView && pieces.find((piece) => getPatternColorZone(piece.id) === 'hood');
+      const middle = (bounds.minX + bounds.maxX) / 2;
+      if (hood) {
+        const hoodBounds = getPatternBounds(hood);
+        const width = Math.min(bounds.width * 0.8, hoodBounds.width);
+        const top = bounds.minY - hoodBounds.height * 0.7;
+        ctx.fillStyle = colorZones.hood || colorZones.body || '#262626';
+        ctx.beginPath();
+        ctx.moveTo(middle - width / 2, bounds.minY + 30);
+        ctx.bezierCurveTo(middle - width * 0.65, top, middle + width * 0.65, top, middle + width / 2, bounds.minY + 30);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(middle, top + hoodBounds.height * 0.18);
+        ctx.lineTo(middle, bounds.minY + 30); ctx.stroke();
       }
+<<<<<<< Updated upstream
       ctx.lineTo(75, -100); // right shoulder
       ctx.lineTo(68, -40);  // right armhole
       ctx.lineTo(isBoxy ? 78 : 66, 125); // right hem
@@ -563,112 +572,56 @@ export const AssembledFlatCanvas: React.FC = () => {
           ctx.stroke();
           ctx.lineWidth = 2.2;
           ctx.strokeStyle = '#0f172a';
+=======
+      ctx.fillStyle = colorZones[sleeveView ? sketchView : 'body'] || '#262626';
+      tracePiece(body);
+      if (!sleeveView) {
+        ctx.save(); ctx.clip();
+        for (const line of body.internalLines || []) {
+          if (line.type !== 'pocket' || line.points.length < 3) continue;
+          ctx.fillStyle = colorZones.pocket || colorZones.body || '#262626';
+          ctx.beginPath(); ctx.moveTo(line.points[0].x, line.points[0].y);
+          for (const point of line.points.slice(1)) ctx.lineTo(point.x, point.y);
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+>>>>>>> Stashed changes
         }
-      } else if (isPolo) {
-        // Polo Collar
-        ctx.fillStyle = collarColor;
-        ctx.beginPath();
-        ctx.moveTo(-38, -112);
-        ctx.lineTo(-45, -85);
-        ctx.lineTo(0, -95);
-        ctx.lineTo(45, -85);
-        ctx.lineTo(38, -112);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        if (!isBack) {
-          // 2-Button Placket
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.rect(-10, -95, 20, 48);
-          ctx.fill();
-          ctx.stroke();
-          // Buttons
-          ctx.fillStyle = '#334155';
-          ctx.beginPath();
-          ctx.arc(0, -82, 3, 0, Math.PI * 2);
-          ctx.arc(0, -62, 3, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      } else if (isJacket) {
-        // Camp Collar
-        ctx.fillStyle = collarColor;
-        ctx.beginPath();
-        ctx.moveTo(-38, -112);
-        ctx.lineTo(-50, -78);
-        ctx.lineTo(0, -86);
-        ctx.lineTo(50, -78);
-        ctx.lineTo(38, -112);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-
-        if (!isBack) {
-          // Center Zipper
-          ctx.strokeStyle = '#94a3b8';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(0, -86);
-          ctx.lineTo(0, 125);
-          ctx.stroke();
-          ctx.strokeStyle = '#0f172a';
-          ctx.lineWidth = 2.2;
-        }
-      } else {
-        // Standard / Thick Crewneck Rib
-        ctx.fillStyle = collarColor;
-        ctx.beginPath();
-        if (isBack) {
-          ctx.moveTo(-35, -112);
-          ctx.quadraticCurveTo(0, -118, 35, -112);
-          ctx.quadraticCurveTo(0, -106, -35, -112);
-        } else {
-          ctx.moveTo(-35, -112);
-          ctx.quadraticCurveTo(0, -90, 35, -112);
-          ctx.quadraticCurveTo(0, -102, -35, -112);
-        }
-        ctx.fill();
-        ctx.stroke();
+        ctx.restore();
       }
-
-      // 5. POCKETS (Front view only)
-      if (!isBack) {
-        if (spec.hasKangarooPocket) {
-          ctx.fillStyle = pocketColor;
-          ctx.beginPath();
-          ctx.moveTo(-48, 15);
-          ctx.lineTo(48, 15);
-          ctx.lineTo(58, 110);
-          ctx.lineTo(-58, 110);
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-
-          // Bar-tack stitches at top corners
-          ctx.strokeStyle = '#ffffffaa';
-          ctx.lineWidth = 3;
-          ctx.beginPath();
-          ctx.moveTo(-48, 15);
-          ctx.lineTo(-42, 15);
-          ctx.moveTo(48, 15);
-          ctx.lineTo(42, 15);
-          ctx.stroke();
-          ctx.strokeStyle = '#0f172a';
-          ctx.lineWidth = 2.2;
-        } else if (spec.hasChestPocket) {
-          ctx.fillStyle = pocketColor;
-          ctx.beginPath();
-          ctx.roundRect(-42, -50, 26, 32, 2);
-          ctx.fill();
+      if (hood && !isBack) {
+        const neck = body.points.filter((point) => Math.abs(point.x - middle) < bounds.width * 0.25 && point.y < bounds.minY + bounds.height * 0.2);
+        if (neck.length > 1) {
+          ctx.beginPath(); ctx.moveTo(neck[0].x, neck[0].y);
+          ctx.quadraticCurveTo(middle, bounds.minY - getPatternBounds(hood).height * 0.65, neck[neck.length - 1].x, neck[neck.length - 1].y);
           ctx.stroke();
         }
       }
+      if (!sleeveView && pieces.some((piece) => getPatternColorZone(piece.id) === 'collar')) {
+        const middle = (bounds.minX + bounds.maxX) / 2;
+        const neckPoint = (p: { x: number; y: number }) => Math.abs(p.x - middle) < bounds.width * 0.3 && p.y < bounds.minY + bounds.height * 0.22;
+        ctx.strokeStyle = colorZones.collar || colorZones.body || '#262626';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        body.points.forEach((a, i) => {
+          const b = body.points[(i + 1) % body.points.length], curve = body.edgeCurvatures?.[i];
+          if (!neckPoint(a) || !neckPoint(b)) return;
+          ctx.moveTo(a.x, a.y);
+          if (curve) ctx.quadraticCurveTo((a.x + b.x) / 2 + curve.cpx, (a.y + b.y) / 2 + curve.cpy, b.x, b.y);
+          else ctx.lineTo(b.x, b.y);
+        });
+        ctx.stroke();
+      }
+      ctx.restore();
+    };
 
-      // ==========================================
-      // 6. RENDER PLACED DECALS ON THIS VIEW
-      // ==========================================
-      const targetViewName = isBack ? 'back' : 'front';
+    if (sketchView !== 'back') drawGarment(frontCenter, false);
+
+    // Draw Back View
+    if (sketchView === 'back' || sketchView === 'both') drawGarment(backCenter, true);
+
+    const drawArtwork = (center: { x: number; y: number }, isBack: boolean) => {
+      ctx.save();
+      ctx.translate(center.x, center.y);
+      const targetViewName = sketchView.includes('Sleeve') ? sketchView : isBack ? 'back' : 'front';
       const targetDecals = decals.filter((d) => d.viewTarget === targetViewName);
 
       targetDecals.forEach((decal) => {
@@ -692,34 +645,8 @@ export const AssembledFlatCanvas: React.FC = () => {
         const w = decal.width;
         const h = decal.height;
 
-        if (decal.type === 'text' && decal.fontProps) {
-          // Render Typography
-          ctx.fillStyle = decal.fontProps.color || '#ffffff';
-          ctx.font = `${decal.fontProps.fontWeight || 'bold'} ${decal.fontProps.fontSize || 24}px ${
-            decal.fontProps.fontFamily || 'Inter, sans-serif'
-          }`;
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-
-          // Circular arc text support
-          const curvature = decal.fontProps.arcCurvature || 0;
-          if (curvature !== 0) {
-            const radius = 200 / (curvature / 10);
-            const chars = decal.content.split('');
-            const angleStep = 0.08 * Math.sign(curvature);
-            const startAngle = -((chars.length - 1) * angleStep) / 2;
-
-            chars.forEach((ch, idx) => {
-              ctx.save();
-              const theta = startAngle + idx * angleStep;
-              ctx.translate(Math.sin(theta) * radius, -Math.cos(theta) * radius + radius);
-              ctx.rotate(theta);
-              ctx.fillText(ch, 0, 0);
-              ctx.restore();
-            });
-          } else {
-            ctx.fillText(decal.content, 0, 0);
-          }
+        if (decal.type === 'text') {
+          drawDecalText(ctx, decal);
         } else if (decal.type === 'preset') {
           // Render SVG Preset
           const preset = GRAPHIC_PRESETS.find((p) => p.id === decal.content);
@@ -734,7 +661,7 @@ export const AssembledFlatCanvas: React.FC = () => {
               };
               imageCacheRef.current.set(imgKey, img);
             }
-            if (img.complete) {
+            if (img.complete && img.naturalWidth > 0) {
               ctx.drawImage(img, -w / 2, -h / 2, w, h);
             }
           }
@@ -749,7 +676,7 @@ export const AssembledFlatCanvas: React.FC = () => {
             };
             imageCacheRef.current.set(decal.content, img);
           }
-          if (img.complete) {
+          if (img.complete && img.naturalWidth > 0) {
             ctx.drawImage(img, -w / 2, -h / 2, w, h);
           }
         }
@@ -765,7 +692,8 @@ export const AssembledFlatCanvas: React.FC = () => {
           ctx.strokeStyle = '#3b82f6';
           ctx.lineWidth = 1.5 / viewState.scale;
           ctx.setLineDash([4 / viewState.scale, 3 / viewState.scale]);
-          ctx.strokeRect(-w / 2, -h / 2, w, h);
+          const selectedWidth = w * decal.scale, selectedHeight = h * decal.scale;
+          ctx.strokeRect(-selectedWidth / 2, -selectedHeight / 2, selectedWidth, selectedHeight);
           ctx.setLineDash([]);
 
           // 4 corner handles
@@ -775,10 +703,10 @@ export const AssembledFlatCanvas: React.FC = () => {
           ctx.lineWidth = 1.5 / viewState.scale;
 
           const handles = [
-            { x: -w / 2, y: -h / 2 },
-            { x: w / 2, y: -h / 2 },
-            { x: w / 2, y: h / 2 },
-            { x: -w / 2, y: h / 2 },
+            { x: -selectedWidth / 2, y: -selectedHeight / 2 },
+            { x: selectedWidth / 2, y: -selectedHeight / 2 },
+            { x: selectedWidth / 2, y: selectedHeight / 2 },
+            { x: -selectedWidth / 2, y: selectedHeight / 2 },
           ];
           handles.forEach((h) => {
             ctx.fillRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize);
@@ -787,13 +715,13 @@ export const AssembledFlatCanvas: React.FC = () => {
 
           // Top rotation handle stem & knob
           ctx.beginPath();
-          ctx.moveTo(0, -h / 2);
-          ctx.lineTo(0, -h / 2 - 20 / viewState.scale);
+          ctx.moveTo(0, -selectedHeight / 2);
+          ctx.lineTo(0, -selectedHeight / 2 - 20 / viewState.scale);
           ctx.strokeStyle = '#3b82f6';
           ctx.stroke();
 
           ctx.beginPath();
-          ctx.arc(0, -h / 2 - 20 / viewState.scale, 4.5 / viewState.scale, 0, Math.PI * 2);
+          ctx.arc(0, -selectedHeight / 2 - 20 / viewState.scale, 4.5 / viewState.scale, 0, Math.PI * 2);
           ctx.fillStyle = '#3b82f6';
           ctx.fill();
           ctx.strokeStyle = '#ffffff';
@@ -805,17 +733,13 @@ export const AssembledFlatCanvas: React.FC = () => {
 
       ctx.restore();
     };
-
-    // Draw Front View
-    drawGarment(frontCenter, false);
-
-    // Draw Back View
-    drawGarment(backCenter, true);
+    if (sketchView !== 'back') drawArtwork(frontCenter, false);
+    if (sketchView === 'back' || sketchView === 'both') drawArtwork(backCenter, true);
 
     // ==========================================
     // 7. TECHNICAL MEASUREMENTS OVERLAY
     // ==========================================
-    if (showMeasurements) {
+    if (showMeasurements && !sketchView.includes('Sleeve')) {
       ctx.save();
       ctx.strokeStyle = '#3b82f6';
       ctx.fillStyle = '#1d4ed8';
@@ -823,9 +747,12 @@ export const AssembledFlatCanvas: React.FC = () => {
       ctx.setLineDash([3, 3]);
 
       // Chest Width measurement line
+      const body = pieces.find((piece) => piece.id === (sketchView === 'back' ? 'piece-back' : 'piece-front')) || pieces[0];
+      if (!body) { ctx.restore(); ctx.restore(); return; }
+      const bounds = getPatternBounds(body), scale = getGarmentSketchScale(body);
       const chestY = frontCenter.y + 10;
-      const chestLeft = frontCenter.x - 72;
-      const chestRight = frontCenter.x + 72;
+      const chestLeft = frontCenter.x - bounds.width * scale / 2;
+      const chestRight = frontCenter.x + bounds.width * scale / 2;
 
       ctx.beginPath();
       ctx.moveTo(chestLeft, chestY);
@@ -833,7 +760,7 @@ export const AssembledFlatCanvas: React.FC = () => {
       ctx.stroke();
 
       // Pill for Chest Width
-      const chestText = `${spec.halfChestCm} cm (Chest)`;
+      const chestText = `${spec.halfChestCm} cm (Panel width)`;
       ctx.font = 'bold 9px ui-monospace, monospace';
       const ctw = ctx.measureText(chestText).width;
       ctx.fillStyle = '#ffffff';
@@ -853,9 +780,9 @@ export const AssembledFlatCanvas: React.FC = () => {
       ctx.strokeStyle = '#3b82f6';
       ctx.lineWidth = 1.2;
       ctx.setLineDash([3, 3]);
-      const lenX = frontCenter.x - 90;
-      const lenTop = frontCenter.y - 110;
-      const lenBottom = frontCenter.y + 125;
+      const lenX = chestLeft - 16;
+      const lenTop = frontCenter.y - bounds.height * scale / 2;
+      const lenBottom = frontCenter.y + bounds.height * scale / 2;
 
       ctx.beginPath();
       ctx.moveTo(lenX, lenTop);
@@ -863,7 +790,7 @@ export const AssembledFlatCanvas: React.FC = () => {
       ctx.stroke();
 
       // Pill for Length
-      const lenText = `${spec.bodyLengthCm} cm (Length)`;
+      const lenText = `${spec.bodyLengthCm} cm (Panel length)`;
       const ltw = ctx.measureText(lenText).width;
       ctx.save();
       ctx.translate(lenX - 8, (lenTop + lenBottom) / 2);
@@ -886,7 +813,11 @@ export const AssembledFlatCanvas: React.FC = () => {
     }
 
     ctx.restore();
+<<<<<<< Updated upstream
   }, [dims, viewState, colorZones, decals, selectedDecalId, showMeasurements, spec, sublimationPrint]);
+=======
+  }, [dims, viewState, colorZones, decals, selectedDecalId, showMeasurements, spec, pieces, sketchView, artboardWidth]);
+>>>>>>> Stashed changes
 
   // Re-render when state changes
   useEffect(() => {
@@ -895,7 +826,7 @@ export const AssembledFlatCanvas: React.FC = () => {
   }, [renderCanvas, decalTextureRevision]);
 
   // Mouse Handlers for Pan, Zoom, and Decal Drag/Transform
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleMouseDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
@@ -906,33 +837,44 @@ export const AssembledFlatCanvas: React.FC = () => {
     const worldX = (mouseX - viewState.offsetX) / viewState.scale;
     const worldY = (mouseY - viewState.offsetY) / viewState.scale;
 
-    const frontCenter = { x: 210, y: 280 };
-    const backCenter = { x: 570, y: 280 };
+    const frontCenter = { x: 235, y: 315 };
+    const backCenter = { x: sketchView === 'back' ? 235 : 625, y: 315 };
+
+    if (e.button === 1 || activeTool === 'move') {
+      isDraggingCanvas.current = true;
+      dragStart.current = { x: e.clientX - viewState.offsetX, y: e.clientY - viewState.offsetY };
+      return;
+    }
+    if (e.button !== 0) return;
+
+    const selected = decals.find((decal) => decal.id === selectedDecalId);
+    if (selected && (sketchView === 'both' || selected.viewTarget === sketchView)) {
+      const center = selected.viewTarget === 'back' ? backCenter : frontCenter;
+      const handle = findDecalHandle(selected, center, { x: worldX, y: worldY }, viewState.scale);
+      if (handle) {
+        beginEdit();
+        activeHandleRef.current = handle;
+        decalDragStartRef.current = { mouseX: worldX, mouseY: worldY,
+          initialPos: { ...selected.position }, initialScale: selected.scale, initialRot: selected.rotation };
+        return;
+      }
+    }
 
     // Check hit on decals
     let hitDecal: GraphicDecal | null = null;
 
     for (let i = decals.length - 1; i >= 0; i--) {
       const d = decals[i];
+      if (sketchView !== 'both' && d.viewTarget !== sketchView) continue;
       const center = d.viewTarget === 'back' ? backCenter : frontCenter;
-      const decalWorldX = center.x + d.position.x;
-      const decalWorldY = center.y + d.position.y;
-
-      const halfW = (d.width * d.scale) / 2;
-      const halfH = (d.height * d.scale) / 2;
-
-      if (
-        worldX >= decalWorldX - halfW &&
-        worldX <= decalWorldX + halfW &&
-        worldY >= decalWorldY - halfH &&
-        worldY <= decalWorldY + halfH
-      ) {
+      if (isPointInDecal(d, center, { x: worldX, y: worldY })) {
         hitDecal = d;
         break;
       }
     }
 
     if (hitDecal) {
+      beginEdit();
       setSelectedDecalId(hitDecal.id);
       activeHandleRef.current = 'move';
       decalDragStartRef.current = {
@@ -951,8 +893,8 @@ export const AssembledFlatCanvas: React.FC = () => {
     dragStart.current = { x: e.clientX - viewState.offsetX, y: e.clientY - viewState.offsetY };
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (activeHandleRef.current === 'move' && decalDragStartRef.current && selectedDecalId) {
+  const handleMouseMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (activeHandleRef.current && decalDragStartRef.current && selectedDecalId) {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const rect = canvas.getBoundingClientRect();
@@ -962,12 +904,24 @@ export const AssembledFlatCanvas: React.FC = () => {
       const dx = worldX - decalDragStartRef.current.mouseX;
       const dy = worldY - decalDragStartRef.current.mouseY;
 
-      updateDecal(selectedDecalId, {
-        position: {
-          x: Math.round(decalDragStartRef.current.initialPos.x + dx),
-          y: Math.round(decalDragStartRef.current.initialPos.y + dy),
-        },
-      });
+      const initial = decalDragStartRef.current;
+      if (activeHandleRef.current === 'move') {
+        updateDecal(selectedDecalId, { position: { x: initial.initialPos.x + dx, y: initial.initialPos.y + dy } });
+      } else {
+        const decal = useCloStore.getState().decals.find((item) => item.id === selectedDecalId);
+        if (!decal) return;
+        const centerX = (decal.viewTarget === 'back' && sketchView !== 'back' ? 625 : 235) + initial.initialPos.x;
+        const centerY = 315 + initial.initialPos.y;
+        if (activeHandleRef.current === 'rot') {
+          const rotation = initial.initialRot + rotationDelta(Math.atan2(worldY - centerY, worldX - centerX),
+            Math.atan2(initial.mouseY - centerY, initial.mouseX - centerX)) * 180 / Math.PI;
+          updateDecal(selectedDecalId, { rotation: e.shiftKey ? Math.round(rotation / 15) * 15 : rotation });
+        } else {
+          const initialDistance = Math.hypot(initial.mouseX - centerX, initial.mouseY - centerY);
+          const scale = initial.initialScale * Math.hypot(worldX - centerX, worldY - centerY) / Math.max(1, initialDistance);
+          updateDecal(selectedDecalId, { scale: Math.max(0.05, Math.min(5, scale)) });
+        }
+      }
       return;
     }
 
@@ -984,39 +938,59 @@ export const AssembledFlatCanvas: React.FC = () => {
     isDraggingCanvas.current = false;
     activeHandleRef.current = null;
     decalDragStartRef.current = null;
+    endEdit();
   };
 
-  const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-    setViewState((prev) => ({
-      ...prev,
-      scale: Math.max(0.4, Math.min(2.5, prev.scale * zoomFactor)),
-    }));
+  const cancelDrag = () => {
+    isDraggingCanvas.current = false;
+    activeHandleRef.current = null;
+    decalDragStartRef.current = null;
+    cancelEdit();
   };
+  const pointerHandlers = useCanvasPointers({ view: viewState, setView: setViewState,
+    minScale: 0.2, maxScale: 2.5, onDown: handleMouseDown, onMove: handleMouseMove,
+    onUp: handleMouseUp, onCancel: cancelDrag });
+
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect(), mouseX = e.clientX - rect.left, mouseY = e.clientY - rect.top;
+    const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+    setViewState((prev) => {
+      const scale = Math.max(0.2, Math.min(2.5, prev.scale * zoomFactor)), ratio = scale / prev.scale;
+      return { scale, offsetX: mouseX - (mouseX - prev.offsetX) * ratio,
+        offsetY: mouseY - (mouseY - prev.offsetY) * ratio };
+    });
+  }, []);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    canvas?.addEventListener('wheel', handleWheel, { passive: false });
+    return () => canvas?.removeEventListener('wheel', handleWheel);
+  }, [handleWheel]);
 
   return (
-    <div className="relative w-full h-full bg-[#f8fafc] overflow-hidden select-none">
+    <div className="relative flex flex-col w-full h-full bg-[#f8fafc] overflow-hidden select-none">
       {/* Top Floating Control Toolbar */}
-      <div className="absolute top-3 left-4 z-20 flex items-center gap-2 bg-[#171a23]/90 backdrop-blur-md border border-slate-700/70 rounded-xl px-3 py-1.5 shadow-xl text-xs text-slate-300">
+      <div className="relative shrink-0 m-2 z-20 flex flex-wrap items-center gap-2 bg-[#171a23]/90 backdrop-blur-md border border-slate-700/70 rounded-xl px-3 py-1.5 shadow-xl text-xs text-slate-300">
         <Sparkles className="w-4 h-4 text-blue-400" />
-        <span className="font-bold text-slate-100">2D Flat Tech Spec</span>
+        <span className="font-bold text-slate-100">Style sketch</span>
         <span className="text-slate-600">|</span>
 
-        {/* View Switcher: Assembled vs Pattern Pieces */}
+        {/* View Switcher: Assembled vs Edit pattern */}
         <div className="flex items-center bg-slate-800/80 rounded-lg p-0.5 border border-slate-700/60 text-[11px]">
           <button
             className="px-2.5 py-0.5 rounded-md font-semibold bg-blue-600 text-white shadow-sm"
-            title="Assembled Front & Back Flat Sketch"
+            title="Assembled Front & Back Sketch"
           >
-            Flat Sketch
+            Sketch
           </button>
           <button
             onClick={() => setCanvasViewMode('pieces')}
             className="px-2.5 py-0.5 rounded-md font-semibold text-slate-400 hover:text-white transition-colors"
-            title="Switch to Pattern Pieces Cutting Canvas"
+            title="Switch to Edit pattern Cutting Canvas"
           >
-            Pattern Pieces
+            Edit pattern
           </button>
         </div>
 
@@ -1028,13 +1002,16 @@ export const AssembledFlatCanvas: React.FC = () => {
           title="Add Artwork, Typography or Presets [T]"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Decal Studio</span>
+          <span>Add artwork</span>
         </button>
 
-        <span className="text-slate-600">|</span>
+        <div className="flex gap-1" role="group" aria-label="Sketch view">
+          {(['front', 'back', 'both', ...pieces.some((p) => p.id.includes('sleeve-l')) ? ['leftSleeve' as const] : [], ...pieces.some((p) => p.id.includes('sleeve-r')) ? ['rightSleeve' as const] : []] as const).map((view) => <button key={view} onClick={() => setSketchView(view)}
+            aria-pressed={sketchView === view} className={`px-2 py-1 rounded text-[11px] capitalize ${sketchView === view ? 'bg-slate-600 text-white' : 'hover:bg-slate-800'}`}>{view === 'leftSleeve' ? 'Left sleeve' : view === 'rightSleeve' ? 'Right sleeve' : view}</button>)}
+        </div>
 
         {/* Color Zone Quick Picker */}
-        <div className="relative">
+        <div className="static sm:relative">
           <button
             onClick={() => setActiveZonePicker(activeZonePicker ? null : 'body')}
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-slate-300 hover:text-white hover:bg-slate-800 transition-colors"
@@ -1045,14 +1022,14 @@ export const AssembledFlatCanvas: React.FC = () => {
           </button>
 
           {activeZonePicker && (
-            <div className="absolute top-10 left-0 bg-[#171a23]/95 backdrop-blur-md border border-slate-700 rounded-xl p-3.5 shadow-2xl z-30 w-72 space-y-3">
+            <div className="absolute top-full sm:top-10 mt-2 sm:mt-0 left-0 bg-[#171a23]/95 backdrop-blur-md border border-slate-700 rounded-xl p-3.5 shadow-2xl z-30 w-72 max-w-full space-y-3">
               <div className="flex items-center justify-between text-xs font-bold text-white">
                 <span>Color Blocking Zone</span>
                 <span className="text-[10px] text-slate-400 uppercase">Select zone</span>
               </div>
 
               <div className="grid grid-cols-3 gap-1.5">
-                {['body', 'collar', 'sleeves', 'pocket', 'hem', 'cuffs'].map((zone) => (
+                {getGarmentColorZones(pieces).map(({ key: zone, label }) => (
                   <button
                     key={zone}
                     onClick={() => setActiveZonePicker(zone)}
@@ -1062,14 +1039,14 @@ export const AssembledFlatCanvas: React.FC = () => {
                         : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:text-white'
                     }`}
                   >
-                    {zone}
+                    {label}
                   </button>
                 ))}
               </div>
 
               <div>
                 <div className="text-[10px] text-slate-400 font-semibold mb-1.5 uppercase">
-                  Curated Uniqlo / Streetwear Swatches
+                  Color palette
                 </div>
                 <div className="grid grid-cols-6 gap-2">
                   {FASHION_COLOR_PALETTES.map((swatch) => (
@@ -1106,10 +1083,11 @@ export const AssembledFlatCanvas: React.FC = () => {
           title="Toggle Technical Measurements Overlay"
         >
           <Ruler className="w-3.5 h-3.5" />
-          <span>Dims</span>
+          <span>Sizes</span>
         </button>
       </div>
 
+      <div className="relative flex-1 min-h-0">
       {/* Zoom Controls Bottom-Right */}
       <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 bg-[#14171f]/90 backdrop-blur-md border border-slate-800 rounded-2xl p-1.5 shadow-xl">
         <button
@@ -1131,7 +1109,7 @@ export const AssembledFlatCanvas: React.FC = () => {
           onClick={() =>
             setViewState((prev) => ({
               ...prev,
-              scale: Math.max(0.4, prev.scale * 0.85),
+              scale: Math.max(0.2, prev.scale * 0.85),
             }))
           }
           className="w-8 h-8 rounded-xl hover:bg-slate-800 flex items-center justify-center text-slate-300 hover:text-white transition-colors"
@@ -1140,13 +1118,7 @@ export const AssembledFlatCanvas: React.FC = () => {
           <ZoomOut className="w-4 h-4" />
         </button>
         <button
-          onClick={() =>
-            setViewState({
-              scale: Math.max(0.7, Math.min(1.1, dims.width / 950)),
-              offsetX: Math.max(40, (dims.width - 760) / 2),
-              offsetY: Math.max(30, (dims.height - 520) / 2),
-            })
-          }
+          onClick={fitView}
           className="w-8 h-8 rounded-xl hover:bg-slate-800 flex items-center justify-center text-slate-300 hover:text-white transition-colors ml-1"
           title="Fit Artboard to Screen"
         >
@@ -1157,15 +1129,13 @@ export const AssembledFlatCanvas: React.FC = () => {
       {/* Main High-DPI HTML5 Canvas */}
       <canvas
         ref={canvasRef}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onWheel={handleWheel}
-        className="w-full h-full cursor-default"
+        {...pointerHandlers}
+        className="w-full h-full cursor-default touch-none"
       />
+      </div>
 
       {/* Decal & Typography Studio Modal */}
-      <DecalToolModal isOpen={decalModalOpen} onClose={() => setDecalModalOpen(false)} />
+      <DecalToolModal isOpen={decalModalOpen || activeTool === 'graphic'} onClose={() => { setDecalModalOpen(false); setActiveTool('select'); }} />
     </div>
   );
 };

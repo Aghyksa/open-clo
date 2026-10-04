@@ -4,3 +4,7 @@ dist
 .github
 *.log
 .DS_Store
+data
+dist-server
+.env
+.env.*

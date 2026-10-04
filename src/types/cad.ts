@@ -14,6 +14,7 @@ export interface EdgeCurvature {
 export interface SeamEdge {
   pieceId: string;
   edgeIndex: number; // Index of the start point of the segment in points array
+  internalLineId?: string; // Sew to a placement line inside the piece instead of its outline
   paramStart?: number; // 0-1 parameter along edge for partial seam start (free-sew)
   paramEnd?: number;   // 0-1 parameter along edge for partial seam end (free-sew)
 }
@@ -58,6 +59,7 @@ export interface InternalLine {
   points: Point2D[];
 }
 
+<<<<<<< Updated upstream
 export interface PatternNotch {
   edgeIndex: number;
   param: number; // 0.0 to 1.0 along edge
@@ -72,6 +74,17 @@ export type SublimationPrint =
   | 'ocean-marble'
   | 'street-stars';
 
+=======
+export type PanelRole = 'front' | 'back' | 'leftSleeve' | 'rightSleeve' | 'hood' | 'pocket' | 'waistFront' | 'waistBack' | 'other';
+export interface CuttingDetails {
+  quantity: number;
+  onFold: boolean;
+  grainlineAngle: number; // Degrees clockwise from vertical in the panel's coordinates.
+  seamAllowanceMm: number;
+  notches: { edgeIndex: number; param: number; count: 1 | 2 }[];
+}
+
+>>>>>>> Stashed changes
 export interface PatternPiece {
   id: string;
   name: string;
@@ -86,12 +99,16 @@ export interface PatternPiece {
   color?: string;
   locked?: boolean;
   visible?: boolean;
+  role?: PanelRole;
+  cutting?: CuttingDetails;
   // 3D initial placement hints around avatar
   placement: {
     origin3D: [number, number, number]; // [x, y, z]
     rotation3D: [number, number, number];
     curved?: boolean;
     curveRadius?: number;
+    anchorY?: number; // world Y the piece's top edge hangs from (body units); defaults to the neck
+    surface?: 'hood'; // Side panel enclosing the head, with local X running front to back
   };
   internalLines?: InternalLine[];
   graphics?: GraphicLayer[];
@@ -188,6 +205,7 @@ export interface StitchSettings {
 }
 
 export interface CloProject {
+  schemaVersion?: 1;
   id: string;
   name: string;
   ownerId?: string;
@@ -195,6 +213,7 @@ export interface CloProject {
   createdAt: number;
   updatedAt: number;
   templateId: string;
+  patternSource?: { format: 'svg' | 'cdr'; name: string };
   pieces: PatternPiece[];
   seams: SeamConnection[];
   currentMaterial: FabricMaterial;

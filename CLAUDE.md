@@ -11,11 +11,14 @@ OpenCLO — self-hosted, open-source 3D fashion design / garment CAD / cloth sim
 ```bash
 npm run dev      # Vite dev server
 npm run build    # tsc -b (typecheck) && vite build — this is the CI quality gate
+npm run check    # node check-drape.mjs — drapes every template and asserts the result
 npm run lint     # oxlint
 npm run preview  # preview production build
 ```
 
-No test suite exists (no test script, no test files). CI (`.github/workflows/ci-cd.yml`) only runs `npm run build` on push/PR to `main`, then builds and pushes the Docker image to GHCR on push. Treat `npm run build` as the thing that must pass before considering work done.
+There is no unit test framework. `npm run check` (`check-drape.mjs` at repo root) is the one automated check: it loads the real modules through Vite's SSR loader, drapes every entry in `GARMENT_TEMPLATES`, and asserts mesh size, seam closure, that the garment stays on the body, that nothing penetrates the avatar, and that editing a pattern piece changes the 3D result. Run it after touching `patternMesh.ts`, `clothSimulation.ts`, `avatarBody.ts`, or preset seam data.
+
+CI (`.github/workflows/ci-cd.yml`) only runs `npm run build` on push/PR to `main`, then builds and pushes the Docker image to GHCR on push. Treat `npm run build` as the thing that must pass before considering work done.
 
 `tsconfig.app.json` has `noUnusedLocals` / `noUnusedParameters` on — unused vars/params fail the build, not just lint.
 
@@ -34,11 +37,15 @@ Single-page React 19 + TypeScript app, no router, no backend. Dual-viewport layo
 
 **2D CAD: `src/components/PatternViewport/PatternCanvas.tsx`** — imperative HTML5 Canvas (not SVG/DOM), high-DPI-aware, handles pan/zoom, vertex editing, edge curvature (Bezier), cut tool, virtual sewing tool (click edge A → edge B), and measurement overlays. Large single-file component; tool behavior branches on `activeTool` from the store.
 
-**3D studio: `src/components/Studio3D/StudioViewport.tsx`** — plain Three.js (`WebGLRenderer`, not React Three Fiber, not WebGPU yet — PRD Phase 3 targets WebGPU/TSL as future work), manual `requestAnimationFrame` loop, `OrbitControls`. Loads the mannequin from `public/models/*.glb` via `GLTFLoader`. Owns a `ClothSimulator` instance per mount.
+**3D studio: `src/components/Studio3D/StudioViewport.tsx`** — plain Three.js (`WebGLRenderer`, not React Three Fiber, not WebGPU yet — PRD Phase 3 targets WebGPU/TSL as future work), manual `requestAnimationFrame` loop, `OrbitControls`. Two paths: `mockupScene` of `ghost` or `floating-360` builds a `ClothSimulator` from the store's pieces/seams and steps it in the rAF loop until it settles; `hanger` / `flat-lay` / `folded` still use the procedural props in `studio3DGarmentBuilder.ts`. The drape rebuild is debounced 220 ms off `simulationIteration`, since a vertex drag bumps it on every move. Physics runs in avatar-space metres and the display group is shifted so the existing camera presets keep framing the garment.
 
-**Physics: `src/utils/clothSimulation.ts` — `ClothSimulator` class.** Verlet/XPBD-style particle solver: structural distance constraints, shear/bending constraints, seam constraints (pulls sewn edges together), and analytical capsule collision against the avatar body (`setupAvatarColliders`, `resolveCollisionsWithMesh`). Drive it via `step(dt)` / `stepPhysics(dt)`; `initDropAnimation()` / `restoreFromPhysics()` handle the garment drop-onto-avatar animation. Keep heavy per-frame math here, not in React render functions (PRD §6).
+**Pattern to cloth: `src/utils/patternMesh.ts` — `buildGarmentMesh()`.** The only place 2D pattern data becomes 3D cloth. Samples each piece's outline (honouring per-edge Bezier curvature), fills the interior with a hex grid, Delaunay-triangulates via `delaunator` and clips back to the polygon, then wraps the panels around the body — torso pieces on a cylinder at the azimuth implied by `placement.origin3D`, pieces with `|origin3D.x| >= 0.25` around the arm axis instead. Seam connections become vertex pairs, with the pairing direction chosen by whichever is shorter in 3D. `PATTERN_UNITS_PER_METER = 600`: pattern coordinates are real human units.
 
-**Pattern data & presets: `src/utils/patternPresets.ts`** — garment templates (`GARMENT_TEMPLATES`: t-shirt, dress, hoodie, bomber jacket, tank top, crop top, oversized tee, skirt, polo), each a `createXPreset()` function returning `{ pieces, seams }`; `FABRIC_PRESETS` (Cotton Jersey, Silk Satin, Denim, Merino Wool, Leather) with physical params (`stretchStiffness`, `bendingStiffness`, `density`, `friction`); `STITCH_PRESETS`; and `exportPatternsToSvg()` for the 1:1 SVG export.
+**Avatar body: `src/utils/avatarBody.ts`.** Shared body model — the mannequin torso profile measured from the GLB (mirrored so +Z is the front), scaled by the avatar's chest and height, plus arm and neck capsules. Used both to place panels and to collide against them.
+
+**Physics: `src/utils/clothSimulation.ts` — `ClothSimulator` class.** Position-based solver over the mesh above: `ClothSimulator.create(pieces, seams, material, avatar)`, then `assemble()` (stitches the panels with gravity off) and `step(dt)` per frame until `isSettled()`. 8 substeps x 2 iterations — small substeps, not many iterations, or the neckline stretches over the shoulders and the garment falls off. Collision pushes along the true body surface normal including the profile's vertical slope; a radial-only push gives the shoulders nothing to hold a garment with. No cloth-vs-cloth collision. Keep heavy per-frame math here, not in React render functions (PRD §6).
+
+**Pattern data & presets: `src/utils/patternPresets.ts`** — garment templates (`GARMENT_TEMPLATES`: t-shirt, dress, hoodie, bomber jacket, tank top, crop top, oversized tee, skirt, polo), each a `createXPreset()` function returning `{ pieces, seams }`. Seams are authored with `sewChain(id, chainA, chainB)`, which matches two edge chains by arc length and splits them into sub-seams — that is how a sleeve cap spanning three edges attaches to a two-edge armhole, or a rib band to a whole neckline. Local `+x` on a piece is the wearer's left; a rear-facing panel wraps mirrored, so front and back panels pair same-signed edges. Pieces that hang from the waist rather than the neck set `placement.anchorY` (their top edge is then pinned); `FABRIC_PRESETS` (Cotton Jersey, Silk Satin, Denim, Merino Wool, Leather) with physical params (`stretchStiffness`, `bendingStiffness`, `density`, `friction`); `STITCH_PRESETS`; and `exportPatternsToSvg()` for the 1:1 SVG export.
 
 **Types: `src/types/cad.ts`** — single source of truth for `PatternPiece`, `SeamConnection`, `FabricMaterial`, `AvatarConfig`, `CadTool`, `CloProject`, etc. Read this first when touching data shapes.
 

@@ -164,24 +164,6 @@ loader.parse(arrayBuffer, '', (gltf) => {
     };
   }
 
-  function measureTorso(y, clip = 0.20) {
-    const ext = getExtentsAtY(y, sliceMeasure, clip);
-    if (!ext) return null;
-    return {
-      y: r(y),
-      heightPercent: r((y - yMin) / totalHeight * 100),
-      xMin: r(ext.xMin),
-      xMax: r(ext.xMax),
-      zMin: r(ext.zMin),
-      zMax: r(ext.zMax),
-      halfWidth_X: r(ext.halfWidth),
-      depth_Z: r(ext.depth),
-      fullWidth_X: r(ext.fullWidth),
-      verticesInSlice: ext.vertexCount,
-      note: `torso only (|x| < ${clip})`
-    };
-  }
-
   const bodyLandmarks = {
     feet_floor: measure(yMin),
     knees: measure(+kneeScan.y),

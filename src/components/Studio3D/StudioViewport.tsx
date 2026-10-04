@@ -1,16 +1,28 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useCloStore } from '../../store/useCloStore';
-import { getAssembledSpec } from '../../utils/patternPresets';
-import {
-  generateGarmentTextureCanvas,
-  createGarment3DModel,
-} from '../../utils/studio3DGarmentBuilder';
-import type { MockupSceneMode, StudioLightingPreset } from '../../types/cad';
-import { Download } from 'lucide-react';
+import { GARMENT_TEMPLATES } from '../../utils/patternPresets';
+import { generateGarmentTextureCanvas } from '../../utils/studio3DGarmentBuilder';
+import type { MeshGroup } from '../../utils/patternMesh';
+import type { ClothWorkerRequest, ClothWorkerResponse } from '../../workers/clothProtocol';
+import type { StudioLightingPreset } from '../../types/cad';
+import { Download, RotateCcw, Maximize2 } from 'lucide-react';
+import { getPatternColorZone } from '../../utils/patternGeometry';
+
+function disposeGarment(scene: THREE.Scene, group: THREE.Group | null) {
+  if (!group) return;
+  scene.remove(group);
+  group.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    object.geometry.dispose();
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    materials.forEach((material) => material.dispose());
+  });
+}
 
 export const StudioViewport: React.FC = () => {
+<<<<<<< Updated upstream
   const mountRef = useRef<HTMLDivElement | null>(null);
 
   const {
@@ -29,97 +41,211 @@ export const StudioViewport: React.FC = () => {
   const [downloadSuccess, setDownloadSuccess] = useState(false);
 
   // References for Three.js instance
+=======
+  const { activeTemplateId, colorZones, decals, customColor, mockupScene, setMockupScene,
+    lightingPreset, setLightingPreset, decalTextureRevision, currentMaterial, avatar,
+    simulationIteration, selectedPieceId, pieces } = useCloStore();
+  const mountRef = useRef<HTMLDivElement>(null);
+>>>>>>> Stashed changes
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
-  const garmentGroupRef = useRef<THREE.Group | null>(null);
-  const canvasTextureRef = useRef<THREE.CanvasTexture | null>(null);
-  const offscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const lightsRef = useRef<{
-    ambient: THREE.AmbientLight;
-    key: THREE.DirectionalLight;
-    fill: THREE.DirectionalLight;
-    rim: THREE.DirectionalLight;
-  } | null>(null);
+  const garmentRef = useRef<THREE.Group | null>(null);
+  const geometryRef = useRef<THREE.BufferGeometry | null>(null);
+  const textureRef = useRef<THREE.CanvasTexture | null>(null);
+  const sleeveTextures = useRef(new Map<string, THREE.CanvasTexture>());
+  const sleeveCanvases = useRef(new Map<string, HTMLCanvasElement>());
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const imagesRef = useRef(new Map<string, HTMLImageElement>());
+  const materialsRef = useRef<THREE.MeshStandardMaterial[]>([]);
+  const workerRef = useRef<Worker | null>(null);
+  const requestIdRef = useRef(0);
+  const groupsRef = useRef<MeshGroup[]>([]);
+  const requestRenderRef = useRef<() => void>(() => {});
+  const rotatingRef = useRef(mockupScene === 'floating-360');
+  const dirtyRef = useRef(true);
+  const lightsRef = useRef<THREE.DirectionalLight[]>([]);
+  const ambientRef = useRef<THREE.AmbientLight | null>(null);
+  const [status, setStatus] = useState<'updating' | 'ready' | 'empty' | 'unavailable' | 'error'>('updating');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [saved, setSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const template = GARMENT_TEMPLATES.find((item) => item.id === activeTemplateId);
 
-  const spec = getAssembledSpec(activeTemplateId);
+  const invalidate = useCallback(() => {
+    dirtyRef.current = true;
+    requestRenderRef.current();
+  }, []);
+  const sendWorker = useCallback((message: ClothWorkerRequest, transfer: ArrayBuffer[] = []) => {
+    workerRef.current?.postMessage(message, transfer);
+  }, []);
 
-  // 1. Initialize Three.js Scene, Camera, Renderer, Lighting & Floor
+  const bakeTexture = useCallback(function bake() {
+    const state = useCloStore.getState();
+    canvasRef.current = generateGarmentTextureCanvas({ colorZones: state.colorZones, decals: state.decals,
+      activeTemplateId: state.activeTemplateId, customColor: state.customColor, patternBased: true, pieces: state.pieces,
+      imageCache: imagesRef.current, onImageLoad: bake }, canvasRef.current || undefined);
+    if (textureRef.current) textureRef.current.needsUpdate = true;
+    for (const zone of ['leftSleeve', 'rightSleeve'] as const) {
+      const present = state.pieces.some((p) => getPatternColorZone(p) === zone);
+      if (!present) { sleeveTextures.current.get(zone)?.dispose(); sleeveTextures.current.delete(zone); sleeveCanvases.current.delete(zone); continue; }
+      const canvas = generateGarmentTextureCanvas({ zone, colorZones: state.colorZones, decals: state.decals, activeTemplateId: state.activeTemplateId,
+        customColor: state.customColor, patternBased: true, pieces: state.pieces, imageCache: imagesRef.current, onImageLoad: bake }, sleeveCanvases.current.get(zone));
+      sleeveCanvases.current.set(zone, canvas);
+      if (!sleeveTextures.current.has(zone)) { const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; sleeveTextures.current.set(zone, texture); }
+      sleeveTextures.current.get(zone)!.needsUpdate = true;
+    }
+    invalidate();
+  }, [invalidate]);
+
+  const fitCamera = useCallback(() => {
+    const camera = cameraRef.current, controls = controlsRef.current, group = garmentRef.current;
+    if (!camera || !controls || !group) return;
+    const box = new THREE.Box3().setFromObject(group);
+    if (box.isEmpty()) return;
+    const size = box.getSize(new THREE.Vector3()), center = box.getCenter(new THREE.Vector3());
+    const tangent = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+    const height = Math.max(1, mountRef.current?.clientHeight || 1);
+    const usableHeight = Math.max(height * 0.3, height - 172);
+    const distance = Math.max(size.y * height / (2 * tangent * usableHeight), size.x / (2 * tangent * camera.aspect), size.z) * 1.15;
+    const direction = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
+    center.y += 20 * distance * tangent / height;
+    controls.target.copy(center);
+    camera.position.copy(center).addScaledVector(direction, distance);
+    controls.update();
+    invalidate();
+  }, [invalidate]);
+
+  const receiveWorkerMessage = useCallback((message: ClothWorkerResponse) => {
+    if (message.id !== requestIdRef.current) return;
+    const scene = sceneRef.current;
+    if (!scene || !rendererRef.current || !textureRef.current) return;
+    if (message.type === 'error') {
+      setErrorMessage(message.message);
+      setStatus('error');
+      return;
+    }
+    if (message.type === 'empty') {
+      disposeGarment(scene, garmentRef.current);
+      garmentRef.current = null;
+      geometryRef.current = null;
+      materialsRef.current = [];
+      groupsRef.current = [];
+      setStatus('empty');
+      invalidate();
+      return;
+    }
+    if (message.type === 'mesh') {
+      const state = useCloStore.getState();
+      disposeGarment(scene, garmentRef.current);
+      bakeTexture();
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.BufferAttribute(message.positions, 3).setUsage(THREE.DynamicDrawUsage));
+      geometry.setAttribute('uv', new THREE.BufferAttribute(message.uvs, 2));
+      geometry.setIndex(new THREE.BufferAttribute(message.indices, 1));
+      message.groups.forEach((group) => geometry.addGroup(group.start, group.count, group.materialIndex));
+      geometry.computeVertexNormals();
+      geometry.computeBoundingBox();
+      const materials = message.groups.map((group) => {
+        const sleeve = group.zone === 'leftSleeve' || group.zone === 'rightSleeve';
+        return new THREE.MeshStandardMaterial({ map: group.zone === 'body' ? textureRef.current : sleeve ? sleeveTextures.current.get(group.zone) : null,
+          color: group.zone === 'body' || sleeve ? '#ffffff' : state.colorZones[group.zone]
+            || (sleeve ? state.colorZones.sleeves : null) || state.colorZones.body || state.customColor,
+          roughness: state.currentMaterial.roughness, metalness: state.currentMaterial.metalness,
+          emissive: group.pieceId === state.selectedPieceId ? '#7c4b13' : '#000000', emissiveIntensity: 0.16,
+          side: THREE.DoubleSide });
+      });
+      const mesh = new THREE.Mesh(geometry, materials);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
+      const group = new THREE.Group();
+      group.position.y = 0.12 - (geometry.boundingBox?.min.y || 0);
+      group.add(mesh);
+      scene.add(group);
+      garmentRef.current = group;
+      geometryRef.current = geometry;
+      materialsRef.current = materials;
+      groupsRef.current = message.groups;
+      fitCamera();
+    } else {
+      const geometry = geometryRef.current;
+      const position = geometry?.getAttribute('position');
+      if (!geometry || !position || position.array.length !== message.positions.length) return;
+      position.array.set(message.positions);
+      position.needsUpdate = true;
+      sendWorker({ type: 'recycle', id: message.id, positions: message.positions }, [message.positions.buffer]);
+      geometry.computeVertexNormals();
+      if (message.finished) {
+        geometry.computeBoundingBox();
+        if (garmentRef.current && geometry.boundingBox) garmentRef.current.position.y = 0.12 - geometry.boundingBox.min.y;
+        fitCamera();
+        setStatus('ready');
+      }
+    }
+    invalidate();
+  }, [bakeTexture, fitCamera, invalidate, sendWorker]);
+
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
-
-    const width = container.clientWidth || 800;
-    const height = container.clientHeight || 600;
-
-    // Scene
+    const imageCache = imagesRef.current;
+    const garmentSlot = garmentRef;
+    const workerSlot = workerRef;
+    const requestSlot = requestIdRef;
+    const sleeveTextureSlot = sleeveTextures;
+    const sleeveCanvasSlot = sleeveCanvases;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(lightingPreset === 'ecommerce-white' ? '#f8fafc' : '#0c0e12');
+    scene.background = new THREE.Color('#f4f2ed');
     sceneRef.current = scene;
-
-    // Camera (40° fashion portrait lens)
-    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-    camera.position.set(0, 0.45, 2.2);
+    const camera = new THREE.PerspectiveCamera(38, 1, 0.01, 30);
+    camera.position.set(0, 0.5, 2.4);
     cameraRef.current = camera;
-
-    // Renderer
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      preserveDrawingBuffer: true, // Needed for 4K snapshots
-      powerPreference: 'high-performance',
-    });
-    renderer.setSize(width, height);
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
+    } catch {
+      const frame = requestAnimationFrame(() => {
+        setErrorMessage('3D preview needs WebGL. Enable hardware acceleration in your browser to continue.');
+        setStatus('unavailable');
+      });
+      return () => cancelAnimationFrame(frame);
+    }
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
-
-    // OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
-    controls.target.set(0, 0.45, 0);
-    controls.maxPolarAngle = Math.PI / 2 + 0.05;
-    controls.minDistance = 0.6;
-    controls.maxDistance = 5.0;
+    controls.dampingFactor = 0.08;
+    controls.target.set(0, 0.5, 0);
+    controls.minDistance = 0.25;
+    controls.maxDistance = 8;
     controlsRef.current = controls;
-
-    // Studio 3-Point Lighting
-    const ambient = new THREE.AmbientLight('#ffffff', 1.0);
+    const ambient = new THREE.AmbientLight('#ffffff', 1.1);
     scene.add(ambient);
-
-    const key = new THREE.DirectionalLight('#ffffff', 1.5);
-    key.position.set(2.0, 3.8, 2.8);
-    key.castShadow = true;
-    key.shadow.mapSize.width = 1024;
-    key.shadow.mapSize.height = 1024;
-    key.shadow.bias = -0.0001;
-    scene.add(key);
-
-    const fill = new THREE.DirectionalLight('#93c5fd', 0.7);
-    fill.position.set(-2.5, 2.2, 1.8);
-    scene.add(fill);
-
-    const rim = new THREE.DirectionalLight('#fbcfe8', 0.85);
-    rim.position.set(0, 3.0, -2.8);
-    scene.add(rim);
-
-    lightsRef.current = { ambient, key, fill, rim };
-
-    // Studio Floor & Contact Shadow
-    const floorGeo = new THREE.PlaneGeometry(10, 10);
-    const floorMat = new THREE.ShadowMaterial({ opacity: 0.18 });
-    const floor = new THREE.Mesh(floorGeo, floorMat);
+    ambientRef.current = ambient;
+    const lights = [new THREE.DirectionalLight('#ffffff', 2), new THREE.DirectionalLight('#e2e8f0', 0.8), new THREE.DirectionalLight('#ffffff', 1)];
+    lights[0].position.set(2, 4, 3);
+    lights[1].position.set(-3, 2, 2);
+    lights[2].position.set(0, 3, -3);
+    lights[0].castShadow = true;
+    lights[0].shadow.mapSize.set(1024, 1024);
+    lights[0].shadow.bias = -0.0001;
+    scene.add(...lights);
+    lightsRef.current = lights;
+    const floorGeometry = new THREE.PlaneGeometry(10, 10);
+    const floorMaterial = new THREE.ShadowMaterial({ opacity: 0.12 });
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial);
     floor.rotation.x = -Math.PI / 2;
-    floor.position.y = 0;
     floor.receiveShadow = true;
     scene.add(floor);
+<<<<<<< Updated upstream
 
     // Initial Offscreen Canvas & CanvasTexture
     const offscreen = generateGarmentTextureCanvas({
@@ -134,274 +260,272 @@ export const StudioViewport: React.FC = () => {
     const texture = new THREE.CanvasTexture(offscreen);
     texture.wrapS = THREE.ClampToEdgeWrapping;
     texture.wrapT = THREE.ClampToEdgeWrapping;
+=======
+    bakeTexture();
+    const texture = new THREE.CanvasTexture(canvasRef.current!);
+>>>>>>> Stashed changes
     texture.colorSpace = THREE.SRGBColorSpace;
-    texture.generateMipmaps = false;
-    texture.minFilter = THREE.LinearFilter;
-    canvasTextureRef.current = texture;
-
-    // Build 3D Model
-    const garment = createGarment3DModel(spec, mockupScene, texture, colorZones);
-    scene.add(garment);
-    garmentGroupRef.current = garment;
-
-    // Track interaction for gentle 360 rotation
-    let isInteracting = false;
-    controls.addEventListener('start', () => {
-      isInteracting = true;
-    });
-    controls.addEventListener('end', () => {
-      isInteracting = false;
-    });
-
-    // Animation Loop
-    let animId: number;
+    texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    textureRef.current = texture;
+    let frameId = 0, interacting = false, contextLost = false;
+    const visible = () => !document.hidden && container.clientWidth > 0 && container.clientHeight > 0 && !contextLost;
+    const requestRender = () => {
+      if (!frameId && visible()) frameId = requestAnimationFrame(animate);
+    };
     const animate = () => {
-      animId = requestAnimationFrame(animate);
-      controls.update();
-
-      // Gentle rotation if in floating 360 mode and user isn't actively dragging
-      if (mockupScene === 'floating-360' && garmentGroupRef.current && !isInteracting) {
-        garmentGroupRef.current.rotation.y += 0.003;
+      frameId = 0;
+      if (!visible()) return;
+      try {
+        const changed = controls.update();
+        if (rotatingRef.current && garmentRef.current && !interacting) {
+          garmentRef.current.rotation.y += 0.003;
+          dirtyRef.current = true;
+        }
+        if (changed || dirtyRef.current) {
+          renderer.render(scene, camera);
+          dirtyRef.current = false;
+        }
+        if (changed || interacting || rotatingRef.current) requestRender();
+      } catch {
+        contextLost = true;
+        sendWorker({ type: 'pause', id: requestIdRef.current, paused: true });
+        setErrorMessage('The 3D preview could not be rendered. Reload the page to restore it.');
+        setStatus('unavailable');
       }
-
-      renderer.render(scene, camera);
     };
-    animate();
-
-    // Resize Observer
-    const handleResize = () => {
-      if (!container) return;
-      const w = container.clientWidth;
-      const h = container.clientHeight;
-      if (w <= 0 || h <= 0) return;
-      camera.aspect = w / h;
+    requestRenderRef.current = requestRender;
+    const updateVisibility = () => {
+      sendWorker({ type: 'pause', id: requestIdRef.current, paused: !visible() });
+      if (visible()) invalidate();
+      else { cancelAnimationFrame(frameId); frameId = 0; }
+    };
+    const resize = () => {
+      const { clientWidth: width, clientHeight: height } = container;
+      updateVisibility();
+      if (!width || !height) return;
+      camera.aspect = width / height;
       camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
+      renderer.setSize(width, height);
+      fitCamera();
+      invalidate();
     };
-
-    const ro = new ResizeObserver(handleResize);
-    ro.observe(container);
-    window.addEventListener('resize', handleResize);
-
+    const observer = new ResizeObserver(resize);
+    observer.observe(container);
+    resize();
+    const start = () => { interacting = true; invalidate(); };
+    const end = () => { interacting = false; invalidate(); };
+    controls.addEventListener('start', start);
+    controls.addEventListener('end', end);
+    controls.addEventListener('change', invalidate);
+    const onContextLost = (event: Event) => {
+      event.preventDefault();
+      contextLost = true;
+      updateVisibility();
+      setErrorMessage('The browser paused the 3D preview. It will resume when the graphics context returns.');
+      setStatus('unavailable');
+    };
+    const onContextRestored = () => {
+      contextLost = false;
+      useCloStore.getState().resetSimulation();
+      updateVisibility();
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onContextLost);
+    renderer.domElement.addEventListener('webglcontextrestored', onContextRestored);
+    document.addEventListener('visibilitychange', updateVisibility);
+    invalidate();
     return () => {
-      cancelAnimationFrame(animId);
-      ro.disconnect();
-      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(frameId);
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', updateVisibility);
+      renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', onContextRestored);
+      controls.removeEventListener('start', start);
+      controls.removeEventListener('end', end);
+      controls.removeEventListener('change', invalidate);
+      controls.dispose();
+      disposeGarment(scene, garmentSlot.current);
+      floorGeometry.dispose();
+      floorMaterial.dispose();
+      texture.dispose();
+      sleeveTextureSlot.current.forEach((item) => item.dispose()); sleeveTextureSlot.current.clear(); sleeveCanvasSlot.current.clear();
+      lights.forEach((light) => light.dispose());
       renderer.dispose();
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
-      }
+      renderer.domElement.remove();
+      if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+      requestSlot.current++;
+      const worker = workerSlot.current;
+      worker?.terminate();
+      workerSlot.current = null;
+      requestRenderRef.current = () => {};
+      groupsRef.current = [];
+      geometryRef.current = null;
+      garmentRef.current = null;
+      materialsRef.current = [];
+      textureRef.current = null;
+      rendererRef.current = null;
+      sceneRef.current = null;
+      controlsRef.current = null;
+      cameraRef.current = null;
+      imageCache.forEach((image) => { image.onload = null; });
+      imageCache.clear();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Run once on mount
+  }, [bakeTexture, fitCamera, invalidate, sendWorker]);
 
-  // 2. Re-bake Texture whenever 2D colors or decals change
   useEffect(() => {
-    if (!canvasTextureRef.current) return;
+    bakeTexture();
+    const groups = groupsRef.current;
+    groups.forEach((group) => {
+      const material = materialsRef.current[group.materialIndex];
+      if (!material) return;
+      const sleeve = group.zone === 'leftSleeve' || group.zone === 'rightSleeve';
+      material.map = group.zone === 'body' ? textureRef.current : sleeve ? sleeveTextures.current.get(group.zone) || null : null;
+      material.needsUpdate = true;
+      material.color.set(group.zone === 'body' || sleeve ? '#ffffff'
+        : colorZones[group.zone] || (sleeve ? colorZones.sleeves : null) || colorZones.body || customColor);
+      material.roughness = currentMaterial.roughness;
+      material.metalness = currentMaterial.metalness;
+    });
+  }, [colorZones, customColor, decals, decalTextureRevision, activeTemplateId, bakeTexture, currentMaterial.roughness, currentMaterial.metalness]);
 
+<<<<<<< Updated upstream
     generateGarmentTextureCanvas(
       { colorZones, decals, activeTemplateId, customColor, sublimationPrint },
       offscreenCanvasRef.current || undefined
     );
     canvasTextureRef.current.needsUpdate = true;
   }, [colorZones, decals, activeTemplateId, customColor, decalTextureRevision, sublimationPrint]);
+=======
+  useEffect(() => {
+    rotatingRef.current = mockupScene === 'floating-360';
+    if (garmentRef.current) garmentRef.current.rotation.y = 0;
+    invalidate();
+  }, [mockupScene, invalidate]);
+>>>>>>> Stashed changes
 
-  // 3. Rebuild 3D Model whenever mockupScene or template changes
   useEffect(() => {
     const scene = sceneRef.current;
-    if (!scene || !canvasTextureRef.current) return;
+    if (!scene || !textureRef.current || !rendererRef.current) return;
+    const id = ++requestIdRef.current;
+    setStatus('updating');
+    setErrorMessage('');
+    const timer = window.setTimeout(() => {
+      const state = useCloStore.getState();
+      if (typeof Worker === 'undefined') {
+        setErrorMessage('3D preview needs Web Workers. Use an up-to-date browser to continue.');
+        setStatus('unavailable');
+        return;
+      }
+      try {
+        if (!workerRef.current) {
+          const worker = new Worker(new URL('../../workers/cloth.worker.ts', import.meta.url), { type: 'module' });
+          workerRef.current = worker;
+          worker.onmessage = (event: MessageEvent<ClothWorkerResponse>) => {
+            if (workerRef.current === worker) receiveWorkerMessage(event.data);
+          };
+          worker.onerror = (event) => {
+            event.preventDefault();
+            if (workerRef.current !== worker) return;
+            worker.terminate();
+            workerRef.current = null;
+            setErrorMessage('The 3D preview could not start. Try rebuilding it.');
+            setStatus('error');
+          };
+        }
+        sendWorker({ type: 'build', id,
+          pieces: state.pieces.map((piece) => ({ ...piece, graphics: undefined })),
+          seams: state.seams, material: state.currentMaterial, avatar: state.avatar,
+          paused: document.hidden || !mountRef.current?.clientWidth || !mountRef.current?.clientHeight });
+      } catch {
+        workerRef.current?.terminate();
+        workerRef.current = null;
+        setErrorMessage('The 3D preview could not start. Try rebuilding it.');
+        setStatus('error');
+      }
+    }, 220);
+    return () => {
+      window.clearTimeout(timer);
+      sendWorker({ type: 'cancel', id });
+    };
+  }, [activeTemplateId, avatar, simulationIteration, currentMaterial.stretchStiffness, currentMaterial.bendingStiffness,
+    currentMaterial.friction, currentMaterial.density, receiveWorkerMessage, sendWorker]);
 
-    if (garmentGroupRef.current) {
-      scene.remove(garmentGroupRef.current);
-    }
-
-    const newGarment = createGarment3DModel(spec, mockupScene, canvasTextureRef.current, colorZones);
-    scene.add(newGarment);
-    garmentGroupRef.current = newGarment;
-
-    // Reset rotation if not floating-360
-    if (mockupScene !== 'floating-360') {
-      newGarment.rotation.y = 0;
-    }
-  }, [mockupScene, activeTemplateId, spec, colorZones]);
-
-  // 4. Update Studio Lighting Preset
   useEffect(() => {
-    const scene = sceneRef.current;
-    const lights = lightsRef.current;
-    if (!scene || !lights) return;
+    groupsRef.current.forEach((group) => {
+      const material = materialsRef.current[group.materialIndex];
+      if (material) { material.emissive.set(group.pieceId === selectedPieceId ? '#7c4b13' : '#000000'); material.emissiveIntensity = 0.16; }
+    });
+    invalidate();
+  }, [selectedPieceId, status, invalidate]);
 
-    if (lightingPreset === 'ecommerce-white') {
-      scene.background = new THREE.Color('#f8fafc');
-      lights.ambient.color.set('#ffffff');
-      lights.ambient.intensity = 1.1;
-      lights.key.color.set('#ffffff');
-      lights.key.intensity = 1.5;
-      lights.fill.color.set('#e2e8f0');
-      lights.fill.intensity = 0.8;
-      lights.rim.color.set('#ffffff');
-      lights.rim.intensity = 0.5;
-    } else if (lightingPreset === 'moody-dark') {
-      scene.background = new THREE.Color('#0c0e12');
-      lights.ambient.color.set('#1e293b');
-      lights.ambient.intensity = 0.4;
-      lights.key.color.set('#ffffff');
-      lights.key.intensity = 2.2;
-      lights.fill.color.set('#3b82f6');
-      lights.fill.intensity = 0.5;
-      lights.rim.color.set('#ec4899');
-      lights.rim.intensity = 1.4;
-    } else if (lightingPreset === 'warm-editorial') {
-      scene.background = new THREE.Color('#181412');
-      lights.ambient.color.set('#451a03');
-      lights.ambient.intensity = 0.5;
-      lights.key.color.set('#fef08a');
-      lights.key.intensity = 2.0;
-      lights.fill.color.set('#fdba74');
-      lights.fill.intensity = 0.7;
-      lights.rim.color.set('#fed7aa');
-      lights.rim.intensity = 1.0;
-    }
-  }, [lightingPreset]);
+  useEffect(() => {
+    const scene = sceneRef.current, ambient = ambientRef.current, lights = lightsRef.current;
+    if (!scene || !ambient || lights.length !== 3) return;
+    const dark = lightingPreset === 'moody-dark', warm = lightingPreset === 'warm-editorial';
+    scene.background = new THREE.Color(dark ? '#17191e' : warm ? '#e7ded0' : '#f4f2ed');
+    ambient.intensity = dark ? 0.65 : 1.1;
+    lights[0].color.set(warm ? '#ffe4c2' : '#ffffff');
+    lights[0].intensity = dark ? 3 : 2;
+    lights[1].color.set(dark ? '#93b8ec' : '#e2e8f0');
+    lights[2].intensity = dark ? 1.8 : 1;
+    invalidate();
+  }, [lightingPreset, invalidate]);
 
-  // Camera Quick Preset Angles
-  const setCameraAngle = (angle: 'front' | 'back' | 'angle' | 'closeup') => {
-    const camera = cameraRef.current;
-    const controls = controlsRef.current;
+  const cameraAngle = (angle: 'front' | 'back' | 'angle') => {
+    const camera = cameraRef.current, controls = controlsRef.current;
     if (!camera || !controls) return;
-
-    if (angle === 'front') {
-      camera.position.set(0, 0.45, 2.2);
-      controls.target.set(0, 0.45, 0);
-    } else if (angle === 'back') {
-      camera.position.set(0, 0.45, -2.2);
-      controls.target.set(0, 0.45, 0);
-    } else if (angle === 'angle') {
-      camera.position.set(1.6, 0.6, 1.6);
-      controls.target.set(0, 0.45, 0);
-    } else if (angle === 'closeup') {
-      camera.position.set(0, 0.55, 1.0);
-      controls.target.set(0, 0.55, 0);
-    }
+    const distance = camera.position.distanceTo(controls.target);
+    const direction = angle === 'front' ? new THREE.Vector3(0, 0, 1)
+      : angle === 'back' ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(1, 0.2, 1).normalize();
+    if (garmentRef.current) garmentRef.current.rotation.y = 0;
+    camera.position.copy(controls.target).addScaledVector(direction, distance);
     controls.update();
+    invalidate();
   };
-
-  // Download High-Res 4K Snapshot
-  const handleDownloadSnapshot = () => {
-    const renderer = rendererRef.current;
-    if (!renderer) return;
-
-    const dataUrl = renderer.domElement.toDataURL('image/png');
+  const snapshot = () => {
+    if (!rendererRef.current || !garmentRef.current) return;
     const link = document.createElement('a');
-    link.href = dataUrl;
-    link.download = `openclo-${activeTemplateId}-${mockupScene}-${Date.now()}.png`;
-    document.body.appendChild(link);
+    try {
+      link.href = rendererRef.current.domElement.toDataURL('image/png');
+    } catch {
+      setErrorMessage('The image could not be saved. Try rebuilding the preview.');
+      setStatus('error');
+      return;
+    }
+    link.download = `openclo-${activeTemplateId}-${Date.now()}.png`;
     link.click();
-    document.body.removeChild(link);
-
-    setDownloadSuccess(true);
-    setTimeout(() => setDownloadSuccess(false), 2500);
+    setSaved(true);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSaved(false), 2500);
   };
 
-  return (
-    <div className="relative w-full h-full bg-[#0c0e12] overflow-hidden select-none">
-      {/* Top Studio Controls */}
-      <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
-        {/* Mockup Scene Mode Selector */}
-        <div className="flex items-center gap-1 bg-[#14171f]/90 backdrop-blur-md border border-slate-800 rounded-2xl p-1.5 shadow-xl pointer-events-auto">
-          {[
-            { id: 'ghost', label: 'Ghost Mannequin' },
-            { id: 'hanger', label: 'Boutique Hanger' },
-            { id: 'flat-lay', label: 'Studio Flat Lay' },
-            { id: 'folded', label: 'Folded Drop' },
-            { id: 'floating-360', label: 'Floating 360°' },
-          ].map((mode) => (
-            <button
-              key={mode.id}
-              onClick={() => setMockupScene(mode.id as MockupSceneMode)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                mockupScene === mode.id
-                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-                  : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-              }`}
-            >
-              {mode.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Lighting Preset Selector */}
-        <div className="flex items-center gap-1 bg-[#14171f]/90 backdrop-blur-md border border-slate-800 rounded-2xl p-1.5 shadow-xl pointer-events-auto">
-          {[
-            { id: 'ecommerce-white', label: 'Clean White' },
-            { id: 'moody-dark', label: 'Moody Dark' },
-            { id: 'warm-editorial', label: 'Warm Editorial' },
-          ].map((light) => (
-            <button
-              key={light.id}
-              onClick={() => setLightingPreset(light.id as StudioLightingPreset)}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-all ${
-                lightingPreset === light.id
-                  ? 'bg-slate-700 text-white'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              {light.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Camera Angles & Snapshot Controls Bottom-Right */}
-      <div className="absolute bottom-4 right-4 z-20 flex items-center gap-2">
-        <div className="flex items-center gap-1 bg-[#14171f]/90 backdrop-blur-md border border-slate-800 rounded-2xl p-1.5 shadow-xl">
-          <button
-            onClick={() => setCameraAngle('front')}
-            className="px-2.5 py-1 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800"
-            title="Front View"
-          >
-            Front
-          </button>
-          <button
-            onClick={() => setCameraAngle('back')}
-            className="px-2.5 py-1 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800"
-            title="Back View"
-          >
-            Back
-          </button>
-          <button
-            onClick={() => setCameraAngle('angle')}
-            className="px-2.5 py-1 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800"
-            title="3/4 Perspective Angle"
-          >
-            3/4 Angle
-          </button>
-          <button
-            onClick={() => setCameraAngle('closeup')}
-            className="px-2.5 py-1 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800"
-            title="Close-Up Chest Detail"
-          >
-            Detail
-          </button>
-        </div>
-
-        {/* Snapshot Button */}
-        <button
-          onClick={handleDownloadSnapshot}
-          className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-2xl font-bold text-xs shadow-xl shadow-blue-600/30 transition-all active:scale-95"
-        >
-          <Download className="w-4 h-4" />
-          <span>{downloadSuccess ? 'Saved!' : '4K Snapshot'}</span>
-        </button>
-      </div>
-
-      {/* Bottom Info Pill */}
-      <div className="absolute bottom-4 left-4 z-20 bg-[#14171f]/80 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-1 text-[11px] text-slate-400">
-        <span className="font-semibold text-slate-200">{spec.name}</span> · Orbit: Left Drag · Zoom: Scroll
-      </div>
-
-      {/* Three.js Canvas Container */}
-      <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
+  return <div className="relative w-full h-full overflow-hidden bg-[#f4f2ed] select-none">
+    <div className="absolute top-0 left-0 right-0 z-20 px-4 py-3 bg-[#f4f2ed]/95 border-b border-stone-200 flex items-center justify-between gap-2 text-stone-800">
+      <h2 className="font-semibold text-sm">3D preview</h2>
+      <span role="status" className="text-[10px] text-stone-500">{status === 'updating' ? 'Draping your pattern…' : status === 'ready' ? 'Pattern preview ready' : ''}</span>
     </div>
-  );
+    <div className="absolute top-14 left-3 right-3 z-20 flex items-center justify-between gap-2 text-[11px]">
+      <button onClick={() => setMockupScene(mockupScene === 'floating-360' ? 'ghost' : 'floating-360')} aria-pressed={mockupScene === 'floating-360'}
+        className="flex items-center gap-1 bg-[#151820]/90 text-slate-200 px-2 py-1.5 rounded-md"><RotateCcw className="w-3 h-3" />{mockupScene === 'floating-360' ? 'Stop rotation' : 'Rotate'}</button>
+      <select aria-label="Preview lighting" value={lightingPreset} onChange={(e) => setLightingPreset(e.target.value as StudioLightingPreset)}
+        className="bg-[#151820]/90 text-slate-200 rounded-md px-2 py-1.5">
+        <option value="ecommerce-white">Soft studio</option><option value="moody-dark">Dark studio</option><option value="warm-editorial">Warm studio</option>
+      </select>
+    </div>
+    {(status === 'empty' || status === 'unavailable' || status === 'error') && <div className="absolute inset-0 flex flex-col gap-3 items-center justify-center px-8 text-center text-sm text-stone-500">
+      {status === 'empty' ? 'Choose a garment or draw a pattern piece to see its 3D preview.' : errorMessage}
+      {status === 'error' && <button onClick={() => useCloStore.getState().resetSimulation()} className="px-3 py-2 rounded-md bg-stone-200 text-stone-800">Rebuild preview</button>}
+    </div>}
+    <div className="absolute bottom-0 left-0 right-0 z-20 p-3 bg-[#f4f2ed]/95 border-t border-stone-200 text-stone-600">
+      <div className="flex items-center justify-between gap-2 text-[11px] mb-2">
+        <span className="truncate">{pieces.find((piece) => piece.id === selectedPieceId)?.name || template?.name || 'Imported panels'} · drag to orbit</span>
+        <button onClick={snapshot} disabled={status !== 'ready'} className="flex items-center gap-1 shrink-0 hover:text-stone-950 disabled:opacity-40"><Download className="w-3 h-3" />{saved ? 'Saved' : 'Save image'}</button>
+      </div>
+      {activeTemplateId === 'custom-pattern' && <p className="text-[10px] mb-2">Panel arrangement preview. Check roles and sewing connections; this does not verify garment fit.</p>}
+      <div className="flex gap-1 text-[11px]">
+        {(['front', 'back', 'angle'] as const).map((angle) => <button key={angle} onClick={() => cameraAngle(angle)} className="px-3 py-1.5 rounded-md hover:bg-stone-200 capitalize">{angle === 'angle' ? '3/4 view' : angle}</button>)}
+        <button onClick={fitCamera} className="ml-auto flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-stone-200"><Maximize2 className="w-3 h-3" />Fit</button>
+      </div>
+    </div>
+    <div ref={mountRef} className="w-full h-full cursor-grab active:cursor-grabbing" />
+  </div>;
 };

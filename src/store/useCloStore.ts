@@ -19,20 +19,34 @@ import type {
   CanvasViewMode,
   StudioLightingPreset,
   GraphicDecal,
+<<<<<<< Updated upstream
   CanvasTheme,
   SublimationPrint,
   CanvasAnnotation,
   ReferenceImageItem,
+=======
+  InternalLine,
+>>>>>>> Stashed changes
 } from '../types/cad';
 import {
   FABRIC_PRESETS,
   GARMENT_TEMPLATES,
   STITCH_PRESETS,
 } from '../utils/patternPresets';
+import { arrangePatternPieces, scalePatternPiece, getSeamSegment } from '../utils/patternGeometry';
+
+import { cutPattern } from '../utils/patternCut';
+import { splitPatternEdge, splitEdgeSeams, deleteVertexSeams } from '../utils/patternTopology';
+import { createDefaultProject, normalizeProject, normalizePatternPiece } from '../utils/projectData';
+
+type ProjectPersistence = (projects: CloProject[]) => Promise<void>;
+let projectPersistence: ProjectPersistence | null = null;
+export function setProjectPersistence(persistence: ProjectPersistence | null) { projectPersistence = persistence; }
 
 const STORAGE_KEY_PROJECTS = 'openclo_projects_v17';
 const STORAGE_KEY_ACTIVE = 'openclo_active_project_id';
 
+<<<<<<< Updated upstream
 function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string, ownerId = 'user-superadmin', ownerUsername = 'aghyksa'): CloProject {
   const tmpl = GARMENT_TEMPLATES.find((t) => t.id === templateId) || GARMENT_TEMPLATES[0];
   const data = tmpl.generator();
@@ -110,52 +124,53 @@ function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string, o
     referenceImages: [],
     fabricRollWidthCm: 150,
     showRollGuides: false,
+=======
+function projectDesignState(project: CloProject) {
+  const color = project.customColor || '#262626';
+  return {
+    colorZones: project.colorZones || Object.fromEntries(
+      ['body', 'collar', 'sleeves', 'leftSleeve', 'rightSleeve', 'pocket', 'hem', 'cuffs', 'hood'].map((zone) => [zone, color])),
+    decals: project.decals || [],
+    canvasViewMode: project.canvasViewMode || 'pieces',
+    mockupScene: project.mockupScene || 'ghost',
+    selectedDecalId: null,
+    activeTool: 'select' as CadTool,
+    pendingSeamEdge: null,
+    pendingFreeSewEdge: null,
+    selectedSeamId: null,
+>>>>>>> Stashed changes
   };
 }
 
-function loadProjectsFromStorage(): { projects: CloProject[]; activeProject: CloProject } {
+function loadProjectsFromStorage() {
+  let recoveryBackup: string | null = null;
   try {
     const raw = localStorage.getItem(STORAGE_KEY_PROJECTS);
-    const activeId = localStorage.getItem(STORAGE_KEY_ACTIVE);
-
     if (raw) {
-      const parsed = JSON.parse(raw) as CloProject[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        let active = parsed.find((p) => p.id === activeId);
-        if (!active) active = parsed[0];
-        return { projects: parsed, activeProject: active };
-      }
+      recoveryBackup = raw;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed) || !parsed.length) throw new Error('Invalid workspace');
+      const projects = parsed.map(normalizeProject);
+      const activeId = localStorage.getItem(STORAGE_KEY_ACTIVE);
+      return { projects, activeProject: projects.find((p) => p.id === activeId) || projects[0], recoveryBackup: null };
     }
-  } catch (e) {
-    console.warn('Failed to load projects from localStorage:', e);
-  }
-
-  const def = createDefaultProject('uniqlo-u-boxy-tee', 'Uniqlo U AIRism Studio');
-  try {
-    localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify([def]));
-    localStorage.setItem(STORAGE_KEY_ACTIVE, def.id);
-  } catch {
-    // Ignore storage quota errors
-  }
-  return { projects: [def], activeProject: def };
+  } catch { /* Preserve unreadable data for recovery instead of overwriting it. */ }
+  const def = createDefaultProject('uniqlo-u-boxy-tee', 'My first design');
+  return { projects: [def], activeProject: def, recoveryBackup };
 }
 
 let autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
-function debouncedSaveProjects(projects: CloProject[], activeId: string) {
+function debouncedSaveProjects(_projects: CloProject[], _activeId: string) {
   if (autoSaveTimer) clearTimeout(autoSaveTimer);
-  autoSaveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(projects));
-      localStorage.setItem(STORAGE_KEY_ACTIVE, activeId);
-    } catch (e) {
-      console.warn('Auto-save to localStorage failed:', e);
-    }
-  }, 400);
+  autoSaveTimer = setTimeout(() => { useCloStore.getState().saveActiveProject(); }, 600);
 }
 
-interface HistoryStep {
-  pieces: PatternPiece[];
-  seams: SeamConnection[];
+type HistoryStep = Pick<CloState, 'pieces' | 'seams' | 'currentMaterial' | 'customColor' | 'activeTemplateId'
+  | 'avatar' | 'avatar2D' | 'stitchSettings' | 'colorZones' | 'decals'>;
+const designKeys = ['pieces', 'seams', 'currentMaterial', 'customColor', 'activeTemplateId', 'avatar', 'avatar2D',
+  'stitchSettings', 'colorZones', 'decals'] as const;
+function designSnapshot(state: CloState): HistoryStep {
+  return Object.fromEntries(designKeys.map((key) => [key, state[key]])) as unknown as HistoryStep;
 }
 
 interface CloState {
@@ -164,6 +179,8 @@ interface CloState {
   activeProjectId: string;
   isSaved: boolean;
   lastSavedAt: number;
+  saveError: string | null;
+  recoveryBackup: string | null;
 
   // Pattern Workspace
   pieces: PatternPiece[];
@@ -193,6 +210,7 @@ interface CloState {
   isSimulating: boolean;
   simulationDynamics: number; // 0 (calm) to 1.0 (runway wind)
   simulationIteration: number;
+  patternLayoutRevision: number;
   showWireframe: boolean;
   showHeatmap: boolean;
   showAvatar: boolean;
@@ -210,12 +228,23 @@ interface CloState {
   // Project Actions
   createNewProject: (name: string, templateId?: string, ownerId?: string, ownerUsername?: string) => void;
   switchProject: (id: string) => void;
+<<<<<<< Updated upstream
   saveActiveProject: (ownerId?: string, ownerUsername?: string) => void;
   saveProjectAs: (name: string, ownerId?: string, ownerUsername?: string) => void;
   renameProject: (id: string, name: string) => void;
   deleteProject: (id: string) => void;
   duplicateProject: (id: string, ownerId?: string, ownerUsername?: string) => void;
   importProjectData: (project: CloProject) => void;
+=======
+  saveActiveProject: () => void | Promise<void>;
+  saveProjectAs: (name: string) => void;
+  renameProject: (id: string, name: string) => void;
+  deleteProject: (id: string) => void;
+  duplicateProject: (id: string) => void;
+  importProjectData: (project: unknown) => void;
+  importProjectsData: (projects: unknown[]) => void;
+  replaceWorkspace: (projects: CloProject[]) => void;
+>>>>>>> Stashed changes
 
   // Pattern Editing (Photoshop-like & CLO3D CAD)
   selectPiece: (id: string | null) => void;
@@ -226,7 +255,11 @@ interface CloState {
   setPieceRotation: (id: string, radians: number) => void;
   updatePieceVertex: (pieceId: string, vertexIndex: number, newPoint: { x: number; y: number }) => void;
   scalePiece: (pieceId: string, factorX: number, factorY?: number) => void;
-  addVertexToEdge: (pieceId: string, edgeIndex: number, newPoint: { x: number; y: number }) => void;
+  scalePieces: (pieceIds: string[], factorX: number, factorY?: number) => void;
+  arrangePieces: () => void;
+  addVertexToEdge: (pieceId: string, edgeIndex: number, newPoint: { x: number; y: number }, param?: number) => void;
+  updatePieceShape: (id: string, points: Point2D[], edgeCurvatures?: Record<number, EdgeCurvature>, internalLines?: InternalLine[], cutting?: PatternPiece['cutting']) => void;
+  updatePieceDetails: (id: string, details: Pick<PatternPiece, 'name' | 'role' | 'cutting' | 'placement'>) => void;
   deleteVertex: (pieceId: string, vertexIndex: number) => void;
   curveEdge: (pieceId: string, edgeIndex: number, curvatureAmount: number) => void;
   setEdgeCurvature: (pieceId: string, edgeIndex: number, curvature: EdgeCurvature | null) => void;
@@ -336,16 +369,27 @@ interface CloState {
   undo: () => void;
   redo: () => void;
   pushHistory: () => void;
+  beginEdit: () => void;
+  endEdit: () => void;
+  cancelEdit: () => void;
 }
 
 const initial = loadProjectsFromStorage();
 const active = initial.activeProject;
 
 export const useCloStore = create<CloState>((set, get) => {
-  // Expose store for debugging / QA testing
-  if (typeof window !== 'undefined') {
-    (window as any).__CLO_STORE = { getState: get, setState: set };
-  }
+  let editSnapshot: HistoryStep | null = null;
+  const restore = (snapshot: HistoryStep) => ({ ...snapshot, selectedPieceId: null, selectedVertexIndex: null,
+    selectedDecalId: null, pendingSeamEdge: null, pendingFreeSewEdge: null, selectedSeamId: null,
+    simulationIteration: get().simulationIteration + 1, decalTextureRevision: get().decalTextureRevision + 1,
+    ...syncToActiveProject(snapshot) });
+  const projectState = (project: CloProject) => ({
+    ...projectDesignState(project), activeProjectId: project.id, pieces: project.pieces, seams: project.seams,
+    currentMaterial: project.currentMaterial, customColor: project.customColor, activeTemplateId: project.templateId,
+    avatar: project.avatar, avatar2D: project.avatar2D, stitchSettings: project.stitchSettings,
+    selectedPieceId: null, selectedVertexIndex: null, undoStack: [], redoStack: [],
+    simulationIteration: get().simulationIteration + 1, decalTextureRevision: get().decalTextureRevision + 1,
+  });
   // Helper to commit changes to active project & localStorage
   const syncToActiveProject = (updatedState: Partial<CloState>) => {
     const state = get();
@@ -360,7 +404,7 @@ export const useCloStore = create<CloState>((set, get) => {
         seams: updatedState.seams ?? state.seams,
         currentMaterial: updatedState.currentMaterial ?? state.currentMaterial,
         customColor: updatedState.customColor ?? state.customColor,
-        activeTemplateId: updatedState.activeTemplateId ?? state.activeTemplateId,
+        templateId: updatedState.activeTemplateId ?? state.activeTemplateId,
         avatar: updatedState.avatar ?? state.avatar,
         avatar2D: updatedState.avatar2D ?? state.avatar2D,
         stitchSettings: updatedState.stitchSettings ?? state.stitchSettings,
@@ -382,8 +426,7 @@ export const useCloStore = create<CloState>((set, get) => {
     debouncedSaveProjects(updatedProjects, currentActiveId);
     return {
       projects: updatedProjects,
-      isSaved: true,
-      lastSavedAt: now,
+      isSaved: false,
     };
   };
 
@@ -393,51 +436,24 @@ export const useCloStore = create<CloState>((set, get) => {
     activeProjectId: active.id,
     isSaved: true,
     lastSavedAt: active.updatedAt,
+    saveError: null,
+    recoveryBackup: initial.recoveryBackup,
 
     pieces: active.pieces || [],
     seams: active.seams || [],
     selectedPieceId: null,
     selectedVertexIndex: null,
-    activeTool: 'select',
-    pendingSeamEdge: null,
-    pendingFreeSewEdge: null,
-    selectedSeamId: null,
-
     // Fashion CAD & 3D Showroom State
+<<<<<<< Updated upstream
     canvasViewMode: active.canvasViewMode || 'pieces',
     canvasTheme: active.canvasTheme || 'white',
     sublimationPrint: active.sublimationPrint || 'none',
     tataBusanaMode: active.tataBusanaMode ?? true,
     mockupScene: active.mockupScene || 'ghost',
+=======
+    ...projectDesignState(active),
+>>>>>>> Stashed changes
     lightingPreset: 'ecommerce-white',
-    colorZones: active.colorZones || {
-      body: active.customColor || '#262626',
-      collar: active.customColor || '#262626',
-      sleeves: active.customColor || '#262626',
-      leftSleeve: active.customColor || '#262626',
-      rightSleeve: active.customColor || '#262626',
-      pocket: active.customColor || '#262626',
-      hem: active.customColor || '#262626',
-      cuffs: active.customColor || '#262626',
-      hood: active.customColor || '#262626',
-    },
-    decals: active.decals || [
-      {
-        id: 'decal-tokyo-default',
-        type: 'preset',
-        name: 'Tokyo Archive Box Stamp',
-        content: 'tokyo-box-logo',
-        position: { x: 0, y: -25 },
-        scale: 1,
-        rotation: 0,
-        viewTarget: 'front',
-        blendMode: 'normal',
-        opacity: 0.95,
-        width: 140,
-        height: 42,
-      },
-    ],
-    selectedDecalId: null,
     decalTextureRevision: 0,
 
     annotations: active.annotations || [],
@@ -477,10 +493,11 @@ export const useCloStore = create<CloState>((set, get) => {
     isSimulating: false,
     simulationDynamics: 0.6,
     simulationIteration: 0,
+    patternLayoutRevision: 0,
     showWireframe: false,
     showHeatmap: false,
     showAvatar: true,
-    layout: 'pattern-only', // 2D-First by default!
+    layout: 'dual',
     cameraPreset: 'perspective',
 
     // Drop Animation
@@ -494,62 +511,41 @@ export const useCloStore = create<CloState>((set, get) => {
     // History (Undo / Redo)
     // ==========================================
     pushHistory: () => {
-      const { pieces, seams, undoStack } = get();
-      const currentSnapshot: HistoryStep = {
-        pieces: JSON.parse(JSON.stringify(pieces)),
-        seams: JSON.parse(JSON.stringify(seams)),
-      };
-      set({
-        undoStack: [...undoStack.slice(-25), currentSnapshot],
-        redoStack: [],
-      });
+      if (editSnapshot) return;
+      set({ undoStack: [...get().undoStack.slice(-39), designSnapshot(get())], redoStack: [] });
     },
-
+    beginEdit: () => { if (!editSnapshot) editSnapshot = designSnapshot(get()); },
+    endEdit: () => {
+      const snapshot = editSnapshot;
+      editSnapshot = null;
+      if (snapshot && designKeys.some((key) => snapshot[key] !== get()[key])) {
+        set({ undoStack: [...get().undoStack.slice(-39), snapshot], redoStack: [] });
+      }
+    },
+    cancelEdit: () => {
+      const snapshot = editSnapshot;
+      editSnapshot = null;
+      if (snapshot) set(restore(snapshot));
+    },
     undo: () => {
-      const { undoStack, redoStack, pieces, seams } = get();
-      if (undoStack.length === 0) return;
-
-      const previous = undoStack[undoStack.length - 1];
-      const newUndo = undoStack.slice(0, -1);
-      const currentSnapshot: HistoryStep = {
-        pieces: JSON.parse(JSON.stringify(pieces)),
-        seams: JSON.parse(JSON.stringify(seams)),
-      };
-
-      set({
-        pieces: previous.pieces,
-        seams: previous.seams,
-        undoStack: newUndo,
-        redoStack: [currentSnapshot, ...redoStack],
-        simulationIteration: get().simulationIteration + 1,
-        ...syncToActiveProject({ pieces: previous.pieces, seams: previous.seams }),
-      });
+      get().endEdit();
+      const { undoStack, redoStack } = get();
+      const previous = undoStack.at(-1);
+      if (!previous) return;
+      set({ ...restore(previous), undoStack: undoStack.slice(0, -1), redoStack: [designSnapshot(get()), ...redoStack] });
     },
-
     redo: () => {
-      const { undoStack, redoStack, pieces, seams } = get();
-      if (redoStack.length === 0) return;
-
+      get().endEdit();
+      const { undoStack, redoStack } = get();
       const next = redoStack[0];
-      const newRedo = redoStack.slice(1);
-      const currentSnapshot: HistoryStep = {
-        pieces: JSON.parse(JSON.stringify(pieces)),
-        seams: JSON.parse(JSON.stringify(seams)),
-      };
-
-      set({
-        pieces: next.pieces,
-        seams: next.seams,
-        undoStack: [...undoStack, currentSnapshot],
-        redoStack: newRedo,
-        simulationIteration: get().simulationIteration + 1,
-        ...syncToActiveProject({ pieces: next.pieces, seams: next.seams }),
-      });
+      if (!next) return;
+      set({ ...restore(next), undoStack: [...undoStack, designSnapshot(get())], redoStack: redoStack.slice(1) });
     },
 
     // ==========================================
     // Project Management Actions
     // ==========================================
+<<<<<<< Updated upstream
     createNewProject: (name, templateId = 'tshirt', ownerId, ownerUsername) => {
       const newProj = createDefaultProject(templateId, name, ownerId, ownerUsername);
       const updatedProjects = [newProj, ...get().projects];
@@ -575,35 +571,31 @@ export const useCloStore = create<CloState>((set, get) => {
       });
 
       debouncedSaveProjects(updatedProjects, newProj.id);
+=======
+    replaceWorkspace: (projects) => {
+      editSnapshot = null;
+      if (autoSaveTimer) clearTimeout(autoSaveTimer);
+      const first = projects[0] || createDefaultProject('uniqlo-u-boxy-tee', 'My first design');
+      set({ projects: projects.length ? projects : [first], ...projectState(first), saveError: null, isSaved: true });
     },
-
+    createNewProject: (name, templateId = 'tshirt') => {
+      get().endEdit();
+      const project = createDefaultProject(templateId, name.trim().slice(0, 120) || 'Untitled design');
+      project.decals = [];
+      project.canvasViewMode = 'assembled';
+      const projects = [project, ...get().projects];
+      set({ projects, ...projectState(project), isSaved: false });
+      debouncedSaveProjects(projects, project.id);
+>>>>>>> Stashed changes
+    },
     switchProject: (id) => {
-      const proj = get().projects.find((p) => p.id === id);
-      if (!proj) return;
-
-      set({
-        activeProjectId: proj.id,
-        pieces: proj.pieces,
-        seams: proj.seams,
-        currentMaterial: proj.currentMaterial || FABRIC_PRESETS[0],
-        customColor: proj.customColor || '#38bdf8',
-        activeTemplateId: proj.templateId || 'tshirt',
-        avatar: proj.avatar,
-        avatar2D: proj.avatar2D,
-        stitchSettings: proj.stitchSettings,
-        selectedPieceId: null,
-        selectedVertexIndex: null,
-        undoStack: [],
-        redoStack: [],
-        simulationIteration: get().simulationIteration + 1,
-        isSaved: true,
-        lastSavedAt: proj.updatedAt,
-      });
-
-      try {
-        localStorage.setItem(STORAGE_KEY_ACTIVE, proj.id);
-      } catch {}
+      get().endEdit();
+      const project = get().projects.find((p) => p.id === id);
+      if (!project) return;
+      set(projectState(project));
+      debouncedSaveProjects(get().projects, id);
     },
+<<<<<<< Updated upstream
 
     saveActiveProject: (ownerId, ownerUsername) => {
       const state = get();
@@ -717,31 +709,30 @@ export const useCloStore = create<CloState>((set, get) => {
           simulationIteration: get().simulationIteration + 1,
         });
         debouncedSaveProjects([fallback], fallback.id);
+=======
+    saveActiveProject: () => {
+      if (autoSaveTimer) clearTimeout(autoSaveTimer);
+      autoSaveTimer = null;
+      const state = get();
+      if (projectPersistence) {
+        return projectPersistence(state.projects).then(() => {
+          if (get().projects === state.projects) set({ isSaved: true, lastSavedAt: Date.now(), saveError: null });
+        }).catch((error: Error) => { set({ isSaved: false, saveError: error.message || 'Could not save. Download a backup and retry.' }); });
+      }
+      if (state.recoveryBackup) {
+        set({ saveError: 'An older workspace could not be read. Download its recovery backup before saving.', isSaved: false });
+>>>>>>> Stashed changes
         return;
       }
-
-      const filtered = projects.filter((p) => p.id !== id);
-      if (activeProjectId === id) {
-        const nextActive = filtered[0];
-        set({
-          projects: filtered,
-          activeProjectId: nextActive.id,
-          pieces: nextActive.pieces,
-          seams: nextActive.seams,
-          currentMaterial: nextActive.currentMaterial,
-          customColor: nextActive.customColor,
-          activeTemplateId: nextActive.templateId,
-          avatar: nextActive.avatar,
-          avatar2D: nextActive.avatar2D,
-          stitchSettings: nextActive.stitchSettings,
-          simulationIteration: get().simulationIteration + 1,
-        });
-        debouncedSaveProjects(filtered, nextActive.id);
-      } else {
-        set({ projects: filtered });
-        debouncedSaveProjects(filtered, activeProjectId);
+      try {
+        localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(state.projects));
+        localStorage.setItem(STORAGE_KEY_ACTIVE, state.activeProjectId);
+        set({ isSaved: true, lastSavedAt: Date.now(), saveError: null });
+      } catch {
+        set({ isSaved: false, saveError: 'Storage is full or unavailable. Download a project backup, then free space and retry Save.' });
       }
     },
+<<<<<<< Updated upstream
 
     duplicateProject: (id, ownerId, ownerUsername) => {
       const target = get().projects.find((p) => p.id === id);
@@ -760,33 +751,48 @@ export const useCloStore = create<CloState>((set, get) => {
       const updated = [cloned, ...get().projects];
       set({ projects: updated });
       debouncedSaveProjects(updated, get().activeProjectId);
+=======
+    saveProjectAs: (name) => {
+      get().endEdit();
+      const state = get();
+      const project = state.projects.find((p) => p.id === state.activeProjectId);
+      if (!project) return;
+      const clone = { ...project, id: crypto.randomUUID(), name: name.trim().slice(0, 120) || 'Untitled design', createdAt: Date.now(), updatedAt: Date.now() };
+      const projects = [clone, ...state.projects];
+      set({ projects, ...projectState(clone), isSaved: false });
+      debouncedSaveProjects(projects, clone.id);
+>>>>>>> Stashed changes
     },
-
-    importProjectData: (importedProject) => {
-      const now = Date.now();
-      const normalized: CloProject = {
-        ...importedProject,
-        id: `proj-${now}-${Math.random().toString(36).substr(2, 5)}`,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      const updated = [normalized, ...get().projects];
-      set({
-        projects: updated,
-        activeProjectId: normalized.id,
-        pieces: normalized.pieces,
-        seams: normalized.seams,
-        currentMaterial: normalized.currentMaterial || FABRIC_PRESETS[0],
-        customColor: normalized.customColor || '#38bdf8',
-        activeTemplateId: normalized.templateId || 'tshirt',
-        avatar: normalized.avatar,
-        avatar2D: normalized.avatar2D,
-        stitchSettings: normalized.stitchSettings,
-        simulationIteration: get().simulationIteration + 1,
-      });
-
-      debouncedSaveProjects(updated, normalized.id);
+    renameProject: (id, name) => {
+      const projects = get().projects.map((p) => p.id === id ? { ...p, name: name.trim().slice(0, 120) || 'Untitled design', updatedAt: Date.now() } : p);
+      set({ projects, isSaved: false });
+      debouncedSaveProjects(projects, get().activeProjectId);
+    },
+    deleteProject: (id) => {
+      if (!get().projects.some((p) => p.id === id)) return;
+      get().endEdit();
+      const projects = get().projects.filter((p) => p.id !== id);
+      if (!projects.length) projects.push(createDefaultProject('tshirt', 'My first design'));
+      const next = projects.find((p) => p.id === get().activeProjectId) || projects[0];
+      set({ projects, ...projectState(next), isSaved: false });
+      debouncedSaveProjects(projects, next.id);
+    },
+    duplicateProject: (id) => {
+      const project = get().projects.find((p) => p.id === id);
+      if (!project) return;
+      const clone = { ...project, id: crypto.randomUUID(), name: `${project.name} (Copy)`.slice(0,120), createdAt: Date.now(), updatedAt: Date.now() };
+      const projects = [clone, ...get().projects];
+      set({ projects, isSaved: false });
+      debouncedSaveProjects(projects, get().activeProjectId);
+    },
+    importProjectData: (value) => get().importProjectsData([value]),
+    importProjectsData: (values) => {
+      if (!values.length || values.length > 100) throw new Error('Import between 1 and 100 designs.');
+      const imported = values.map((value) => ({ ...normalizeProject(value), id: crypto.randomUUID(), createdAt: Date.now(), updatedAt: Date.now() }));
+      get().endEdit();
+      const projects = [...imported, ...get().projects];
+      set({ projects, ...projectState(imported[0]), isSaved: false });
+      debouncedSaveProjects(projects, imported[0].id);
     },
 
     // ==========================================
@@ -798,9 +804,16 @@ export const useCloStore = create<CloState>((set, get) => {
         selectedVertexIndex: state.selectedPieceId === id ? state.selectedVertexIndex : null,
       })),
     selectVertex: (index) => set({ selectedVertexIndex: index }),
-    setActiveTool: (tool) => set({ activeTool: tool, pendingSeamEdge: null, pendingFreeSewEdge: null, selectedSeamId: null }),
+    setActiveTool: (tool) => {
+      const canvasViewMode = tool === 'graphic' && get().activeTemplateId !== 'custom-pattern' ? 'assembled'
+        : tool === 'select' || tool === 'move' ? get().canvasViewMode : 'pieces';
+      set({ activeTool: tool, canvasViewMode, pendingSeamEdge: null, pendingFreeSewEdge: null, selectedSeamId: null,
+        ...syncToActiveProject({ canvasViewMode }) });
+    },
 
     updatePiecePosition: (id, pos) => {
+      if (!Number.isFinite(pos.x) || !Number.isFinite(pos.y) || get().pieces.find((p) => p.id === id)?.locked) return;
+      get().pushHistory();
       const updatedPieces = get().pieces.map((p) => (p.id === id ? { ...p, position: pos } : p));
       set({
         pieces: updatedPieces,
@@ -819,6 +832,7 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     setPieceRotation: (id, radians) => {
+      if (!Number.isFinite(radians) || get().pieces.find((p) => p.id === id)?.locked) return;
       get().pushHistory();
       const updatedPieces = get().pieces.map((p) => (p.id === id ? { ...p, rotation: radians } : p));
       set({
@@ -829,6 +843,8 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     updatePieceVertex: (pieceId, vertexIndex, newPoint) => {
+      if (!Number.isFinite(newPoint.x) || !Number.isFinite(newPoint.y) || Math.abs(newPoint.x) > 3600 || Math.abs(newPoint.y) > 3600 || get().pieces.find((p) => p.id === pieceId)?.locked) return;
+      get().pushHistory();
       const updatedPieces = get().pieces.map((p) => {
         if (p.id !== pieceId) return p;
         const newPoints = [...p.points];
@@ -849,19 +865,31 @@ export const useCloStore = create<CloState>((set, get) => {
       });
     },
 
-    scalePiece: (pieceId, factorX, factorY = factorX) => {
+    updatePieceShape: (id, points, edgeCurvatures, internalLines, cutting) => {
+      const piece = get().pieces.find((p) => p.id === id);
+      if (!piece || piece.locked || points.length < 3 || points.some((p) => !Number.isFinite(p.x) || !Number.isFinite(p.y) || Math.abs(p.x) > 3600 || Math.abs(p.y) > 3600)) return;
       get().pushHistory();
-      const updatedPieces = get().pieces.map((p) => {
-        if (p.id !== pieceId) return p;
-        return {
-          ...p,
-          points: p.points.map((pt) => ({
-            ...pt,
-            x: Math.round(pt.x * factorX),
-            y: Math.round(pt.y * factorY),
-          })),
-        };
-      });
+      const pieces = get().pieces.map((p) => p.id === id ? { ...p, points, edgeCurvatures, internalLines: internalLines ?? p.internalLines, cutting: cutting ?? p.cutting } : p);
+      set({ pieces, simulationIteration: get().simulationIteration + 1, ...syncToActiveProject({ pieces }) });
+    },
+    updatePieceDetails: (id, details) => {
+      const piece = get().pieces.find((p) => p.id === id);
+      if (!piece || piece.locked) return;
+      const next = normalizePatternPiece({ ...piece, ...details });
+      get().pushHistory();
+      const pieces = get().pieces.map((p) => p.id === id ? next : p);
+      set({ pieces, simulationIteration: get().simulationIteration + 1, ...syncToActiveProject({ pieces }) });
+    },
+    scalePiece: (pieceId, factorX, factorY = factorX) => {
+      get().scalePieces([pieceId], factorX, factorY);
+    },
+
+    scalePieces: (pieceIds, factorX, factorY = factorX) => {
+      if (!Number.isFinite(factorX) || !Number.isFinite(factorY) || factorX <= 0 || factorY <= 0) return;
+      const ids = new Set(pieceIds);
+      if (!get().pieces.some((p) => ids.has(p.id) && !p.locked)) return;
+      get().pushHistory();
+      const updatedPieces = get().pieces.map((p) => ids.has(p.id) ? scalePatternPiece(p, factorX, factorY) : p);
 
       set({
         pieces: updatedPieces,
@@ -870,48 +898,29 @@ export const useCloStore = create<CloState>((set, get) => {
       });
     },
 
-    addVertexToEdge: (pieceId, edgeIndex, newPoint) => {
+    arrangePieces: () => {
       get().pushHistory();
-      const updatedPieces = get().pieces.map((p) => {
-        if (p.id !== pieceId) return p;
-        const newPts = [...p.points];
-        const newVert = {
-          id: `pt-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          x: Math.round(newPoint.x),
-          y: Math.round(newPoint.y),
-        };
-        newPts.splice(edgeIndex + 1, 0, newVert);
+      const pieces = arrangePatternPieces(get().pieces);
+      set({ pieces, patternLayoutRevision: get().patternLayoutRevision + 1, ...syncToActiveProject({ pieces }) });
+    },
 
-        // Re-index edge curvatures: inserting a point splits the edge
-        // Edges after the insertion shift index by +1
-        const oldCurvatures = p.edgeCurvatures || {};
-        const newCurvatures: Record<number, import('../types/cad').EdgeCurvature> = {};
-        for (const [key, val] of Object.entries(oldCurvatures)) {
-          const idx = Number(key);
-          if (idx < edgeIndex) {
-            newCurvatures[idx] = val;
-          } else if (idx === edgeIndex) {
-            // The curved edge is being split - remove curvature from both halves
-            // (user can re-curve them individually)
-          } else {
-            newCurvatures[idx + 1] = val;
-          }
-        }
-
-        return { ...p, points: newPts, edgeCurvatures: Object.keys(newCurvatures).length > 0 ? newCurvatures : undefined };
-      });
-
-      set({
-        pieces: updatedPieces,
-        selectedVertexIndex: edgeIndex + 1,
-        simulationIteration: get().simulationIteration + 1,
-        ...syncToActiveProject({ pieces: updatedPieces }),
-      });
+    addVertexToEdge: (pieceId, edgeIndex, point, param) => {
+      const piece = get().pieces.find((p) => p.id === pieceId);
+      if (!piece || piece.locked || !piece.points[edgeIndex]) return;
+      const a = piece.points[edgeIndex], b = piece.points[(edgeIndex + 1) % piece.points.length];
+      const chord = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+      const t = Math.max(0.001, Math.min(0.999, param ?? ((point.x - a.x) * (b.x - a.x) + (point.y - a.y) * (b.y - a.y)) / chord));
+      get().pushHistory();
+      const split = splitPatternEdge(piece, edgeIndex, { ...point, id: crypto.randomUUID() }, t);
+      const pieces = get().pieces.map((p) => p.id === pieceId ? split : p);
+      const seams = splitEdgeSeams(get().seams, pieceId, edgeIndex, t);
+      set({ pieces, seams, selectedVertexIndex: edgeIndex + 1, simulationIteration: get().simulationIteration + 1,
+        ...syncToActiveProject({ pieces, seams }) });
     },
 
     deleteVertex: (pieceId, vertexIndex) => {
       const piece = get().pieces.find((p) => p.id === pieceId);
-      if (!piece || piece.points.length <= 3) return; // Maintain valid polygon
+      if (!piece || piece.locked || piece.points.length <= 3 || !piece.points[vertexIndex]) return; // Maintain valid polygon
 
       get().pushHistory();
       const updatedPieces = get().pieces.map((p) => {
@@ -938,14 +947,18 @@ export const useCloStore = create<CloState>((set, get) => {
           }
         }
 
-        return { ...p, points: newPts, edgeCurvatures: Object.keys(newCurvatures).length > 0 ? newCurvatures : undefined };
+        const prevEdge = (vertexIndex - 1 + n) % n;
+        return { ...p, points: newPts, edgeCurvatures: Object.keys(newCurvatures).length > 0 ? newCurvatures : undefined,
+          ...(p.cutting ? { cutting: { ...p.cutting, notches: p.cutting.notches.filter((notch) => notch.edgeIndex !== vertexIndex && notch.edgeIndex !== prevEdge)
+            .map((notch) => ({ ...notch, edgeIndex: notch.edgeIndex > vertexIndex ? notch.edgeIndex - 1 : notch.edgeIndex })) } } : {}) };
       });
 
+      const seams = deleteVertexSeams(get().seams, piece, vertexIndex);
       set({
-        pieces: updatedPieces,
+        seams, pieces: updatedPieces,
         selectedVertexIndex: null,
         simulationIteration: get().simulationIteration + 1,
-        ...syncToActiveProject({ pieces: updatedPieces }),
+        ...syncToActiveProject({ pieces: updatedPieces, seams }),
       });
     },
 
@@ -982,6 +995,7 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     setEdgeCurvature: (pieceId, edgeIndex, curvature) => {
+      get().pushHistory();
       const piece = get().pieces.find((p) => p.id === pieceId);
       if (!piece) return;
 
@@ -1013,6 +1027,10 @@ export const useCloStore = create<CloState>((set, get) => {
         id: newId,
         name: `${piece.name} (${mirrorX ? 'Mirrored' : 'Copy'})`,
         position: { x: piece.position.x + 120, y: piece.position.y + 40 },
+        edgeCurvatures: piece.edgeCurvatures && Object.fromEntries(Object.entries(piece.edgeCurvatures).map(([key, curve]) => [key, { ...curve, cpx: mirrorX ? -curve.cpx : curve.cpx }])),
+        internalLines: piece.internalLines?.map((line) => ({ ...line, points: line.points.map((point) => ({ ...point, x: mirrorX ? -point.x : point.x })) })),
+        ...(piece.cutting ? { cutting: { ...piece.cutting, grainlineAngle: mirrorX ? -piece.cutting.grainlineAngle : piece.cutting.grainlineAngle,
+          notches: piece.cutting.notches.map((notch) => ({ ...notch })) } } : {}),
         points: piece.points.map((pt) => ({
           ...pt,
           id: `pt-${Math.random().toString(36).substr(2, 6)}`,
@@ -1046,16 +1064,19 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     togglePieceLock: (pieceId) => {
+      get().pushHistory();
       const updated = get().pieces.map((p) => (p.id === pieceId ? { ...p, locked: !p.locked } : p));
       set({ pieces: updated, ...syncToActiveProject({ pieces: updated }) });
     },
 
     togglePieceVisibility: (pieceId) => {
+      get().pushHistory();
       const updated = get().pieces.map((p) => (p.id === pieceId ? { ...p, visible: p.visible === false ? true : false } : p));
       set({ pieces: updated, ...syncToActiveProject({ pieces: updated }) });
     },
 
     renamePiece: (pieceId, name) => {
+      get().pushHistory();
       const updated = get().pieces.map((p) => (p.id === pieceId ? { ...p, name } : p));
       set({ pieces: updated, ...syncToActiveProject({ pieces: updated }) });
     },
@@ -1103,114 +1124,19 @@ export const useCloStore = create<CloState>((set, get) => {
       });
     },
 
-    cutPiece: (pieceId, lineStart, lineEnd) => {
+    cutPiece: (pieceId, start, end) => {
       const piece = get().pieces.find((p) => p.id === pieceId);
-      if (!piece || piece.points.length < 3) return false;
-
-      // Transform world line points into piece local coordinate space
-      const unrotate = (wx: number, wy: number) => {
-        const dx = wx - piece.position.x;
-        const dy = wy - piece.position.y;
-        const cos = Math.cos(-piece.rotation);
-        const sin = Math.sin(-piece.rotation);
-        return { x: dx * cos - dy * sin, y: dx * sin + dy * cos };
+      if (!piece) return false;
+      const local = (point: { x: number; y: number }): Point2D => {
+        const x = point.x - piece.position.x, y = point.y - piece.position.y;
+        return { id: '', x: x * Math.cos(piece.rotation) + y * Math.sin(piece.rotation), y: -x * Math.sin(piece.rotation) + y * Math.cos(piece.rotation) };
       };
-
-      const p1 = unrotate(lineStart.x, lineStart.y);
-      const p2 = unrotate(lineEnd.x, lineEnd.y);
-
-      // Edge intersection helper
-      const lineIntersect = (
-        ax: number, ay: number, bx: number, by: number,
-        cx: number, cy: number, dx: number, dy: number
-      ) => {
-        const denom = (bx - ax) * (dy - cy) - (by - ay) * (dx - cx);
-        if (Math.abs(denom) < 1e-6) return null;
-        const t = ((cx - ax) * (dy - cy) - (cy - ay) * (dx - cx)) / denom;
-        const u = -((bx - ax) * (ay - cy) - (by - ay) * (ax - cx)) / denom;
-        if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
-          return { t, x: ax + t * (bx - ax), y: ay + t * (by - ay) };
-        }
-        return null;
-      };
-
-      const pts = piece.points;
-      const n = pts.length;
-      const intersections: { edgeIndex: number; t: number; point: { x: number; y: number } }[] = [];
-
-      for (let i = 0; i < n; i++) {
-        const pa = pts[i];
-        const pb = pts[(i + 1) % n];
-        const hit = lineIntersect(pa.x, pa.y, pb.x, pb.y, p1.x, p1.y, p2.x, p2.y);
-        if (hit) {
-          intersections.push({ edgeIndex: i, t: hit.t, point: { x: Math.round(hit.x), y: Math.round(hit.y) } });
-        }
-      }
-
-      if (intersections.length !== 2) return false;
-
+      const result = cutPattern(piece, get().seams, local(start), local(end));
+      if (!result) return false;
       get().pushHistory();
-
-      // Sort by edge index
-      intersections.sort((a, b) => a.edgeIndex - b.edgeIndex);
-      const [hitA, hitB] = intersections;
-
-      const ptCutA: Point2D = { id: `cut-${Date.now()}-a`, x: hitA.point.x, y: hitA.point.y };
-      const ptCutB: Point2D = { id: `cut-${Date.now()}-b`, x: hitB.point.x, y: hitB.point.y };
-
-      // Polygon 1: from hitA to hitB along loop
-      const poly1: Point2D[] = [ptCutA];
-      let curr = (hitA.edgeIndex + 1) % n;
-      while (curr !== (hitB.edgeIndex + 1) % n) {
-        poly1.push({ ...pts[curr] });
-        curr = (curr + 1) % n;
-      }
-      poly1.push(ptCutB);
-
-      // Polygon 2: from hitB to hitA along loop
-      const poly2: Point2D[] = [ptCutB];
-      curr = (hitB.edgeIndex + 1) % n;
-      while (curr !== (hitA.edgeIndex + 1) % n) {
-        poly2.push({ ...pts[curr] });
-        curr = (curr + 1) % n;
-      }
-      poly2.push({ ...ptCutA, id: `cut-${Date.now()}-a2` });
-
-      const newIdB = `piece-${Date.now()}-split`;
-      const pieceA: PatternPiece = {
-        ...piece,
-        name: `${piece.name} (Upper/A)`,
-        points: poly1,
-      };
-
-      const pieceB: PatternPiece = {
-        ...piece,
-        id: newIdB,
-        name: `${piece.name} (Lower/B)`,
-        points: poly2,
-        position: { x: piece.position.x + 25, y: piece.position.y + 25 },
-        color: piece.color || '#3b82f6',
-      };
-
-      // Auto seam connecting cut line
-      const newSeam: SeamConnection = {
-        id: `seam-cut-${Date.now()}`,
-        edgeA: { pieceId: piece.id, edgeIndex: poly1.length - 1 },
-        edgeB: { pieceId: newIdB, edgeIndex: poly2.length - 1 },
-        strength: 1.0,
-        stitchType: 'single-needle',
-      };
-
-      const updatedPieces = get().pieces.map((p) => (p.id === piece.id ? pieceA : p)).concat(pieceB);
-      const updatedSeams = [...get().seams, newSeam];
-
-      set({
-        pieces: updatedPieces,
-        seams: updatedSeams,
-        selectedPieceId: newIdB,
-        simulationIteration: get().simulationIteration + 1,
-        ...syncToActiveProject({ pieces: updatedPieces, seams: updatedSeams }),
-      });
+      const pieces = get().pieces.filter((p) => p.id !== pieceId).concat(result.pieces);
+      set({ pieces, seams: result.seams, selectedPieceId: result.pieces[1].id, selectedVertexIndex: null,
+        simulationIteration: get().simulationIteration + 1, ...syncToActiveProject({ pieces, seams: result.seams }) });
       return true;
     },
 
@@ -1423,6 +1349,7 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     updateGraphicLayer: (pieceId, graphicId, partial) => {
+      get().pushHistory();
       const updated = get().pieces.map((p) => {
         if (p.id !== pieceId) return p;
         return {
@@ -1459,8 +1386,10 @@ export const useCloStore = create<CloState>((set, get) => {
     setPendingSeamEdge: (edge) => set({ pendingSeamEdge: edge }),
 
     addSeam: (edgeA, edgeB, stitchType) => {
+      const byId = new Map(get().pieces.map((p) => [p.id, p]));
+      if (![edgeA, edgeB].every((edge) => byId.has(edge.pieceId) && getSeamSegment(byId.get(edge.pieceId)!, edge))) return;
       // Don't sew an edge to itself
-      if (edgeA.pieceId === edgeB.pieceId && edgeA.edgeIndex === edgeB.edgeIndex) {
+      if (edgeA.pieceId === edgeB.pieceId && edgeA.edgeIndex === edgeB.edgeIndex && edgeA.internalLineId === edgeB.internalLineId) {
         return set({ pendingSeamEdge: null });
       }
 
@@ -1469,17 +1398,10 @@ export const useCloStore = create<CloState>((set, get) => {
       const chosenStitch = stitchType || state.stitchSettings.defaultType || 'single-needle';
       const preset = STITCH_PRESETS.find((sp) => sp.id === chosenStitch);
 
-      const existingIndex = state.seams.findIndex(
-        (s) =>
-          (s.edgeA.pieceId === edgeA.pieceId &&
-            s.edgeA.edgeIndex === edgeA.edgeIndex &&
-            s.edgeB.pieceId === edgeB.pieceId &&
-            s.edgeB.edgeIndex === edgeB.edgeIndex) ||
-          (s.edgeA.pieceId === edgeB.pieceId &&
-            s.edgeA.edgeIndex === edgeB.edgeIndex &&
-            s.edgeB.pieceId === edgeA.pieceId &&
-            s.edgeB.edgeIndex === edgeA.edgeIndex)
-      );
+      const sameEdge = (a: SeamEdge, b: SeamEdge) => a.pieceId === b.pieceId && a.edgeIndex === b.edgeIndex
+        && a.internalLineId === b.internalLineId && (a.paramStart ?? 0) === (b.paramStart ?? 0) && (a.paramEnd ?? 1) === (b.paramEnd ?? 1);
+      const existingIndex = state.seams.findIndex((s) => (sameEdge(s.edgeA, edgeA) && sameEdge(s.edgeB, edgeB))
+        || (sameEdge(s.edgeA, edgeB) && sameEdge(s.edgeB, edgeA)));
 
       // If exact seam already exists, update its stitch parameters without breaking
       if (existingIndex !== -1) {
@@ -1487,9 +1409,9 @@ export const useCloStore = create<CloState>((set, get) => {
         updatedSeams[existingIndex] = {
           ...updatedSeams[existingIndex],
           stitchType: chosenStitch,
-          strength: preset?.defaultStrength || 1.0,
+          strength: preset?.defaultStrength ?? 1.0,
           threadColor: state.stitchSettings.defaultColor,
-          seamAllowanceMm: preset?.seamAllowanceMm || 12,
+          seamAllowanceMm: preset?.seamAllowanceMm ?? 12,
         };
         set({
           seams: updatedSeams,
@@ -1504,10 +1426,10 @@ export const useCloStore = create<CloState>((set, get) => {
         id: `seam-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
         edgeA,
         edgeB,
-        strength: preset?.defaultStrength || 1.0,
+        strength: preset?.defaultStrength ?? 1.0,
         stitchType: chosenStitch,
         threadColor: state.stitchSettings.defaultColor,
-        seamAllowanceMm: preset?.seamAllowanceMm || 12,
+        seamAllowanceMm: preset?.seamAllowanceMm ?? 12,
       };
 
       const updatedSeams = [...state.seams, newSeam];
@@ -1530,6 +1452,7 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     updateSeamStitch: (seamId, stitchType, threadColor, strength) => {
+      get().pushHistory();
       const updatedSeams = get().seams.map((s) => {
         if (s.id !== seamId) return s;
         return {
@@ -1548,16 +1471,19 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     setDefaultStitchType: (type) => {
+      get().pushHistory();
       const updated = { ...get().stitchSettings, defaultType: type };
       set({ stitchSettings: updated, ...syncToActiveProject({ stitchSettings: updated }) });
     },
 
     setDefaultThreadColor: (color) => {
+      get().pushHistory();
       const updated = { ...get().stitchSettings, defaultColor: color };
       set({ stitchSettings: updated, ...syncToActiveProject({ stitchSettings: updated }) });
     },
 
     toggleShowStitches: () => {
+      get().pushHistory();
       const updated = { ...get().stitchSettings, showStitches: !get().stitchSettings.showStitches };
       set({ stitchSettings: updated, ...syncToActiveProject({ stitchSettings: updated }) });
     },
@@ -1599,24 +1525,34 @@ export const useCloStore = create<CloState>((set, get) => {
     // Fabric Material & Avatar
     // ==========================================
     setMaterial: (mat) => {
+      get().pushHistory();
       set({
-        currentMaterial: mat,
-        customColor: mat.color,
+        currentMaterial: { ...mat, color: get().customColor },
         simulationIteration: get().simulationIteration + 1,
-        ...syncToActiveProject({ currentMaterial: mat, customColor: mat.color }),
+        ...syncToActiveProject({ currentMaterial: { ...mat, color: get().customColor } }),
       });
     },
 
     setCustomColor: (color) => {
+      if (!/^#[\da-f]{6}$/i.test(color)) return;
+      get().pushHistory();
       const updatedMat = { ...get().currentMaterial, color };
+      const colorZones = Object.fromEntries(Object.keys(get().colorZones).map((zone) => [zone, color]));
       set({
         customColor: color,
         currentMaterial: updatedMat,
-        ...syncToActiveProject({ customColor: color, currentMaterial: updatedMat }),
+        colorZones,
+        decalTextureRevision: get().decalTextureRevision + 1,
+        ...syncToActiveProject({ customColor: color, currentMaterial: updatedMat, colorZones }),
       });
     },
 
     setAvatarMeasurement: (key, val) => {
+      const bounds = { height: [80, 230], chestCircumference: [30, 220], waistCircumference: [25, 220], hipsCircumference: [35, 240], shoulderWidth: [15,75] };
+      if (key in bounds) { const [min,max] = bounds[key as keyof typeof bounds]; if (typeof val !== 'number' || !Number.isFinite(val) || val < min || val > max) return; }
+      if (key === 'gender' && val !== 'male' && val !== 'female') return;
+      if (key === 'showSkin' && typeof val !== 'boolean') return;
+      get().pushHistory();
       const updatedAvatar = { ...get().avatar, [key]: val };
       set({
         avatar: updatedAvatar,
@@ -1626,6 +1562,7 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     updateAvatar2D: (partial) => {
+      get().pushHistory();
       const updated2D = { ...get().avatar2D, ...partial };
       set({
         avatar2D: updated2D,
@@ -1655,7 +1592,8 @@ export const useCloStore = create<CloState>((set, get) => {
     // Fashion CAD & 3D Showroom Actions
     // ==========================================
     setCanvasViewMode: (mode) => {
-      set({ canvasViewMode: mode, ...syncToActiveProject({ canvasViewMode: mode }) });
+      set({ canvasViewMode: mode, activeTool: 'select', pendingSeamEdge: null, pendingFreeSewEdge: null,
+        ...syncToActiveProject({ canvasViewMode: mode }) });
     },
 
     setMockupScene: (scene) => {
@@ -1711,8 +1649,10 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     setColorZone: (zone, color) => {
+      if (!/^#[\da-f]{6}$/i.test(color) || !(zone in get().colorZones)) return;
+      get().pushHistory();
       const current = get().colorZones || {};
-      const updated = { ...current, [zone]: color };
+      const updated = { ...current, [zone]: color, ...(zone === 'sleeves' ? { leftSleeve: color, rightSleeve: color } : {}) };
       const customColor = zone === 'body' ? color : get().customColor;
       set((state) => ({
         colorZones: updated,
@@ -1723,6 +1663,7 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     setColorZones: (zones) => {
+      get().pushHistory();
       set((state) => ({
         colorZones: zones,
         customColor: zones.body || state.customColor,
@@ -1734,6 +1675,7 @@ export const useCloStore = create<CloState>((set, get) => {
     setSelectedDecalId: (id) => set({ selectedDecalId: id }),
 
     addDecal: (decalData) => {
+      get().pushHistory();
       const id = `decal-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
       const newDecal: GraphicDecal = { ...decalData, id };
       set((state) => {
@@ -1749,6 +1691,7 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     updateDecal: (id, partial) => {
+      get().pushHistory();
       set((state) => {
         const updated = state.decals.map((d) => (d.id === id ? { ...d, ...partial } : d));
         return {
@@ -1760,6 +1703,7 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     removeDecal: (id) => {
+      get().pushHistory();
       set((state) => {
         const updated = state.decals.filter((d) => d.id !== id);
         return {
@@ -1772,6 +1716,7 @@ export const useCloStore = create<CloState>((set, get) => {
     },
 
     reorderDecal: (id, direction) => {
+      get().pushHistory();
       set((state) => {
         const idx = state.decals.findIndex((d) => d.id === id);
         if (idx === -1) return state;
@@ -1904,7 +1849,7 @@ export const useCloStore = create<CloState>((set, get) => {
 
         const updatedState = {
           activeTemplateId: id,
-          pieces: p.pieces,
+          pieces: arrangePatternPieces(p.pieces),
           seams: p.seams,
           currentMaterial: recFabric,
           customColor: defaultCol,

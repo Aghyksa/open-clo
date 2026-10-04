@@ -1,3 +1,4 @@
+import { prepareArtwork } from '../../utils/decalDrawing';
 import React, { useState, useRef } from 'react';
 import { useCloStore } from '../../store/useCloStore';
 import {
@@ -8,6 +9,7 @@ import {
   GRAPHIC_PRESETS,
   getAssembledSpec,
 } from '../../utils/patternPresets';
+import { getGarmentColorZones } from '../../utils/patternGeometry';
 import { DecalToolModal } from './DecalToolModal';
 import {
   Shirt,
@@ -37,7 +39,6 @@ export const PropertyInspector: React.FC = () => {
     loadPreset,
     colorZones,
     setColorZone,
-    setColorZones,
     customColor,
     setCustomColor,
     decals,
@@ -70,93 +71,35 @@ export const PropertyInspector: React.FC = () => {
   const [isDecalModalOpen, setIsDecalModalOpen] = useState(false);
   const [selectedSize, setSelectedSize] = useState<'XS' | 'S' | 'M' | 'L' | 'XL' | '2XL'>('M');
   const [copiedTechPack, setCopiedTechPack] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const spec = getAssembledSpec(activeTemplateId);
+  const spec = React.useMemo(() => getAssembledSpec(activeTemplateId, pieces), [activeTemplateId, pieces]);
   const currentTemplate = GARMENT_TEMPLATES.find((t) => t.id === activeTemplateId) || GARMENT_TEMPLATES[0];
   const selectedDecal = decals.find((d) => d.id === selectedDecalId);
 
-  // Define relevant color zones based on active garment features
-  const availableZones: { key: string; label: string }[] = [
-    { key: 'body', label: 'Main Body (Torso)' },
-    { key: 'collar', label: spec.hasPoloCollar ? 'Polo Rib Collar' : spec.hasCampCollar ? 'Camp Notch Collar' : 'Collar / Neck Rib' },
-    { key: 'sleeves', label: 'Sleeves (Both)' },
-    { key: 'leftSleeve', label: 'Left Sleeve' },
-    { key: 'rightSleeve', label: 'Right Sleeve' },
-  ];
-
-  if (spec.hasHood) {
-    availableZones.push({ key: 'hood', label: 'Hood & Drawstrings' });
-  }
-  if (spec.hasKangarooPocket) {
-    availableZones.push({ key: 'pocket', label: 'Kangaroo Pocket' });
-  } else if (spec.hasChestPocket) {
-    availableZones.push({ key: 'pocket', label: 'Chest Pocket' });
-  }
-  if (!spec.isPants) {
-    availableZones.push({ key: 'hem', label: 'Bottom Hem / Waist Rib' });
-    availableZones.push({ key: 'cuffs', label: 'Sleeve Rib Cuffs' });
-  } else {
-    availableZones.push({ key: 'hem', label: 'Ankle Cuff Elastic' });
-    availableZones.push({ key: 'cuffs', label: 'Waistband Rib' });
-  }
+  const availableZones = getGarmentColorZones(pieces);
 
   const activeZoneColor = colorZones[selectedZone] || customColor || '#262626';
 
   // Apply color to all zones
   const handleApplyToAllZones = (hex: string) => {
-    const updated: Record<string, string> = {};
-    availableZones.forEach((z) => {
-      updated[z.key] = hex;
-    });
-    setColorZones(updated);
     setCustomColor(hex);
   };
 
   // Direct file upload handler
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const dataUrl = event.target?.result as string;
-      if (!dataUrl) return;
-
-      const img = new Image();
-      img.onload = () => {
-        let w = img.naturalWidth || 120;
-        let h = img.naturalHeight || 120;
-        const maxDim = 120;
-        if (w > maxDim || h > maxDim) {
-          if (w > h) {
-            h = (h / w) * maxDim;
-            w = maxDim;
-          } else {
-            w = (w / h) * maxDim;
-            h = maxDim;
-          }
-        }
-
-        const newId = addDecal({
-          type: 'image',
-          content: dataUrl,
-          name: file.name.replace(/\.[^/.]+$/, '').slice(0, 18),
-          position: { x: 0, y: -20 },
-          scale: 1,
-          rotation: 0,
-          viewTarget: 'front',
-          blendMode: 'normal',
-          opacity: 0.95,
-          width: Math.round(w),
-          height: Math.round(h),
-        });
-        setSelectedDecalId(newId);
-      };
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file || uploading) return;
+    setUploading(true); setUploadError(null);
+    try {
+      const image = await prepareArtwork(file);
+      addDecal({ type: 'image', ...image, name: file.name.replace(/\.[^/.]+$/, '').slice(0, 100) || 'Artwork',
+        position: { x: 0, y: -20 }, scale: 1, rotation: 0, viewTarget: 'front', blendMode: 'normal', opacity: 1 });
+    } catch (error) { setUploadError((error as Error).message); }
+    finally { setUploading(false); }
   };
 
   // 1-Click Preset Add
@@ -197,17 +140,17 @@ export const PropertyInspector: React.FC = () => {
   // Copy Tech Pack spec to clipboard
   const handleCopyTechPack = () => {
     const text = `========================================
-TECH PACK SPECIFICATION: ${spec.name.toUpperCase()}
+DESIGN SPECIFICATIONS: ${spec.name.toUpperCase()}
 Style Code: SKU-OC-${activeTemplateId.toUpperCase().slice(0, 8)}
 Size Grade: ${selectedSize} (Baseline: M)
 ----------------------------------------
 MEASUREMENTS:
-• Half-Chest Width: ${gradedHalfChest} cm
-• Total Body Length: ${gradedBodyLength} cm
-• Shoulder Drop Width: ${gradedShoulder} cm
-• Sleeve Length: ${gradedSleeve} cm
+• Panel width: ${gradedHalfChest} cm
+• Panel length: ${gradedBodyLength} cm
+• Shoulder reference: ${gradedShoulder} cm
+• Sleeve panel length: ${gradedSleeve} cm
 • Seam Allowance: ${stitchSettings.seamAllowanceMm} mm
-• Manufacturing Tolerance: ±1.5 cm
+• Reference only: Not production grading
 
 FABRIC & TEXTILE:
 • Material: ${currentMaterial.name}
@@ -262,7 +205,7 @@ ${decals
         onChange={handleFileUpload}
         accept="image/png,image/jpeg,image/svg+xml,image/webp"
         className="hidden"
-      />
+      />{uploading && <p role="status" className="text-xs text-slate-400">Preparing artwork…</p>}{uploadError && <p role="alert" className="text-xs text-red-400">{uploadError}</p>}
 
       {/* Tabs Header */}
       <div className="flex border-b border-slate-800 bg-[#0e1015]">
@@ -319,10 +262,10 @@ ${decals
               ? 'border-blue-500 text-blue-400 bg-slate-800/40 font-semibold'
               : 'border-transparent text-slate-400 hover:text-slate-200'
           }`}
-          title="Production Sizing & Tech Pack"
+          title="Pattern dimensions and size reference"
         >
           <FileText className="w-3.5 h-3.5" />
-          <span>Tech Pack</span>
+          <span>Sizes</span>
         </button>
 
         {canvasViewMode === 'pieces' && (
@@ -351,7 +294,7 @@ ${decals
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Commercial Cut
+                  Garment template
                 </label>
                 <span className="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded font-medium">
                   {currentTemplate.category}
@@ -449,16 +392,18 @@ ${decals
                     type="color"
                     value={activeZoneColor}
                     onChange={(e) => {
-                      setColorZone(selectedZone, e.target.value);
+                      if (/^#[\da-f]{6}$/i.test(e.target.value)) setColorZone(selectedZone, e.target.value);
                       if (selectedZone === 'body') setCustomColor(e.target.value);
                     }}
                     className="w-7 h-7 rounded cursor-pointer bg-transparent border-0 p-0"
                   />
                   <input
                     type="text"
-                    value={activeZoneColor}
-                    onChange={(e) => {
-                      setColorZone(selectedZone, e.target.value);
+                    defaultValue={activeZoneColor}
+                    key={`${selectedZone}:${activeZoneColor}`}
+                    aria-label="Zone color hex"
+                    onBlur={(e) => {
+                      if (/^#[\da-f]{6}$/i.test(e.target.value)) setColorZone(selectedZone, e.target.value);
                       if (selectedZone === 'body') setCustomColor(e.target.value);
                     }}
                     className="flex-1 bg-transparent text-slate-200 uppercase font-mono text-xs focus:outline-none"
@@ -922,9 +867,9 @@ ${decals
 
               <div>
                 <div className="flex justify-between text-[11px] mb-1">
-                  <span className="text-slate-400">Stretch Recovery</span>
+                  <span className="text-slate-400">Stretch resistance</span>
                   <span className="text-slate-200 font-mono">
-                    {Math.round(currentMaterial.stretchStiffness * 100)}%
+                    {currentMaterial.stretchStiffness.toFixed(2)}
                   </span>
                 </div>
                 <input
@@ -1005,14 +950,14 @@ ${decals
             <div>
               <div className="flex items-center justify-between mb-1">
                 <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                  Tech Pack Sizing
+                  Pattern size reference
                 </span>
                 <span className="text-[10px] font-mono text-slate-400">
                   SKU-OC-{activeTemplateId.toUpperCase().slice(0, 6)}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Grade scale and production cut measurements for manufacturing:
+                Dimensions come from the flat pattern. Other sizes are estimates; use Pattern to resize the garment.
               </p>
             </div>
 
@@ -1044,22 +989,22 @@ ${decals
               </div>
 
               <div className="flex justify-between items-center text-slate-300">
-                <span className="font-sans text-slate-400">Half-Chest Width</span>
+                <span className="font-sans text-slate-400">Panel width</span>
                 <span className="font-bold text-blue-400">{gradedHalfChest} cm</span>
               </div>
 
               <div className="flex justify-between items-center text-slate-300">
-                <span className="font-sans text-slate-400">Total Body Length (HSP)</span>
+                <span className="font-sans text-slate-400">Panel length</span>
                 <span className="font-bold text-slate-200">{gradedBodyLength} cm</span>
               </div>
 
               <div className="flex justify-between items-center text-slate-300">
-                <span className="font-sans text-slate-400">Shoulder Drop Width</span>
+                <span className="font-sans text-slate-400">Shoulder reference</span>
                 <span className="font-bold text-slate-200">{gradedShoulder} cm</span>
               </div>
 
               <div className="flex justify-between items-center text-slate-300">
-                <span className="font-sans text-slate-400">Sleeve Length</span>
+                <span className="font-sans text-slate-400">Sleeve panel length</span>
                 <span className="font-bold text-slate-200">{gradedSleeve} cm</span>
               </div>
 
@@ -1069,8 +1014,8 @@ ${decals
               </div>
 
               <div className="flex justify-between items-center text-slate-300">
-                <span className="font-sans text-slate-400">Manufacturing Tolerance</span>
-                <span className="text-slate-400">±1.5 cm</span>
+                <span className="font-sans text-slate-400">Reference only</span>
+                <span className="text-slate-400">Not production grading</span>
               </div>
             </div>
 
@@ -1103,7 +1048,7 @@ ${decals
               ) : (
                 <>
                   <Copy className="w-3.5 h-3.5" />
-                  <span>Copy Factory Tech Pack (Text)</span>
+                  <span>Copy design specifications</span>
                 </>
               )}
             </button>

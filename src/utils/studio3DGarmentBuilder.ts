@@ -1,5 +1,11 @@
+import { drawDecalText } from './decalDrawing';
 import * as THREE from 'three';
+<<<<<<< Updated upstream
 import type { GraphicDecal, MockupSceneMode, SublimationPrint } from '../types/cad';
+=======
+import type { GraphicDecal, MockupSceneMode, PatternPiece } from '../types/cad';
+import { getPatternBounds, getGarmentSketchScale, getPatternColorZone } from './patternGeometry';
+>>>>>>> Stashed changes
 import {
   getAssembledSpec,
   GRAPHIC_PRESETS,
@@ -11,18 +17,28 @@ import {
 // 1. Offscreen UV Texture Generator
 // =========================================================
 export interface TextureGenOptions {
+  zone?: 'body' | 'leftSleeve' | 'rightSleeve';
   colorZones: Record<string, string>;
   decals: GraphicDecal[];
   activeTemplateId: string;
   customColor: string;
+<<<<<<< Updated upstream
   sublimationPrint?: SublimationPrint;
+=======
+  patternBased?: boolean;
+  pieces?: PatternPiece[];
+  imageCache?: Map<string, HTMLImageElement>;
+  onImageLoad?: () => void;
+>>>>>>> Stashed changes
 }
 
 export function generateGarmentTextureCanvas(
   options: TextureGenOptions,
   existingCanvas?: HTMLCanvasElement
 ): HTMLCanvasElement {
-  const size = 1024;
+  const zone = options.zone || 'body';
+  const sleeveTarget = zone !== 'body';
+  const size = sleeveTarget ? 512 : 1024;
   const canvas = existingCanvas || document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -32,7 +48,7 @@ export function generateGarmentTextureCanvas(
   const { colorZones, decals, activeTemplateId, customColor } = options;
   const spec = getAssembledSpec(activeTemplateId);
 
-  const bodyCol = colorZones.body || customColor || '#262626';
+  const bodyCol = colorZones[zone] || colorZones.body || customColor || '#262626';
   const collarCol = colorZones.collar || bodyCol;
   const sleeveCol = colorZones.sleeves || bodyCol;
   const pocketCol = colorZones.pocket || bodyCol;
@@ -60,6 +76,7 @@ export function generateGarmentTextureCanvas(
     ctx.fillRect(x, 0, 1.5, size);
   }
 
+  if (!options.patternBased) {
   // 2. Collar Rib UV Regions (Top areas)
   ctx.fillStyle = collarCol;
   ctx.fillRect(128, 10, 256, 75); // Front collar UV
@@ -119,23 +136,32 @@ export function generateGarmentTextureCanvas(
     ctx.stroke();
   }
 
+  }
+
   // 6. Placed Decals Painting (Front & Back)
   const frontCenter = { x: 256, y: 460 };
   const backCenter = { x: 768, y: 460 };
 
   decals.forEach((decal) => {
+    if (sleeveTarget ? decal.viewTarget !== zone : !['front', 'back'].includes(decal.viewTarget)) return;
     const isBack = decal.viewTarget === 'back';
-    const center = isBack ? backCenter : frontCenter;
+    const center = sleeveTarget ? { x: size / 2, y: size / 2 } : isBack ? backCenter : frontCenter;
 
-    // Map 2D flat sketch offsets to UV texture coordinates
-    const scaleFactor = 1.9;
-    const uvX = center.x + decal.position.x * scaleFactor;
-    const uvY = center.y + decal.position.y * scaleFactor;
+    const body = (sleeveTarget ? options.pieces?.find((p) => getPatternColorZone(p) === zone) : options.pieces?.find((piece) => piece.role === (isBack ? 'back' : 'front'))) || options.pieces?.find((piece) => piece.id === (isBack ? 'piece-back' : 'piece-front'))
+      || options.pieces?.find((piece) => piece.id.includes(isBack ? 'back' : 'front')) || options.pieces?.[0];
+    const bounds = body && getPatternBounds(body), sketchScale = body ? getGarmentSketchScale(body) : 1;
+    const factorX = bounds ? (sleeveTarget ? size : size / 2) / Math.max(1, bounds.width * sketchScale) : 1.9;
+    const factorY = bounds ? size / Math.max(1, bounds.height * sketchScale) : 1.9;
+    const centerY = body ? size / 2 : center.y;
 
     ctx.save();
-    ctx.translate(uvX, uvY);
+    ctx.beginPath();
+    ctx.rect(sleeveTarget ? 0 : isBack ? size / 2 : 0, 0, sleeveTarget ? size : size / 2, size);
+    ctx.clip();
+    ctx.translate(center.x + decal.position.x * factorX, centerY + decal.position.y * factorY);
+    ctx.scale(factorX, factorY);
     ctx.rotate((decal.rotation * Math.PI) / 180);
-    ctx.scale(decal.scale * scaleFactor, decal.scale * scaleFactor);
+    ctx.scale(decal.scale, decal.scale);
     ctx.globalAlpha = decal.opacity;
 
     if (decal.blendMode === 'multiply') {
@@ -151,36 +177,19 @@ export function generateGarmentTextureCanvas(
     const w = decal.width;
     const h = decal.height;
 
-    if (decal.type === 'text' && decal.fontProps) {
-      ctx.fillStyle = decal.fontProps.color || '#ffffff';
-      ctx.font = `${decal.fontProps.fontWeight || 'bold'} ${decal.fontProps.fontSize || 24}px ${
-        decal.fontProps.fontFamily || 'Inter, sans-serif'
-      }`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(decal.content, 0, 0);
-    } else if (decal.type === 'preset') {
-      const preset = GRAPHIC_PRESETS.find((p) => p.id === decal.content);
-      if (preset) {
-        // Draw vector stamp preview directly
-        ctx.fillStyle = '#ffffff';
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(-w / 2, -h / 2, w, h);
-        ctx.fillRect(-w / 2, -h / 2, w, h);
-
-        ctx.fillStyle = '#000000';
-        ctx.font = 'bold 16px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(preset.name.split(' ')[0].toUpperCase(), 0, 0);
+    if (decal.type === 'text') {
+      drawDecalText(ctx, decal);
+    } else if (decal.type === 'preset' || decal.type === 'image') {
+      const preset = decal.type === 'preset' ? GRAPHIC_PRESETS.find((p) => p.id === decal.content) : null;
+      const source = preset ? `data:image/svg+xml;utf8,${encodeURIComponent(preset.svg)}` : decal.content;
+      let image = options.imageCache?.get(source);
+      if (!image) {
+        image = new Image();
+        image.onload = () => options.onImageLoad?.();
+        options.imageCache?.set(source, image);
+        image.src = source;
       }
-    } else if (decal.type === 'image') {
-      const img = new Image();
-      img.src = decal.content;
-      if (img.complete && img.width > 0) {
-        ctx.drawImage(img, -w / 2, -h / 2, w, h);
-      }
+      if (image.complete && image.naturalWidth > 0) ctx.drawImage(image, -w / 2, -h / 2, w, h);
     }
 
     ctx.restore();
