@@ -1,16 +1,11 @@
 import { drawDecalText } from './decalDrawing';
 import * as THREE from 'three';
-<<<<<<< Updated upstream
-import type { GraphicDecal, MockupSceneMode, SublimationPrint } from '../types/cad';
-=======
 import type { GraphicDecal, MockupSceneMode, PatternPiece } from '../types/cad';
 import { getPatternBounds, getGarmentSketchScale, getPatternColorZone } from './patternGeometry';
->>>>>>> Stashed changes
 import {
   getAssembledSpec,
   GRAPHIC_PRESETS,
   type AssembledGarmentSpec,
-  drawSublimationPattern,
 } from './patternPresets';
 
 // =========================================================
@@ -22,14 +17,10 @@ export interface TextureGenOptions {
   decals: GraphicDecal[];
   activeTemplateId: string;
   customColor: string;
-<<<<<<< Updated upstream
-  sublimationPrint?: SublimationPrint;
-=======
   patternBased?: boolean;
   pieces?: PatternPiece[];
   imageCache?: Map<string, HTMLImageElement>;
   onImageLoad?: () => void;
->>>>>>> Stashed changes
 }
 
 export function generateGarmentTextureCanvas(
@@ -57,11 +48,6 @@ export function generateGarmentTextureCanvas(
   // Background Fill
   ctx.fillStyle = bodyCol;
   ctx.fillRect(0, 0, size, size);
-
-  // Sublimation Pattern Print
-  if (options.sublimationPrint && options.sublimationPrint !== 'none') {
-    drawSublimationPattern(ctx, options.sublimationPrint, { minX: 0, minY: 0, maxX: size, maxY: size });
-  }
 
   // Left Half = Front UV (0 to 512)
   // Right Half = Back UV (512 to 1024)

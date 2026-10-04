@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useCloStore } from '../../store/useCloStore';
-import { useAuthStore } from '../../store/useAuthStore';
 import { exportPatternsToSvg, GARMENT_TEMPLATES, FABRIC_PRESETS } from '../../utils/patternPresets';
 import {
   Shirt,
@@ -13,12 +12,7 @@ import {
   FolderKanban,
   Save,
   Palette,
-<<<<<<< Updated upstream
-  Crown,
-  Lock,
-=======
   HelpCircle,
->>>>>>> Stashed changes
 } from 'lucide-react';
 
 interface TopNavProps {
@@ -26,12 +20,7 @@ interface TopNavProps {
   onOpenHelp: () => void;
 }
 
-<<<<<<< Updated upstream
-export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel }) => {
-  const { currentUser, isAuthenticated, setUcpModalOpen, setLoginModalOpen } = useAuthStore();
-=======
 export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel, onOpenHelp }) => {
->>>>>>> Stashed changes
   const {
     layout,
     setLayout,
@@ -50,21 +39,7 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel, onOpenHelp }
 
   const [exportOpen, setExportOpen] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
-  const [saveFeedback, setSaveFeedback] = useState<{ type: 'success' | 'warn'; message: string } | null>(null);
   const [fabricOpen, setFabricOpen] = useState(false);
-
-  const handleSaveClick = () => {
-    if (!isAuthenticated || !currentUser) {
-      setSaveFeedback({ type: 'warn', message: 'Silakan masuk untuk menyimpan proyek ke akun Anda!' });
-      setLoginModalOpen(true);
-      setTimeout(() => setSaveFeedback(null), 4000);
-      return;
-    }
-
-    saveActiveProject(currentUser.id, currentUser.username);
-    setSaveFeedback({ type: 'success', message: `Proyek tersimpan di akun @${currentUser.username}` });
-    setTimeout(() => setSaveFeedback(null), 3000);
-  };
 
   const handleExportSvg = () => {
     const svgData = exportPatternsToSvg(pieces);
@@ -262,40 +237,15 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel, onOpenHelp }
           )}
         </div>
 
-        {/* Save Feedback Banner */}
-        {saveFeedback && (
-          <div
-            className={`hidden md:flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-md animate-in fade-in duration-150 ${
-              saveFeedback.type === 'success'
-                ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/30'
-                : 'text-amber-300 bg-amber-500/10 border border-amber-500/30'
-            }`}
-          >
-            <span>{saveFeedback.message}</span>
-          </div>
-        )}
-
-        {/* Save Button (Requires Login to Commit) */}
+        {/* Save Button */}
         <button
-          onClick={handleSaveClick}
+          onClick={saveActiveProject}
           className={`flex items-center gap-1 text-xs font-medium px-2 py-1.5 rounded-lg border transition-colors ${
-            !isAuthenticated
-              ? 'bg-amber-500/10 text-amber-300 border-amber-500/40 hover:bg-amber-500/20'
-              : isSaved
+            isSaved
               ? 'bg-[#1a1d26] text-slate-400 border-slate-700/60'
               : 'bg-emerald-600/20 text-emerald-400 border-emerald-500/40 hover:bg-emerald-600/30'
           }`}
-<<<<<<< Updated upstream
-          title={
-            !isAuthenticated
-              ? 'Masuk untuk menyimpan proyek ke akun Anda'
-              : isSaved
-              ? `Semua perubahan tersimpan di akun @${currentUser?.username}`
-              : 'Simpan perubahan ke akun Anda (Ctrl+S)'
-          }
-=======
           title={isSaved ? 'All changes saved' : 'Save changes (Ctrl+S)'} aria-label={isSaved ? 'Saved to your account' : 'Save changes'}
->>>>>>> Stashed changes
         >
           <Save className="w-3.5 h-3.5" /><span>{isSaved ? 'Saved' : 'Save'}</span>
         </button>
@@ -338,38 +288,6 @@ export const TopNav: React.FC<TopNavProps> = ({ onOpenControlPanel, onOpenHelp }
             </div>
           )}
         </div>
-
-        {/* User Profile / UCP Trigger Button */}
-        {isAuthenticated && currentUser ? (
-          <button
-            onClick={() => setUcpModalOpen(true)}
-            className="flex items-center gap-2 bg-gradient-to-r from-purple-950/70 to-blue-950/70 hover:from-purple-900 hover:to-blue-900 border border-purple-500/40 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-white shadow-md shadow-purple-950/40 transition-all cursor-pointer"
-            title="Buka UCP (User Control Panel)"
-          >
-            <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-purple-600 to-amber-500 flex items-center justify-center text-[10px] font-bold text-white shadow-sm">
-              {currentUser.role === 'superadmin' ? (
-                <Crown className="w-3 h-3 text-amber-300" />
-              ) : (
-                currentUser.username.substring(0, 1).toUpperCase()
-              )}
-            </div>
-            <span className="font-bold text-purple-200">@{currentUser.username}</span>
-            {currentUser.role === 'superadmin' && (
-              <span className="text-[9px] font-extrabold uppercase bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded border border-amber-500/40 hidden sm:inline-block">
-                Superadmin
-              </span>
-            )}
-          </button>
-        ) : (
-          <button
-            onClick={() => setLoginModalOpen(true)}
-            className="flex items-center gap-1.5 bg-purple-600/30 hover:bg-purple-600/50 border border-purple-500/50 text-purple-200 text-xs font-semibold px-2.5 py-1.5 rounded-xl transition-all cursor-pointer"
-            title="Masuk ke Akun OpenCLO"
-          >
-            <Lock className="w-3.5 h-3.5 text-purple-400" />
-            <span>Masuk</span>
-          </button>
-        )}
 
         <a
           href="https://github.com/Aghyksa/open-clo"

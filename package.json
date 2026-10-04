@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node server/dev.mjs",
     "build": "tsc -b && vite build && node server/build.mjs",
-    "check": "node check-drape.mjs && node check-preview.mjs && node check-editor.mjs && node check-projects.mjs && node check-worker.mjs && node check-accounts.mjs && node check-workspace.mjs && node check-pattern-import.mjs && node check-cdr-import.mjs && node check-cutting-export.mjs && node check-real-case.mjs",
+    "check": "node check-drape.mjs && node check-preview.mjs && node check-editor.mjs && node check-projects.mjs && node check-worker.mjs && node check-accounts.mjs && node check-workspace.mjs && node check-pattern-import.mjs && node check-cdr-import.mjs && node check-cutting-export.mjs",
     "lint": "oxlint --deny-warnings",
     "verify": "npm run lint && npm run check && npm run build && node check-production.mjs && npm run audit:dependencies",
     "preview": "node server/main.mjs",

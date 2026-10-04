@@ -4,7 +4,6 @@ import type {
   SeamConnection,
   SeamEdge,
   StitchType,
-  SublimationPrint,
 } from '../types/cad';
 import { getPatternBounds, PATTERN_UNITS_PER_CM } from './patternGeometry';
 import { getGrainlineSegments, getPieceCuttingGeometry } from './cuttingGeometry';
@@ -395,7 +394,7 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-front',
       name: 'Front Bodice',
       points: frontPoints,
-      position: { x: 200, y: 280 },
+      position: { x: 170, y: 260 },
       rotation: 0,
       color: '#38bdf8',
       placement: { origin3D: [0, 0.4, 0.16], rotation3D: [0, 0, 0] },
@@ -419,7 +418,7 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-back',
       name: 'Back Bodice',
       points: backPoints,
-      position: { x: 560, y: 280 },
+      position: { x: 440, y: 260 },
       rotation: 0,
       color: '#818cf8',
       placement: { origin3D: [0, 0.4, -0.10], rotation3D: [0, Math.PI, 0] },
@@ -428,7 +427,7 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-sleeve-l',
       name: 'Left Sleeve',
       points: sleeveLPoints,
-      position: { x: 880, y: 170 },
+      position: { x: 700, y: 180 },
       rotation: 0,
       color: '#06b6d4',
       placement: { origin3D: [0.35, 0.35, 0], rotation3D: [0, 0, -Math.PI / 4] },
@@ -437,7 +436,7 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-sleeve-r',
       name: 'Right Sleeve',
       points: sleeveRPoints,
-      position: { x: 880, y: 390 },
+      position: { x: 700, y: 390 },
       rotation: 0,
       color: '#06b6d4',
       placement: { origin3D: [-0.35, 0.35, 0], rotation3D: [0, 0, Math.PI / 4] },
@@ -446,7 +445,7 @@ export function createTshirtPreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-collar',
       name: 'Ribbed Crewneck Collar',
       points: collarPoints,
-      position: { x: 380, y: 560 },
+      position: { x: 300, y: 530 },
       rotation: 0,
       color: '#e2e8f0',
       placement: { origin3D: [0, 0.55, 0.05], rotation3D: [0, 0, 0] },
@@ -645,7 +644,7 @@ export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-front',
       name: 'Hoodie Front Torso',
       points: frontPoints,
-      position: { x: 200, y: 280 },
+      position: { x: 180, y: 260 },
       rotation: 0,
       color: '#475569',
       placement: { origin3D: [0, 0.4, 0.17], rotation3D: [0, 0, 0] },
@@ -670,7 +669,7 @@ export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-back',
       name: 'Hoodie Back Torso',
       points: backPoints,
-      position: { x: 620, y: 280 },
+      position: { x: 480, y: 260 },
       rotation: 0,
       color: '#334155',
       placement: { origin3D: [0, 0.4, -0.11], rotation3D: [0, Math.PI, 0] },
@@ -679,7 +678,7 @@ export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-pocket',
       name: 'Kangaroo Pocket',
       points: pocketPoints,
-      position: { x: 200, y: 590 },
+      position: { x: 180, y: 440 },
       rotation: 0,
       color: '#64748b',
       placement: { origin3D: [0, 0.2, 0.18], rotation3D: [0, 0, 0] },
@@ -688,7 +687,7 @@ export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-hood-l',
       name: 'Left Hood Side',
       points: hoodPoints,
-      position: { x: 620, y: 590 },
+      position: { x: 330, y: 90 },
       rotation: 0,
       color: '#94a3b8',
       placement: { origin3D: [0.11, 0.6, 0.0], rotation3D: [0, 0, 0], surface: 'hood' },
@@ -706,7 +705,7 @@ export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-sleeve-l',
       name: 'Left Long Sleeve',
       points: sleeveLPoints,
-      position: { x: 1000, y: 180 },
+      position: { x: 740, y: 190 },
       rotation: 0,
       color: '#475569',
       placement: { origin3D: [0.42, 0.3, 0], rotation3D: [0, 0, -Math.PI / 4] },
@@ -715,7 +714,7 @@ export function createHoodiePreset(): { pieces: PatternPiece[]; seams: SeamConne
       id: 'piece-sleeve-r',
       name: 'Right Long Sleeve',
       points: sleeveRPoints,
-      position: { x: 1000, y: 460 },
+      position: { x: 740, y: 430 },
       rotation: 0,
       color: '#475569',
       placement: { origin3D: [-0.42, 0.3, 0], rotation3D: [0, 0, Math.PI / 4] },
@@ -1108,12 +1107,8 @@ export function createOversizedTeePreset(): { pieces: PatternPiece[]; seams: Sea
       id: 'piece-front',
       name: 'Oversized Front',
       points: frontPoints,
-<<<<<<< Updated upstream
-      position: { x: 200, y: 220 },
-=======
       edgeCurvatures: { 2: { cpx: 0, cpy: 10 }, 3: { cpx: 0, cpy: 10 } },
       position: { x: 190, y: 270 },
->>>>>>> Stashed changes
       rotation: 0,
       color: '#10b981',
       placement: { origin3D: [0, 0.4, 0.17], rotation3D: [0, 0, 0] },
@@ -1122,7 +1117,7 @@ export function createOversizedTeePreset(): { pieces: PatternPiece[]; seams: Sea
       id: 'piece-back',
       name: 'Oversized Back',
       points: backPoints,
-      position: { x: 620, y: 220 },
+      position: { x: 480, y: 270 },
       rotation: 0,
       color: '#059669',
       placement: { origin3D: [0, 0.4, -0.11], rotation3D: [0, Math.PI, 0] },
@@ -1131,7 +1126,7 @@ export function createOversizedTeePreset(): { pieces: PatternPiece[]; seams: Sea
       id: 'piece-sleeve-l',
       name: 'Left Dropped Sleeve',
       points: sleeveLPoints,
-      position: { x: 960, y: 150 },
+      position: { x: 740, y: 190 },
       rotation: 0,
       color: '#34d399',
       placement: { origin3D: [0.38, 0.32, 0], rotation3D: [0, 0, -Math.PI / 4] },
@@ -1140,7 +1135,7 @@ export function createOversizedTeePreset(): { pieces: PatternPiece[]; seams: Sea
       id: 'piece-sleeve-r',
       name: 'Right Dropped Sleeve',
       points: sleeveRPoints,
-      position: { x: 960, y: 410 },
+      position: { x: 740, y: 400 },
       rotation: 0,
       color: '#34d399',
       placement: { origin3D: [-0.38, 0.32, 0], rotation3D: [0, 0, Math.PI / 4] },
@@ -1149,7 +1144,7 @@ export function createOversizedTeePreset(): { pieces: PatternPiece[]; seams: Sea
       id: 'piece-collar',
       name: 'Ribbed Collar Band',
       points: collarPoints,
-      position: { x: 410, y: 470 },
+      position: { x: 330, y: 540 },
       rotation: 0,
       color: '#d1fae5',
       placement: { origin3D: [0, 0.55, 0.05], rotation3D: [0, 0, 0] },
@@ -1364,376 +1359,10 @@ export function createPoloPreset(): { pieces: PatternPiece[]; seams: SeamConnect
 // ==========================================
 // Garment Template Library Descriptor
 // ==========================================
-// ==========================================
-// 10. SBL Kids Set (Ruched Crop Top & Cutbray Flare Pants)
-// Based on PT. Maxxbrother Indonesia & Project SBL Kids
-// ==========================================
-export function createSblKidsCutbrayPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
-  // Top Front with center ruching line
-  const topFrontPoints = [
-    { id: 'tf0', x: -65, y: -110 }, // Left shoulder
-    { id: 'tf1', x: -25, y: -125 }, // Left neck
-    { id: 'tf2', x: 0, y: -90 },    // Center scoop neck
-    { id: 'tf3', x: 25, y: -125 },  // Right neck
-    { id: 'tf4', x: 65, y: -110 },  // Right shoulder
-    { id: 'tf5', x: 55, y: -40 },   // Right armhole curve
-    { id: 'tf6', x: 50, y: 35 },    // Right side hem
-    { id: 'tf7', x: 0, y: 40 },     // Center hem cinch
-    { id: 'tf8', x: -50, y: 35 },   // Left side hem
-    { id: 'tf9', x: -55, y: -40 },  // Left armhole curve
-  ];
-
-  // Top Back (higher neck, cut on fold)
-  const topBackPoints = [
-    { id: 'tb0', x: -65, y: -110 },
-    { id: 'tb1', x: -25, y: -125 },
-    { id: 'tb2', x: 0, y: -120 },   // High back neck
-    { id: 'tb3', x: 25, y: -125 },
-    { id: 'tb4', x: 65, y: -110 },
-    { id: 'tb5', x: 55, y: -40 },
-    { id: 'tb6', x: 50, y: 35 },
-    { id: 'tb7', x: -50, y: 35 },
-    { id: 'tb8', x: -55, y: -40 },
-  ];
-
-  // Cutbray Flared Pants Front (Bell-Bottom Flare)
-  const pantFrontPoints = [
-    { id: 'pf0', x: -55, y: -150 }, // Left waist
-    { id: 'pf1', x: 55, y: -150 },  // Right waist
-    { id: 'pf2', x: 58, y: -70 },   // Right hip
-    { id: 'pf3', x: 30, y: 15 },    // Knee in
-    { id: 'pf4', x: 70, y: 160 },   // Bell flare outer hem
-    { id: 'pf5', x: -70, y: 160 },  // Bell flare inner hem
-    { id: 'pf6', x: -30, y: 15 },   // Inseam knee
-    { id: 'pf7', x: -8, y: -65 },   // Crotch curve
-  ];
-
-  // Cutbray Flared Pants Back (with extended back rise and seat curve)
-  const pantBackPoints = [
-    { id: 'pb0', x: -55, y: -160 }, // Angled back waist
-    { id: 'pb1', x: 55, y: -155 },
-    { id: 'pb2', x: 60, y: -70 },   // Hip
-    { id: 'pb3', x: 32, y: 15 },    // Knee in
-    { id: 'pb4', x: 72, y: 160 },   // Bell flare outer hem
-    { id: 'pb5', x: -72, y: 160 },  // Bell flare inner hem
-    { id: 'pb6', x: -32, y: 15 },   // Inseam knee
-    { id: 'pb7', x: -22, y: -58 },  // Extended back crotch
-  ];
-
-  // Elastic Waistband Strip
-  const waistbandPoints = [
-    { id: 'wb0', x: -95, y: -12 },
-    { id: 'wb1', x: 95, y: -12 },
-    { id: 'wb2', x: 95, y: 12 },
-    { id: 'wb3', x: -95, y: 12 },
-  ];
-
-  // Drawstring Ties (Tali Serut)
-  const drawstringPoints = [
-    { id: 'ds0', x: -75, y: -5 },
-    { id: 'ds1', x: 75, y: -5 },
-    { id: 'ds2', x: 75, y: 5 },
-    { id: 'ds3', x: -75, y: 5 },
-  ];
-
-  const pieces: PatternPiece[] = [
-    {
-      id: 'piece-top-front',
-      name: 'Atasan Depan (Serut)',
-      points: topFrontPoints,
-      position: { x: 440, y: 160 },
-      rotation: 0,
-      color: '#c084fc',
-      tataBusanaType: 'TM',
-      hasFoldLine: true,
-      notches: [
-        { edgeIndex: 5, param: 0.5, type: 'single' },
-        { edgeIndex: 9, param: 0.5, type: 'single' },
-      ],
-      placement: { origin3D: [0, 0.45, 0.15], rotation3D: [0, 0, 0] },
-      graphics: [
-        {
-          id: 'g-ruche',
-          name: 'Center Ruche Channel',
-          type: 'text',
-          content: '— · — SERUT — · —',
-          x: 0,
-          y: -25,
-          scale: 0.8,
-          rotation: Math.PI / 2,
-          color: '#ffffff',
-          fontSize: 9,
-          opacity: 0.85,
-        },
-      ],
-    },
-    {
-      id: 'piece-top-back',
-      name: 'Atasan Belakang',
-      points: topBackPoints,
-      position: { x: 700, y: 160 },
-      rotation: 0,
-      color: '#a855f7',
-      tataBusanaType: 'TB',
-      hasFoldLine: true,
-      notches: [
-        { edgeIndex: 5, param: 0.5, type: 'double' },
-        { edgeIndex: 8, param: 0.5, type: 'double' },
-      ],
-      placement: { origin3D: [0, 0.45, -0.11], rotation3D: [0, Math.PI, 0] },
-    },
-    {
-      id: 'piece-pant-front',
-      name: 'Celana Cutbray Depan',
-      points: pantFrontPoints,
-      position: { x: 980, y: 220 },
-      rotation: 0,
-      color: '#c084fc',
-      tataBusanaType: 'TM',
-      notches: [
-        { edgeIndex: 2, param: 0.5, type: 'single' },
-        { edgeIndex: 6, param: 0.5, type: 'single' },
-      ],
-      placement: { origin3D: [0.12, -0.25, 0.05], rotation3D: [0, 0, 0] },
-    },
-    {
-      id: 'piece-pant-back',
-      name: 'Celana Cutbray Belakang',
-      points: pantBackPoints,
-      position: { x: 1300, y: 220 },
-      rotation: 0,
-      color: '#a855f7',
-      tataBusanaType: 'TB',
-      notches: [
-        { edgeIndex: 2, param: 0.5, type: 'double' },
-        { edgeIndex: 6, param: 0.5, type: 'double' },
-      ],
-      placement: { origin3D: [-0.12, -0.25, -0.05], rotation3D: [0, Math.PI, 0] },
-    },
-    {
-      id: 'piece-waistband',
-      name: 'Ban Pinggang (Rib)',
-      points: waistbandPoints,
-      position: { x: 440, y: 315 },
-      rotation: 0,
-      color: '#38bdf8',
-      placement: { origin3D: [0, 0.12, 0.0], rotation3D: [0, 0, 0] },
-    },
-    {
-      id: 'piece-drawstring',
-      name: 'Tali Serut (Drawstring)',
-      points: drawstringPoints,
-      position: { x: 440, y: 405 },
-      rotation: 0,
-      color: '#f8fafc',
-      placement: { origin3D: [0, 0.28, 0.16], rotation3D: [0, 0, 0] },
-    },
-  ];
-
-  const seams: SeamConnection[] = [
-    {
-      id: 'seam-sbl-top-sh-l',
-      edgeA: { pieceId: 'piece-top-front', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-top-back', edgeIndex: 0 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-sbl-top-sh-r',
-      edgeA: { pieceId: 'piece-top-front', edgeIndex: 3 },
-      edgeB: { pieceId: 'piece-top-back', edgeIndex: 3 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-sbl-top-side-r',
-      edgeA: { pieceId: 'piece-top-front', edgeIndex: 5 },
-      edgeB: { pieceId: 'piece-top-back', edgeIndex: 5 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-sbl-top-side-l',
-      edgeA: { pieceId: 'piece-top-front', edgeIndex: 8 },
-      edgeB: { pieceId: 'piece-top-back', edgeIndex: 7 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-sbl-pant-outseam',
-      edgeA: { pieceId: 'piece-pant-front', edgeIndex: 2 },
-      edgeB: { pieceId: 'piece-pant-back', edgeIndex: 2 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-sbl-pant-inseam',
-      edgeA: { pieceId: 'piece-pant-front', edgeIndex: 5 },
-      edgeB: { pieceId: 'piece-pant-back', edgeIndex: 5 },
-      strength: 1.0,
-      stitchType: 'overlock',
-    },
-  ];
-
-  return { pieces, seams };
-}
-
-// ==========================================
-// 11. Cropped Bolero / Shrug Jacket (PT. Maxxbrother Indonesia)
-// ==========================================
-export function createCroppedBoleroPreset(): { pieces: PatternPiece[]; seams: SeamConnection[] } {
-  // Ultra-cropped front bodice ending above bust
-  const frontPoints = [
-    { id: 'bof0', x: -90, y: -100 },
-    { id: 'bof1', x: -35, y: -120 },
-    { id: 'bof2', x: 0, y: -90 },
-    { id: 'bof3', x: 35, y: -120 },
-    { id: 'bof4', x: 90, y: -100 },
-    { id: 'bof5', x: 95, y: -30 },
-    { id: 'bof6', x: 80, y: 15 },
-    { id: 'bof7', x: -80, y: 15 },
-    { id: 'bof8', x: -95, y: -30 },
-  ];
-
-  const backPoints = [
-    { id: 'bob0', x: -90, y: -100 },
-    { id: 'bob1', x: -35, y: -120 },
-    { id: 'bob2', x: 0, y: -115 },
-    { id: 'bob3', x: 35, y: -120 },
-    { id: 'bob4', x: 90, y: -100 },
-    { id: 'bob5', x: 95, y: -30 },
-    { id: 'bob6', x: 80, y: 15 },
-    { id: 'bob7', x: -80, y: 15 },
-    { id: 'bob8', x: -95, y: -30 },
-  ];
-
-  // Voluminous Puff Sleeve (Leg-of-mutton puff crown tapering to structured cuff)
-  const puffSleeveL = [
-    { id: 'psl0', x: -110, y: -15 },
-    { id: 'psl1', x: -95, y: -70 },
-    { id: 'psl2', x: -55, y: -115 },
-    { id: 'psl3', x: 0, y: -130 },
-    { id: 'psl4', x: 55, y: -115 },
-    { id: 'psl5', x: 95, y: -70 },
-    { id: 'psl6', x: 110, y: -15 },
-    { id: 'psl7', x: 45, y: 120 },
-    { id: 'psl8', x: -45, y: 120 },
-  ];
-
-  const puffSleeveR = JSON.parse(JSON.stringify(puffSleeveL));
-
-  const cuffPoints = [
-    { id: 'cf0', x: -65, y: -14 },
-    { id: 'cf1', x: 65, y: -14 },
-    { id: 'cf2', x: 65, y: 14 },
-    { id: 'cf3', x: -65, y: 14 },
-  ];
-
-  const pieces: PatternPiece[] = [
-    {
-      id: 'piece-bolero-front',
-      name: 'Bolero Front Bodice',
-      points: frontPoints,
-      position: { x: 200, y: 200 },
-      rotation: 0,
-      color: '#1e3a8a',
-      tataBusanaType: 'TM',
-      hasFoldLine: true,
-      placement: { origin3D: [0, 0.5, 0.16], rotation3D: [0, 0, 0] },
-      graphics: [
-        {
-          id: 'g-star',
-          name: 'Graffiti Star',
-          type: 'text',
-          content: '★ POLA SBL 1-3',
-          x: -25,
-          y: -35,
-          scale: 0.9,
-          rotation: 0,
-          color: '#f43f5e',
-          fontSize: 10,
-          opacity: 0.95,
-        },
-      ],
-    },
-    {
-      id: 'piece-bolero-back',
-      name: 'Bolero Back Bodice',
-      points: backPoints,
-      position: { x: 520, y: 200 },
-      rotation: 0,
-      color: '#1e3a8a',
-      tataBusanaType: 'TB',
-      hasFoldLine: true,
-      placement: { origin3D: [0, 0.5, -0.11], rotation3D: [0, Math.PI, 0] },
-    },
-    {
-      id: 'piece-puff-sleeve-l',
-      name: 'Puff Sleeve Kiri (Leg-of-mutton)',
-      points: puffSleeveL,
-      position: { x: 880, y: 170 },
-      rotation: 0,
-      color: '#f43f5e',
-      placement: { origin3D: [0.4, 0.4, 0], rotation3D: [0, 0, -Math.PI / 4] },
-    },
-    {
-      id: 'piece-puff-sleeve-r',
-      name: 'Puff Sleeve Kanan (Leg-of-mutton)',
-      points: puffSleeveR,
-      position: { x: 880, y: 440 },
-      rotation: 0,
-      color: '#f43f5e',
-      placement: { origin3D: [-0.4, 0.4, 0], rotation3D: [0, 0, Math.PI / 4] },
-    },
-    {
-      id: 'piece-bolero-cuffs',
-      name: 'Manset Lengan (Cuffs)',
-      points: cuffPoints,
-      position: { x: 360, y: 400 },
-      rotation: 0,
-      color: '#1e3a8a',
-      placement: { origin3D: [0, 0.1, 0.0], rotation3D: [0, 0, 0] },
-    },
-  ];
-
-  const seams: SeamConnection[] = [
-    {
-      id: 'seam-bolero-sh-l',
-      edgeA: { pieceId: 'piece-bolero-front', edgeIndex: 0 },
-      edgeB: { pieceId: 'piece-bolero-back', edgeIndex: 0 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-bolero-sh-r',
-      edgeA: { pieceId: 'piece-bolero-front', edgeIndex: 3 },
-      edgeB: { pieceId: 'piece-bolero-back', edgeIndex: 3 },
-      strength: 1.0,
-      stitchType: 'single-needle',
-    },
-    {
-      id: 'seam-bolero-sleeve-l',
-      edgeA: { pieceId: 'piece-puff-sleeve-l', edgeIndex: 2 },
-      edgeB: { pieceId: 'piece-bolero-front', edgeIndex: 7 },
-      strength: 1.2,
-      stitchType: 'overlock',
-    },
-    {
-      id: 'seam-bolero-sleeve-r',
-      edgeA: { pieceId: 'piece-puff-sleeve-r', edgeIndex: 2 },
-      edgeB: { pieceId: 'piece-bolero-front', edgeIndex: 4 },
-      strength: 1.2,
-      stitchType: 'overlock',
-    },
-  ];
-
-  return { pieces, seams };
-}
-
 export interface GarmentTemplate {
   id: string;
   name: string;
-  category: 'Tops' | 'Outerwear' | 'Dresses' | 'Skirts' | 'Bottoms' | 'Sets';
+  category: 'Tops' | 'Outerwear' | 'Dresses' | 'Skirts' | 'Bottoms';
   description: string;
   piecesCount: number;
   icon: string;
@@ -1745,32 +1374,6 @@ export interface GarmentTemplate {
 }
 
 export const GARMENT_TEMPLATES: GarmentTemplate[] = [
-  {
-    id: 'sbl-kids-cutbray',
-    name: 'SBL Kids Ruched Crop & Cutbray Pants',
-    category: 'Sets',
-    icon: '👗',
-    description: 'Commercial 2-piece set from PT. Maxxbrother & SBL Kids: cropped sleeveless tank with center drawstring ruching, paired with high-waisted flared bell-bottom cutbray trousers.',
-    piecesCount: 6,
-    recommendedFabric: 'cotton-jersey',
-    recommendedColor: '#c084fc',
-    brandInspiration: 'SBL Kids / PT. Maxxbrother',
-    silhouetteType: 'regular',
-    generator: createSblKidsCutbrayPreset,
-  },
-  {
-    id: 'cropped-bolero-jacket',
-    name: 'Pola Sublim Bolero Shrug (Size S)',
-    category: 'Outerwear',
-    icon: '🧥',
-    description: 'Avant-garde streetwear shrug from PT. Maxxbrother: ultra-cropped chest bodice with voluminous leg-of-mutton puff sleeves and structured wrist cuffs.',
-    piecesCount: 5,
-    recommendedFabric: 'french-terry',
-    recommendedColor: '#1e3a8a',
-    brandInspiration: 'Pola SBL 1-3 Sublimasi',
-    silhouetteType: 'oversized',
-    generator: createCroppedBoleroPreset,
-  },
   {
     id: 'uniqlo-u-boxy-tee',
     name: 'Oversized T-shirt',
@@ -2077,11 +1680,6 @@ export interface AssembledGarmentSpec {
   hasPoloCollar?: boolean;
   hasCampCollar?: boolean;
   isPants?: boolean;
-  isKidsSet?: boolean;
-  isBolero?: boolean;
-  hasRuching?: boolean;
-  hasDrawstrings?: boolean;
-  hasPuffSleeves?: boolean;
   halfChestCm: number;
   bodyLengthCm: number;
   shoulderDropCm: number;
@@ -2089,27 +1687,6 @@ export interface AssembledGarmentSpec {
 }
 
 export const ASSEMBLED_GARMENT_SPECS: Record<string, AssembledGarmentSpec> = {
-  'sbl-kids-cutbray': {
-    templateId: 'sbl-kids-cutbray',
-    name: 'SBL Kids Ruched Top & Cutbray Pants',
-    isKidsSet: true,
-    hasRuching: true,
-    hasDrawstrings: true,
-    halfChestCm: 36,
-    bodyLengthCm: 32,
-    shoulderDropCm: 34,
-    sleeveLengthCm: 0,
-  },
-  'cropped-bolero-jacket': {
-    templateId: 'cropped-bolero-jacket',
-    name: 'Pola Sublim Bolero Shrug (Size S)',
-    isBolero: true,
-    hasPuffSleeves: true,
-    halfChestCm: 48,
-    bodyLengthCm: 30,
-    shoulderDropCm: 42,
-    sleeveLengthCm: 64,
-  },
   'uniqlo-u-boxy-tee': {
     templateId: 'uniqlo-u-boxy-tee',
     name: 'Oversized T-shirt',
@@ -2195,127 +1772,4 @@ export function getAssembledSpec(templateId: string, pieces?: PatternPiece[]): A
   return { ...base, halfChestCm: Number((bounds.width / PATTERN_UNITS_PER_CM).toFixed(1)),
     bodyLengthCm: Number((bounds.height / PATTERN_UNITS_PER_CM).toFixed(1)),
     sleeveLengthCm: sleeve ? Number((getPatternBounds(sleeve).height / PATTERN_UNITS_PER_CM).toFixed(1)) : 0 };
-}
-
-export function drawSublimationPattern(
-  ctx: CanvasRenderingContext2D,
-  print: SublimationPrint | undefined,
-  bounds: { minX: number; minY: number; maxX: number; maxY: number }
-) {
-  if (!print || print === 'none') return;
-
-  const w = bounds.maxX - bounds.minX;
-  const h = bounds.maxY - bounds.minY;
-  if (w <= 0 || h <= 0) return;
-
-  ctx.save();
-
-  if (print === 'retro-check') {
-    // Wavy / distorted Y2K checkerboard (Diana's Page 28 & 46)
-    const tileSize = 28;
-    for (let x = bounds.minX - tileSize; x < bounds.maxX + tileSize; x += tileSize) {
-      for (let y = bounds.minY - tileSize; y < bounds.maxY + tileSize; y += tileSize) {
-        const xi = Math.floor((x - bounds.minX) / tileSize);
-        const yi = Math.floor((y - bounds.minY) / tileSize);
-        if ((xi + yi) % 2 === 0) {
-          ctx.fillStyle = 'rgba(192, 132, 252, 0.45)'; // Soft lilac
-        } else {
-          ctx.fillStyle = 'rgba(125, 211, 252, 0.45)'; // Baby blue
-        }
-        ctx.beginPath();
-        const waveX = Math.sin(y * 0.05) * 4;
-        const waveY = Math.cos(x * 0.05) * 4;
-        ctx.roundRect(x + waveX, y + waveY, tileSize, tileSize, 4);
-        ctx.fill();
-      }
-    }
-  } else if (print === 'meadow-floral') {
-    // 70s Retro Meadow Daisy flowers (Diana's Page 46)
-    const spacing = 45;
-    for (let x = bounds.minX + 15; x < bounds.maxX; x += spacing) {
-      for (let y = bounds.minY + 15; y < bounds.maxY; y += spacing) {
-        const ox = Math.sin(x * 12.3 + y * 4.1) * 8;
-        const oy = Math.cos(y * 9.2 + x * 3.3) * 8;
-        const cx = x + ox;
-        const cy = y + oy;
-        ctx.fillStyle = (x + y) % 2 === 0 ? 'rgba(251, 146, 60, 0.6)' : 'rgba(244, 114, 182, 0.6)';
-        for (let a = 0; a < 5; a++) {
-          const rad = (a * Math.PI * 2) / 5;
-          ctx.beginPath();
-          ctx.arc(cx + Math.cos(rad) * 8, cy + Math.sin(rad) * 8, 4.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-        ctx.beginPath();
-        ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#fef08a';
-        ctx.fill();
-      }
-    }
-  } else if (print === 'sunset-ombre') {
-    // Airbrush ombré gradient (Diana's Page 46)
-    const grad = ctx.createLinearGradient(bounds.minX, bounds.minY, bounds.minX, bounds.maxY);
-    grad.addColorStop(0, 'rgba(56, 189, 248, 0.55)'); // Sky blue
-    grad.addColorStop(0.5, 'rgba(244, 114, 182, 0.55)'); // Pink
-    grad.addColorStop(1, 'rgba(192, 132, 252, 0.55)'); // Lavender
-    ctx.fillStyle = grad;
-    ctx.fillRect(bounds.minX, bounds.minY, w, h);
-  } else if (print === 'ocean-marble') {
-    // Liquid fluid marble curves (Diana's Page 46)
-    for (let y = bounds.minY - 20; y < bounds.maxY + 40; y += 18) {
-      ctx.beginPath();
-      ctx.moveTo(bounds.minX - 10, y);
-      for (let x = bounds.minX; x < bounds.maxX + 20; x += 30) {
-        const wave = Math.sin(x * 0.04 + y * 0.08) * 14 + Math.cos(x * 0.08) * 8;
-        ctx.lineTo(x, y + wave);
-      }
-      ctx.strokeStyle = y % 36 === 0 ? 'rgba(29, 78, 216, 0.45)' : 'rgba(2, 132, 199, 0.35)';
-      ctx.lineWidth = 6;
-      ctx.stroke();
-    }
-  } else if (print === 'street-stars') {
-    // Streetwear graffiti 5-point stars & doodle crosses (Diana's Page 45)
-    const step = 50;
-    for (let x = bounds.minX + 20; x < bounds.maxX; x += step) {
-      for (let y = bounds.minY + 20; y < bounds.maxY; y += step) {
-        const ox = Math.sin(x * 7.7) * 10;
-        const oy = Math.cos(y * 5.5) * 10;
-        const sx = x + ox;
-        const sy = y + oy;
-        ctx.save();
-        ctx.translate(sx, sy);
-        ctx.rotate((x + y) * 0.1);
-        if ((x + y) % 3 === 0) {
-          ctx.beginPath();
-          for (let s = 0; s < 5; s++) {
-            const rot = (s * Math.PI * 2) / 5 - Math.PI / 2;
-            const r1 = 9;
-            const r2 = 4;
-            const px1 = Math.cos(rot) * r1;
-            const py1 = Math.sin(rot) * r1;
-            const rotInner = rot + Math.PI / 5;
-            const px2 = Math.cos(rotInner) * r2;
-            const py2 = Math.sin(rotInner) * r2;
-            if (s === 0) ctx.moveTo(px1, py1);
-            else ctx.lineTo(px1, py1);
-            ctx.lineTo(px2, py2);
-          }
-          ctx.closePath();
-          ctx.fillStyle = 'rgba(244, 63, 94, 0.65)';
-          ctx.fill();
-        } else {
-          ctx.strokeStyle = 'rgba(15, 23, 42, 0.5)';
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(-5, 0);
-          ctx.lineTo(5, 0);
-          ctx.moveTo(0, -5);
-          ctx.lineTo(0, 5);
-          ctx.stroke();
-        }
-        ctx.restore();
-      }
-    }
-  }
-
-  ctx.restore();
 }

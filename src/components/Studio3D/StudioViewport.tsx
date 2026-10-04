@@ -22,31 +22,10 @@ function disposeGarment(scene: THREE.Scene, group: THREE.Group | null) {
 }
 
 export const StudioViewport: React.FC = () => {
-<<<<<<< Updated upstream
-  const mountRef = useRef<HTMLDivElement | null>(null);
-
-  const {
-    activeTemplateId,
-    colorZones,
-    decals,
-    customColor,
-    mockupScene,
-    setMockupScene,
-    lightingPreset,
-    setLightingPreset,
-    sublimationPrint,
-    decalTextureRevision,
-  } = useCloStore();
-
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
-
-  // References for Three.js instance
-=======
   const { activeTemplateId, colorZones, decals, customColor, mockupScene, setMockupScene,
     lightingPreset, setLightingPreset, decalTextureRevision, currentMaterial, avatar,
     simulationIteration, selectedPieceId, pieces } = useCloStore();
   const mountRef = useRef<HTMLDivElement>(null);
->>>>>>> Stashed changes
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
@@ -245,25 +224,8 @@ export const StudioViewport: React.FC = () => {
     floor.rotation.x = -Math.PI / 2;
     floor.receiveShadow = true;
     scene.add(floor);
-<<<<<<< Updated upstream
-
-    // Initial Offscreen Canvas & CanvasTexture
-    const offscreen = generateGarmentTextureCanvas({
-      colorZones,
-      decals,
-      activeTemplateId,
-      customColor,
-      sublimationPrint,
-    });
-    offscreenCanvasRef.current = offscreen;
-
-    const texture = new THREE.CanvasTexture(offscreen);
-    texture.wrapS = THREE.ClampToEdgeWrapping;
-    texture.wrapT = THREE.ClampToEdgeWrapping;
-=======
     bakeTexture();
     const texture = new THREE.CanvasTexture(canvasRef.current!);
->>>>>>> Stashed changes
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     textureRef.current = texture;
@@ -387,20 +349,11 @@ export const StudioViewport: React.FC = () => {
     });
   }, [colorZones, customColor, decals, decalTextureRevision, activeTemplateId, bakeTexture, currentMaterial.roughness, currentMaterial.metalness]);
 
-<<<<<<< Updated upstream
-    generateGarmentTextureCanvas(
-      { colorZones, decals, activeTemplateId, customColor, sublimationPrint },
-      offscreenCanvasRef.current || undefined
-    );
-    canvasTextureRef.current.needsUpdate = true;
-  }, [colorZones, decals, activeTemplateId, customColor, decalTextureRevision, sublimationPrint]);
-=======
   useEffect(() => {
     rotatingRef.current = mockupScene === 'floating-360';
     if (garmentRef.current) garmentRef.current.rotation.y = 0;
     invalidate();
   }, [mockupScene, invalidate]);
->>>>>>> Stashed changes
 
   useEffect(() => {
     const scene = sceneRef.current;

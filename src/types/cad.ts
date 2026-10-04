@@ -59,22 +59,6 @@ export interface InternalLine {
   points: Point2D[];
 }
 
-<<<<<<< Updated upstream
-export interface PatternNotch {
-  edgeIndex: number;
-  param: number; // 0.0 to 1.0 along edge
-  type?: 'single' | 'double';
-}
-
-export type SublimationPrint =
-  | 'none'
-  | 'retro-check'
-  | 'meadow-floral'
-  | 'sunset-ombre'
-  | 'ocean-marble'
-  | 'street-stars';
-
-=======
 export type PanelRole = 'front' | 'back' | 'leftSleeve' | 'rightSleeve' | 'hood' | 'pocket' | 'waistFront' | 'waistBack' | 'other';
 export interface CuttingDetails {
   quantity: number;
@@ -84,16 +68,11 @@ export interface CuttingDetails {
   notches: { edgeIndex: number; param: number; count: 1 | 2 }[];
 }
 
->>>>>>> Stashed changes
 export interface PatternPiece {
   id: string;
   name: string;
   points: Point2D[];
   edgeCurvatures?: Record<number, EdgeCurvature>; // keyed by edge index
-  notches?: PatternNotch[];
-  sublimationPrint?: SublimationPrint;
-  tataBusanaType?: 'TM' | 'TB';
-  hasFoldLine?: boolean;
   position: { x: number; y: number };
   rotation: number; // In radians
   color?: string;
@@ -145,7 +124,6 @@ export type CadTool =
   | 'vertex'    // A: Direct Select / Move vertex
   | 'pen'       // P: Add point on edge
   | 'curve'     // C: Curvature tool (bend edge)
-  | 'notch'     // U: Tanda Pas / Sewing Notch Tool
   | 'cut'       // X: Scissor / Slice pattern piece
   | 'patch'     // K: Fabric Patch / Add Fabric Piece
   | 'polygon'   // N: Draw custom polygon pattern piece
@@ -154,30 +132,7 @@ export type CadTool =
   | 'edit-sew'  // B: Edit Sewing (select, modify, delete seams)
   | 'move'      // H: Pan Viewport
   | 'measure'   // M: Measure edge segment
-  | 'text'      // T: Text Annotation on Canvas (CorelDraw F8 style)
-  | 'graphic';  // G: Add artwork / graphic stamp
-
-export interface CanvasAnnotation {
-  id: string;
-  text: string;
-  x: number;
-  y: number;
-  fontSize: number;
-  color: string;
-  isHeader?: boolean;
-}
-
-export interface ReferenceImageItem {
-  id: string;
-  name: string;
-  url: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  opacity: number;
-  locked?: boolean;
-}
+  | 'graphic';  // T: Add artwork / graphic stamp
 
 export interface AvatarConfig {
   gender: 'female' | 'male';
@@ -208,8 +163,6 @@ export interface CloProject {
   schemaVersion?: 1;
   id: string;
   name: string;
-  ownerId?: string;
-  ownerUsername?: string;
   createdAt: number;
   updatedAt: number;
   templateId: string;
@@ -225,13 +178,6 @@ export interface CloProject {
   decals?: GraphicDecal[];
   mockupScene?: MockupSceneMode;
   canvasViewMode?: CanvasViewMode;
-  canvasTheme?: CanvasTheme;
-  sublimationPrint?: SublimationPrint;
-  tataBusanaMode?: boolean;
-  annotations?: CanvasAnnotation[];
-  referenceImages?: ReferenceImageItem[];
-  fabricRollWidthCm?: number;
-  showRollGuides?: boolean;
 }
 
 export type ViewportLayout = 'dual' | 'pattern-only' | '3d-only';
@@ -275,27 +221,4 @@ export interface GraphicDecal {
   width: number;
   height: number;
   fontProps?: DecalFontProps;
-}
-
-export type CanvasTheme = 'white' | 'dark';
-
-export type UserRole = 'superadmin' | 'designer' | 'patternmaker' | 'viewer';
-
-export interface UserAccount {
-  id: string;
-  username: string;
-  password: string;
-  name: string;
-  email: string;
-  role: UserRole;
-  avatar?: string;
-  createdAt: string;
-  lastLogin: string;
-  department?: string;
-}
-
-export interface AuthSession {
-  user: UserAccount | null;
-  isAuthenticated: boolean;
-  token?: string;
 }

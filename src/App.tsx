@@ -1,21 +1,11 @@
 import React, { useEffect, useState, useRef, lazy, Suspense } from 'react';
 import { GARMENT_TEMPLATES } from './utils/patternPresets';
 import { useCloStore } from './store/useCloStore';
-import { useAuthStore } from './store/useAuthStore';
 import { TopNav } from './components/UI/TopNav';
 import { ToolSidebar } from './components/UI/ToolSidebar';
 import { TOOLS } from './components/UI/editorTools';
 import { PatternInspector } from './components/UI/PatternInspector';
 import { PropertyInspector } from './components/UI/PropertyInspector';
-<<<<<<< Updated upstream
-import { PatternCanvas } from './components/PatternViewport/PatternCanvas';
-import { AssembledFlatCanvas } from './components/PatternViewport/AssembledFlatCanvas';
-import { StudioViewport } from './components/Studio3D/StudioViewport';
-import { ControlPanelModal } from './components/UI/ControlPanelModal';
-import { LoginModal } from './components/UI/LoginModal';
-import { UCPModal } from './components/UI/UCPModal';
-import { Activity, Scissors, Compass } from 'lucide-react';
-=======
 const PatternCanvas = lazy(() => import('./components/PatternViewport/PatternCanvas').then((module) => ({ default: module.PatternCanvas })));
 const AssembledFlatCanvas = lazy(() => import('./components/PatternViewport/AssembledFlatCanvas').then((module) => ({ default: module.AssembledFlatCanvas })));
 const StudioViewport = lazy(() => import('./components/Studio3D/StudioViewport').then((module) => ({ default: module.StudioViewport })));
@@ -27,7 +17,6 @@ import { HelpGuide } from './components/UI/HelpGuide';
 import { useWorkspaceStore } from './store/useWorkspaceStore';
 import { downloadFile } from './utils/download';
 import { Scissors, Compass, PanelRight, X, HelpCircle } from 'lucide-react';
->>>>>>> Stashed changes
 
 export const App: React.FC = () => {
   const { layout, canvasViewMode, activeTool, setActiveTool, undo, redo, activeTemplateId, decals } =
@@ -106,33 +95,6 @@ export const App: React.FC = () => {
       }
 
       const key = e.key.toLowerCase();
-<<<<<<< Updated upstream
-      if (key === 'v') setActiveTool('select');
-      if (key === 'a') setActiveTool('vertex');
-      if (key === 'p') setActiveTool('pen');
-      if (key === 'c') setActiveTool('curve');
-      if (key === 's' && !e.ctrlKey && !e.metaKey) setActiveTool('sew');
-      if (key === 'f') setActiveTool('free-sew');
-      if (key === 'b') setActiveTool('edit-sew');
-      if (key === 'h') setActiveTool('move');
-      if (key === 'm') setActiveTool('measure');
-      if (key === 't') setActiveTool('graphic');
-      if (key === 'x') setActiveTool('cut');
-      if (key === 'n') setActiveTool('polygon');
-
-      // Ctrl+S / Cmd+S = Save Project (requires auth)
-      if ((e.ctrlKey || e.metaKey) && key === 's') {
-        e.preventDefault();
-        const auth = useAuthStore.getState();
-        if (!auth.isAuthenticated || !auth.currentUser) {
-          auth.setLoginModalOpen(true);
-        } else {
-          useCloStore.getState().saveActiveProject(auth.currentUser.id, auth.currentUser.username);
-        }
-        return;
-      }
-
-=======
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
         if (key === 'v') setActiveTool('select');
         if (key === 'a') setActiveTool('vertex');
@@ -153,7 +115,6 @@ export const App: React.FC = () => {
         useCloStore.getState().saveActiveProject();
         return;
       }
->>>>>>> Stashed changes
       // Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
       if ((e.ctrlKey || e.metaKey) && key === 'z' && !e.shiftKey) {
         e.preventDefault();
@@ -267,16 +228,9 @@ export const App: React.FC = () => {
         </div>
       </footer>
 
-<<<<<<< Updated upstream
-      {/* Modals: Control Panel, Auth, UCP */}
-      <ControlPanelModal isOpen={controlPanelOpen} onClose={() => setControlPanelOpen(false)} />
-      <LoginModal />
-      <UCPModal />
-=======
       {/* Control Panel Modal */}
       <Dialog open={needsReauthentication} onClose={() => {}} title="Sign in to keep your edits"><p className="text-sm text-stone-600 mb-4">Your session changed or expired. Your edits are still here. Sign in as {user?.email} to save them to the right workspace.</p><form onSubmit={async (e) => { e.preventDefault(); if (await reauthenticate(sessionPassword)) setSessionPassword(''); }}><label className="text-sm">Password<input required type="password" autoComplete="current-password" minLength={12} maxLength={128} value={sessionPassword} onChange={(e) => setSessionPassword(e.target.value)} className="account-input mb-4" /></label><button disabled={accountBusy} className="bg-teal-800 text-white rounded-lg px-4 py-2">Sign in & save</button></form>{workspaceError && <p className="text-sm text-red-700 mt-3" role="alert">{workspaceError}</p>}<button className="underline text-sm mt-4" onClick={() => downloadFile(JSON.stringify(projects.find((p) => p.id === activeProjectId)), 'openclo-unsaved-design.json')}>Download a backup of my edits</button></Dialog>
       <HelpGuide open={helpOpen} onClose={() => setHelpOpen(false)} />
->>>>>>> Stashed changes
     </div>
   );
 };

@@ -19,14 +19,7 @@ import type {
   CanvasViewMode,
   StudioLightingPreset,
   GraphicDecal,
-<<<<<<< Updated upstream
-  CanvasTheme,
-  SublimationPrint,
-  CanvasAnnotation,
-  ReferenceImageItem,
-=======
   InternalLine,
->>>>>>> Stashed changes
 } from '../types/cad';
 import {
   FABRIC_PRESETS,
@@ -43,88 +36,9 @@ type ProjectPersistence = (projects: CloProject[]) => Promise<void>;
 let projectPersistence: ProjectPersistence | null = null;
 export function setProjectPersistence(persistence: ProjectPersistence | null) { projectPersistence = persistence; }
 
-const STORAGE_KEY_PROJECTS = 'openclo_projects_v17';
+const STORAGE_KEY_PROJECTS = 'openclo_projects_v2';
 const STORAGE_KEY_ACTIVE = 'openclo_active_project_id';
 
-<<<<<<< Updated upstream
-function createDefaultProject(templateId = 'uniqlo-u-boxy-tee', name?: string, ownerId = 'user-superadmin', ownerUsername = 'aghyksa'): CloProject {
-  const tmpl = GARMENT_TEMPLATES.find((t) => t.id === templateId) || GARMENT_TEMPLATES[0];
-  const data = tmpl.generator();
-  const fabric = FABRIC_PRESETS.find((f) => f.id === tmpl.recommendedFabric) || FABRIC_PRESETS[0];
-  const defaultCol = tmpl.recommendedColor || '#262626';
-
-  return {
-    id: `proj-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-    name: name || `${tmpl.name} Studio`,
-    ownerId,
-    ownerUsername,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    templateId: tmpl.id,
-    pieces: data.pieces,
-    seams: data.seams,
-    currentMaterial: fabric,
-    customColor: defaultCol,
-    colorZones: {
-      body: defaultCol,
-      collar: defaultCol,
-      sleeves: defaultCol,
-      leftSleeve: defaultCol,
-      rightSleeve: defaultCol,
-      pocket: defaultCol,
-      hem: defaultCol,
-      cuffs: defaultCol,
-      hood: defaultCol,
-    },
-    decals: [
-      {
-        id: 'decal-tokyo-default',
-        type: 'preset',
-        name: 'Tokyo Archive Box Stamp',
-        content: 'tokyo-box-logo',
-        position: { x: 0, y: -25 },
-        scale: 1,
-        rotation: 0,
-        viewTarget: 'front',
-        blendMode: 'normal',
-        opacity: 0.95,
-        width: 140,
-        height: 42,
-      },
-    ],
-    mockupScene: 'ghost',
-    canvasViewMode: 'pieces',
-    canvasTheme: 'white',
-    avatar: {
-      gender: 'female',
-      height: 175,
-      chestCircumference: 92,
-      waistCircumference: 68,
-      hipsCircumference: 96,
-      shoulderWidth: 40,
-      showSkin: true,
-    },
-    avatar2D: {
-      visible: false,
-      view: 'front',
-      opacity: 0.25,
-      showGuides: false,
-      position: { x: 300, y: 260 },
-    },
-    stitchSettings: {
-      defaultType: 'single-needle',
-      defaultColor: '#f8fafc',
-      showStitches: true,
-      seamAllowanceMm: 12,
-    },
-    annotations: [
-      { id: 'ann-main', text: `${tmpl.name.toUpperCase()} // CAD TECH SPEC`, x: 35, y: 110, fontSize: 15, color: '#2563eb', isHeader: true },
-      { id: 'ann-cutting', text: 'PETUNJUK POTONG (CUTTING):\n• Badan Muka (TM) : Potong 1x\n• Badan Belakang (TB) : Potong 1x\n• Lengan (Kiri & Kanan) : Potong 2x\n• Rib Kerah : Potong 1x', x: 35, y: 145, fontSize: 11, color: '#475569' },
-    ],
-    referenceImages: [],
-    fabricRollWidthCm: 150,
-    showRollGuides: false,
-=======
 function projectDesignState(project: CloProject) {
   const color = project.customColor || '#262626';
   return {
@@ -138,7 +52,6 @@ function projectDesignState(project: CloProject) {
     pendingSeamEdge: null,
     pendingFreeSewEdge: null,
     selectedSeamId: null,
->>>>>>> Stashed changes
   };
 }
 
@@ -226,16 +139,8 @@ interface CloState {
   redoStack: HistoryStep[];
 
   // Project Actions
-  createNewProject: (name: string, templateId?: string, ownerId?: string, ownerUsername?: string) => void;
+  createNewProject: (name: string, templateId?: string) => void;
   switchProject: (id: string) => void;
-<<<<<<< Updated upstream
-  saveActiveProject: (ownerId?: string, ownerUsername?: string) => void;
-  saveProjectAs: (name: string, ownerId?: string, ownerUsername?: string) => void;
-  renameProject: (id: string, name: string) => void;
-  deleteProject: (id: string) => void;
-  duplicateProject: (id: string, ownerId?: string, ownerUsername?: string) => void;
-  importProjectData: (project: CloProject) => void;
-=======
   saveActiveProject: () => void | Promise<void>;
   saveProjectAs: (name: string) => void;
   renameProject: (id: string, name: string) => void;
@@ -244,14 +149,12 @@ interface CloState {
   importProjectData: (project: unknown) => void;
   importProjectsData: (projects: unknown[]) => void;
   replaceWorkspace: (projects: CloProject[]) => void;
->>>>>>> Stashed changes
 
   // Pattern Editing (Photoshop-like & CLO3D CAD)
   selectPiece: (id: string | null) => void;
   selectVertex: (index: number | null) => void;
   setActiveTool: (tool: CadTool) => void;
   updatePiecePosition: (id: string, pos: { x: number; y: number }) => void;
-  updatePieceColor: (id: string, color: string) => void;
   setPieceRotation: (id: string, radians: number) => void;
   updatePieceVertex: (pieceId: string, vertexIndex: number, newPoint: { x: number; y: number }) => void;
   scalePiece: (pieceId: string, factorX: number, factorY?: number) => void;
@@ -272,7 +175,6 @@ interface CloState {
   cutPiece: (pieceId: string, lineStart: { x: number; y: number }, lineEnd: { x: number; y: number }) => boolean;
   addFabricPatch: (type: PatchPresetType, position?: { x: number; y: number }) => void;
   addCustomPiece: (name: string, points: { x: number; y: number }[], position?: { x: number; y: number }) => void;
-  addRectanglePiece: (name: string, widthCm: number, heightCm: number, position?: { x: number; y: number }) => void;
 
   // Graphic / Stamp Layers (Photoshop style)
   addGraphicLayer: (pieceId: string, graphic: Omit<GraphicLayer, 'id'>) => void;
@@ -315,30 +217,14 @@ interface CloState {
   canvasViewMode: CanvasViewMode;
   mockupScene: MockupSceneMode;
   lightingPreset: StudioLightingPreset;
-  canvasTheme: CanvasTheme;
-  sublimationPrint: SublimationPrint;
-  tataBusanaMode: boolean;
   colorZones: Record<string, string>;
   decals: GraphicDecal[];
   selectedDecalId: string | null;
   decalTextureRevision: number;
 
-  // Freeform 2D Canvas Additions (CorelDraw & Illustrator style)
-  annotations: CanvasAnnotation[];
-  referenceImages: ReferenceImageItem[];
-  selectedAnnotationId: string | null;
-  selectedRefImageId: string | null;
-  fabricRollWidthCm: number;
-  showRollGuides: boolean;
-
   setCanvasViewMode: (mode: CanvasViewMode) => void;
   setMockupScene: (scene: MockupSceneMode) => void;
   setLightingPreset: (preset: StudioLightingPreset) => void;
-  setCanvasTheme: (theme: CanvasTheme) => void;
-  setSublimationPrint: (print: SublimationPrint) => void;
-  setTataBusanaMode: (enabled: boolean) => void;
-  addNotchToEdge: (pieceId: string, edgeIndex: number, param: number) => void;
-  removeNotch: (pieceId: string, notchIndex: number) => void;
   setColorZone: (zone: string, color: string) => void;
   setColorZones: (zones: Record<string, string>) => void;
   setSelectedDecalId: (id: string | null) => void;
@@ -347,18 +233,6 @@ interface CloState {
   removeDecal: (id: string) => void;
   reorderDecal: (id: string, direction: 'up' | 'down') => void;
   bumpDecalTextureRevision: () => void;
-
-  // Annotations & Reference Images Actions
-  addAnnotation: (ann: Omit<CanvasAnnotation, 'id'>) => string;
-  updateAnnotation: (id: string, partial: Partial<CanvasAnnotation>) => void;
-  removeAnnotation: (id: string) => void;
-  setSelectedAnnotationId: (id: string | null) => void;
-  addReferenceImage: (img: Omit<ReferenceImageItem, 'id'>) => string;
-  updateReferenceImage: (id: string, partial: Partial<ReferenceImageItem>) => void;
-  removeReferenceImage: (id: string) => void;
-  setSelectedRefImageId: (id: string | null) => void;
-  setShowRollGuides: (show: boolean) => void;
-  setFabricRollWidthCm: (cm: number) => void;
 
   // Drop Animation Actions
   startDropAnimation: () => void;
@@ -412,13 +286,6 @@ export const useCloStore = create<CloState>((set, get) => {
         decals: updatedState.decals ?? (p.decals || state.decals),
         mockupScene: updatedState.mockupScene ?? (p.mockupScene || state.mockupScene),
         canvasViewMode: updatedState.canvasViewMode ?? (p.canvasViewMode || state.canvasViewMode),
-        canvasTheme: updatedState.canvasTheme ?? (p.canvasTheme || state.canvasTheme),
-        sublimationPrint: updatedState.sublimationPrint ?? (p.sublimationPrint || state.sublimationPrint),
-        tataBusanaMode: updatedState.tataBusanaMode ?? (p.tataBusanaMode ?? state.tataBusanaMode),
-        annotations: updatedState.annotations ?? (p.annotations || state.annotations),
-        referenceImages: updatedState.referenceImages ?? (p.referenceImages || state.referenceImages),
-        fabricRollWidthCm: updatedState.fabricRollWidthCm ?? (p.fabricRollWidthCm || state.fabricRollWidthCm),
-        showRollGuides: updatedState.showRollGuides ?? (p.showRollGuides ?? state.showRollGuides),
         updatedAt: now,
       };
     });
@@ -444,24 +311,9 @@ export const useCloStore = create<CloState>((set, get) => {
     selectedPieceId: null,
     selectedVertexIndex: null,
     // Fashion CAD & 3D Showroom State
-<<<<<<< Updated upstream
-    canvasViewMode: active.canvasViewMode || 'pieces',
-    canvasTheme: active.canvasTheme || 'white',
-    sublimationPrint: active.sublimationPrint || 'none',
-    tataBusanaMode: active.tataBusanaMode ?? true,
-    mockupScene: active.mockupScene || 'ghost',
-=======
     ...projectDesignState(active),
->>>>>>> Stashed changes
     lightingPreset: 'ecommerce-white',
     decalTextureRevision: 0,
-
-    annotations: active.annotations || [],
-    referenceImages: active.referenceImages || [],
-    selectedAnnotationId: null,
-    selectedRefImageId: null,
-    fabricRollWidthCm: active.fabricRollWidthCm || 150,
-    showRollGuides: active.showRollGuides ?? false,
 
     currentMaterial: active.currentMaterial || FABRIC_PRESETS[0],
     customColor: active.customColor || '#262626',
@@ -545,33 +397,6 @@ export const useCloStore = create<CloState>((set, get) => {
     // ==========================================
     // Project Management Actions
     // ==========================================
-<<<<<<< Updated upstream
-    createNewProject: (name, templateId = 'tshirt', ownerId, ownerUsername) => {
-      const newProj = createDefaultProject(templateId, name, ownerId, ownerUsername);
-      const updatedProjects = [newProj, ...get().projects];
-
-      set({
-        projects: updatedProjects,
-        activeProjectId: newProj.id,
-        pieces: newProj.pieces,
-        seams: newProj.seams,
-        currentMaterial: newProj.currentMaterial,
-        customColor: newProj.customColor,
-        activeTemplateId: newProj.templateId,
-        avatar: newProj.avatar,
-        avatar2D: newProj.avatar2D,
-        stitchSettings: newProj.stitchSettings,
-        selectedPieceId: null,
-        selectedVertexIndex: null,
-        undoStack: [],
-        redoStack: [],
-        simulationIteration: get().simulationIteration + 1,
-        isSaved: true,
-        lastSavedAt: newProj.updatedAt,
-      });
-
-      debouncedSaveProjects(updatedProjects, newProj.id);
-=======
     replaceWorkspace: (projects) => {
       editSnapshot = null;
       if (autoSaveTimer) clearTimeout(autoSaveTimer);
@@ -586,7 +411,6 @@ export const useCloStore = create<CloState>((set, get) => {
       const projects = [project, ...get().projects];
       set({ projects, ...projectState(project), isSaved: false });
       debouncedSaveProjects(projects, project.id);
->>>>>>> Stashed changes
     },
     switchProject: (id) => {
       get().endEdit();
@@ -595,121 +419,6 @@ export const useCloStore = create<CloState>((set, get) => {
       set(projectState(project));
       debouncedSaveProjects(get().projects, id);
     },
-<<<<<<< Updated upstream
-
-    saveActiveProject: (ownerId, ownerUsername) => {
-      const state = get();
-      const now = Date.now();
-      const updatedProjects = state.projects.map((p) => {
-        if (p.id !== state.activeProjectId) return p;
-        return {
-          ...p,
-          ownerId: ownerId || p.ownerId,
-          ownerUsername: ownerUsername || p.ownerUsername,
-          pieces: state.pieces,
-          seams: state.seams,
-          currentMaterial: state.currentMaterial,
-          customColor: state.customColor,
-          activeTemplateId: state.activeTemplateId,
-          avatar: state.avatar,
-          avatar2D: state.avatar2D,
-          stitchSettings: state.stitchSettings,
-          colorZones: state.colorZones,
-          decals: state.decals,
-          mockupScene: state.mockupScene,
-          canvasViewMode: state.canvasViewMode,
-          canvasTheme: state.canvasTheme,
-          sublimationPrint: state.sublimationPrint,
-          tataBusanaMode: state.tataBusanaMode,
-          annotations: state.annotations,
-          referenceImages: state.referenceImages,
-          fabricRollWidthCm: state.fabricRollWidthCm,
-          showRollGuides: state.showRollGuides,
-          updatedAt: now,
-        };
-      });
-
-      try {
-        localStorage.setItem(STORAGE_KEY_PROJECTS, JSON.stringify(updatedProjects));
-        localStorage.setItem(STORAGE_KEY_ACTIVE, state.activeProjectId);
-      } catch {}
-
-      set({
-        projects: updatedProjects,
-        isSaved: true,
-        lastSavedAt: now,
-      });
-    },
-
-    saveProjectAs: (name, ownerId, ownerUsername) => {
-      const state = get();
-      const now = Date.now();
-      const activeProj = state.projects.find((p) => p.id === state.activeProjectId);
-      const cloned: CloProject = {
-        id: `proj-${now}-${Math.random().toString(36).substr(2, 5)}`,
-        name,
-        ownerId: ownerId || activeProj?.ownerId,
-        ownerUsername: ownerUsername || activeProj?.ownerUsername,
-        createdAt: now,
-        updatedAt: now,
-        templateId: state.activeTemplateId,
-        pieces: JSON.parse(JSON.stringify(state.pieces)),
-        seams: JSON.parse(JSON.stringify(state.seams)),
-        currentMaterial: { ...state.currentMaterial },
-        customColor: state.customColor,
-        avatar: { ...state.avatar },
-        avatar2D: { ...state.avatar2D },
-        stitchSettings: { ...state.stitchSettings },
-        colorZones: state.colorZones,
-        decals: state.decals,
-        mockupScene: state.mockupScene,
-        canvasViewMode: state.canvasViewMode,
-        canvasTheme: state.canvasTheme,
-        sublimationPrint: state.sublimationPrint,
-        tataBusanaMode: state.tataBusanaMode,
-        annotations: state.annotations,
-        referenceImages: state.referenceImages,
-        fabricRollWidthCm: state.fabricRollWidthCm,
-        showRollGuides: state.showRollGuides,
-      };
-
-      const updatedProjects = [cloned, ...state.projects];
-      set({
-        projects: updatedProjects,
-        activeProjectId: cloned.id,
-        isSaved: true,
-        lastSavedAt: now,
-      });
-
-      debouncedSaveProjects(updatedProjects, cloned.id);
-    },
-
-    renameProject: (id, name) => {
-      const updated = get().projects.map((p) => (p.id === id ? { ...p, name, updatedAt: Date.now() } : p));
-      set({ projects: updated });
-      debouncedSaveProjects(updated, get().activeProjectId);
-    },
-
-    deleteProject: (id) => {
-      const { projects, activeProjectId } = get();
-      if (projects.length <= 1) {
-        // If deleting the only project, reset to a new clean one
-        const fallback = createDefaultProject('tshirt', 'New Studio Project');
-        set({
-          projects: [fallback],
-          activeProjectId: fallback.id,
-          pieces: fallback.pieces,
-          seams: fallback.seams,
-          currentMaterial: fallback.currentMaterial,
-          customColor: fallback.customColor,
-          activeTemplateId: fallback.templateId,
-          avatar: fallback.avatar,
-          avatar2D: fallback.avatar2D,
-          stitchSettings: fallback.stitchSettings,
-          simulationIteration: get().simulationIteration + 1,
-        });
-        debouncedSaveProjects([fallback], fallback.id);
-=======
     saveActiveProject: () => {
       if (autoSaveTimer) clearTimeout(autoSaveTimer);
       autoSaveTimer = null;
@@ -721,7 +430,6 @@ export const useCloStore = create<CloState>((set, get) => {
       }
       if (state.recoveryBackup) {
         set({ saveError: 'An older workspace could not be read. Download its recovery backup before saving.', isSaved: false });
->>>>>>> Stashed changes
         return;
       }
       try {
@@ -732,26 +440,6 @@ export const useCloStore = create<CloState>((set, get) => {
         set({ isSaved: false, saveError: 'Storage is full or unavailable. Download a project backup, then free space and retry Save.' });
       }
     },
-<<<<<<< Updated upstream
-
-    duplicateProject: (id, ownerId, ownerUsername) => {
-      const target = get().projects.find((p) => p.id === id);
-      if (!target) return;
-      const now = Date.now();
-      const cloned: CloProject = {
-        ...JSON.parse(JSON.stringify(target)),
-        id: `proj-${now}-${Math.random().toString(36).substr(2, 5)}`,
-        name: `${target.name} (Copy)`,
-        ownerId: ownerId || target.ownerId,
-        ownerUsername: ownerUsername || target.ownerUsername,
-        createdAt: now,
-        updatedAt: now,
-      };
-
-      const updated = [cloned, ...get().projects];
-      set({ projects: updated });
-      debouncedSaveProjects(updated, get().activeProjectId);
-=======
     saveProjectAs: (name) => {
       get().endEdit();
       const state = get();
@@ -761,7 +449,6 @@ export const useCloStore = create<CloState>((set, get) => {
       const projects = [clone, ...state.projects];
       set({ projects, ...projectState(clone), isSaved: false });
       debouncedSaveProjects(projects, clone.id);
->>>>>>> Stashed changes
     },
     renameProject: (id, name) => {
       const projects = get().projects.map((p) => p.id === id ? { ...p, name: name.trim().slice(0, 120) || 'Untitled design', updatedAt: Date.now() } : p);
@@ -798,11 +485,7 @@ export const useCloStore = create<CloState>((set, get) => {
     // ==========================================
     // 2D Pattern CAD & Photoshop-like Editing
     // ==========================================
-    selectPiece: (id) =>
-      set((state) => ({
-        selectedPieceId: id,
-        selectedVertexIndex: state.selectedPieceId === id ? state.selectedVertexIndex : null,
-      })),
+    selectPiece: (id) => set({ selectedPieceId: id, selectedVertexIndex: null }),
     selectVertex: (index) => set({ selectedVertexIndex: index }),
     setActiveTool: (tool) => {
       const canvasViewMode = tool === 'graphic' && get().activeTemplateId !== 'custom-pattern' ? 'assembled'
@@ -817,16 +500,6 @@ export const useCloStore = create<CloState>((set, get) => {
       const updatedPieces = get().pieces.map((p) => (p.id === id ? { ...p, position: pos } : p));
       set({
         pieces: updatedPieces,
-        ...syncToActiveProject({ pieces: updatedPieces }),
-      });
-    },
-
-    updatePieceColor: (id, color) => {
-      get().pushHistory();
-      const updatedPieces = get().pieces.map((p) => (p.id === id ? { ...p, color } : p));
-      set({
-        pieces: updatedPieces,
-        simulationIteration: get().simulationIteration + 1,
         ...syncToActiveProject({ pieces: updatedPieces }),
       });
     },
@@ -1295,35 +968,6 @@ export const useCloStore = create<CloState>((set, get) => {
       });
     },
 
-    addRectanglePiece: (name, widthCm, heightCm, position) => {
-      get().pushHistory();
-      const newId = `piece-${Date.now()}`;
-      const halfW = Math.round((widthCm * 10) / 2);
-      const halfH = Math.round((heightCm * 10) / 2);
-      const pts = [
-        { id: 'r0', x: -halfW, y: -halfH },
-        { id: 'r1', x: halfW, y: -halfH },
-        { id: 'r2', x: halfW, y: halfH },
-        { id: 'r3', x: -halfW, y: halfH },
-      ];
-      const newPiece: PatternPiece = {
-        id: newId,
-        name: name || `Strip ${widthCm}x${heightCm}cm`,
-        points: pts,
-        position: position || { x: 350, y: 300 },
-        rotation: 0,
-        color: '#38bdf8',
-        placement: { origin3D: [0, 0.5, 0.15], rotation3D: [0, 0, 0] },
-      };
-      const updated = [...get().pieces, newPiece];
-      set({
-        pieces: updated,
-        selectedPieceId: newId,
-        simulationIteration: get().simulationIteration + 1,
-        ...syncToActiveProject({ pieces: updated }),
-      });
-    },
-
     // ==========================================
     // Graphic / Stamp Layers
     // ==========================================
@@ -1604,50 +1248,6 @@ export const useCloStore = create<CloState>((set, get) => {
       set({ lightingPreset: preset });
     },
 
-    setCanvasTheme: (theme) => {
-      set({ canvasTheme: theme, ...syncToActiveProject({ canvasTheme: theme }) });
-    },
-
-    setSublimationPrint: (print) => {
-      set((state) => ({
-        sublimationPrint: print,
-        decalTextureRevision: state.decalTextureRevision + 1,
-        simulationIteration: state.simulationIteration + 1,
-        ...syncToActiveProject({ sublimationPrint: print }),
-      }));
-    },
-
-    setTataBusanaMode: (enabled) => {
-      set({ tataBusanaMode: enabled, ...syncToActiveProject({ tataBusanaMode: enabled }) });
-    },
-
-    addNotchToEdge: (pieceId, edgeIndex, param) => {
-      get().pushHistory();
-      const updatedPieces = get().pieces.map((p) => {
-        if (p.id !== pieceId) return p;
-        const notches = p.notches ? [...p.notches] : [];
-        notches.push({ edgeIndex, param, type: 'single' });
-        return { ...p, notches };
-      });
-      set({
-        pieces: updatedPieces,
-        ...syncToActiveProject({ pieces: updatedPieces }),
-      });
-    },
-
-    removeNotch: (pieceId, notchIndex) => {
-      get().pushHistory();
-      const updatedPieces = get().pieces.map((p) => {
-        if (p.id !== pieceId) return p;
-        const notches = (p.notches || []).filter((_, idx) => idx !== notchIndex);
-        return { ...p, notches };
-      });
-      set({
-        pieces: updatedPieces,
-        ...syncToActiveProject({ pieces: updatedPieces }),
-      });
-    },
-
     setColorZone: (zone, color) => {
       if (!/^#[\da-f]{6}$/i.test(color) || !(zone in get().colorZones)) return;
       get().pushHistory();
@@ -1737,85 +1337,6 @@ export const useCloStore = create<CloState>((set, get) => {
       set((state) => ({ decalTextureRevision: state.decalTextureRevision + 1 }));
     },
 
-    // Freeform 2D Canvas Annotations & Reference Images (CorelDraw style)
-    addAnnotation: (ann) => {
-      get().pushHistory();
-      const id = `ann-${Date.now()}`;
-      const newAnn: CanvasAnnotation = { ...ann, id };
-      const updated = [...(get().annotations || []), newAnn];
-      set({
-        annotations: updated,
-        selectedAnnotationId: id,
-        ...syncToActiveProject({ annotations: updated }),
-      });
-      return id;
-    },
-
-    updateAnnotation: (id, partial) => {
-      const updated = (get().annotations || []).map((a) => (a.id === id ? { ...a, ...partial } : a));
-      set({
-        annotations: updated,
-        ...syncToActiveProject({ annotations: updated }),
-      });
-    },
-
-    removeAnnotation: (id) => {
-      get().pushHistory();
-      const updated = (get().annotations || []).filter((a) => a.id !== id);
-      set({
-        annotations: updated,
-        selectedAnnotationId: null,
-        ...syncToActiveProject({ annotations: updated }),
-      });
-    },
-
-    setSelectedAnnotationId: (id) =>
-      set({ selectedAnnotationId: id, selectedPieceId: id ? null : get().selectedPieceId }),
-
-    addReferenceImage: (img) => {
-      get().pushHistory();
-      const id = `ref-${Date.now()}`;
-      const newImg: ReferenceImageItem = { ...img, id };
-      const updated = [...(get().referenceImages || []), newImg];
-      set({
-        referenceImages: updated,
-        selectedRefImageId: id,
-        ...syncToActiveProject({ referenceImages: updated }),
-      });
-      return id;
-    },
-
-    updateReferenceImage: (id, partial) => {
-      const updated = (get().referenceImages || []).map((img) =>
-        img.id === id ? { ...img, ...partial } : img
-      );
-      set({
-        referenceImages: updated,
-        ...syncToActiveProject({ referenceImages: updated }),
-      });
-    },
-
-    removeReferenceImage: (id) => {
-      get().pushHistory();
-      const updated = (get().referenceImages || []).filter((img) => img.id !== id);
-      set({
-        referenceImages: updated,
-        selectedRefImageId: null,
-        ...syncToActiveProject({ referenceImages: updated }),
-      });
-    },
-
-    setSelectedRefImageId: (id) =>
-      set({ selectedRefImageId: id, selectedPieceId: id ? null : get().selectedPieceId }),
-
-    setShowRollGuides: (show) => {
-      set({ showRollGuides: show, ...syncToActiveProject({ showRollGuides: show }) });
-    },
-
-    setFabricRollWidthCm: (cm) => {
-      set({ fabricRollWidthCm: cm, ...syncToActiveProject({ fabricRollWidthCm: cm }) });
-    },
-
     loadPreset: (id: string) => {
       const template = GARMENT_TEMPLATES.find((t) => t.id === id);
       if (template) {
@@ -1838,15 +1359,6 @@ export const useCloStore = create<CloState>((set, get) => {
           hood: defaultCol,
         };
 
-        const templateAnns: CanvasAnnotation[] = id === 'sbl-kids-cutbray' ? [
-          { id: 'ann-1', text: 'POLA CUTBRAY SERUT // SBL KIDS', x: 35, y: 110, fontSize: 14, color: '#9333ea', isHeader: true },
-          { id: 'ann-2', text: 'KOMPONEN GARMEN:\n• TALI 1 X\n• LAPISAN TALI SERUT 1 X\n• BAN PINGGANG 1 X\n• KAIN SERONG 2 X', x: 35, y: 145, fontSize: 11, color: '#334155' },
-          { id: 'ann-3', text: 'SIZE CHART (KIDS):\nNo 2: P 47 x L 31 cm\nNo 4: P 54 x L 37 cm\nNo 6: P 58 x L 39 cm\nNo 8: P 62 x L 41 cm\nNo 10: P 66 x L 43 cm\nNo 12: P 70 x L 45 cm', x: 35, y: 290, fontSize: 10, color: '#475569' },
-        ] : [
-          { id: 'ann-main', text: `${template.name.toUpperCase()} // CAD TECH SPEC`, x: 35, y: 110, fontSize: 14, color: '#2563eb', isHeader: true },
-          { id: 'ann-cutting', text: 'PETUNJUK POTONG (CUTTING):\n• Badan Muka (TM) : Potong 1x\n• Badan Belakang (TB) : Potong 1x\n• Lengan (Kiri & Kanan) : Potong 2x\n• Rib Kerah : Potong 1x', x: 35, y: 145, fontSize: 11, color: '#475569' },
-        ];
-
         const updatedState = {
           activeTemplateId: id,
           pieces: arrangePatternPieces(p.pieces),
@@ -1854,10 +1366,8 @@ export const useCloStore = create<CloState>((set, get) => {
           currentMaterial: recFabric,
           customColor: defaultCol,
           colorZones: newColorZones,
-          annotations: templateAnns,
           selectedPieceId: null,
           selectedVertexIndex: null,
-          selectedAnnotationId: null,
           simulationIteration: get().simulationIteration + 1,
           decalTextureRevision: get().decalTextureRevision + 1,
         };
