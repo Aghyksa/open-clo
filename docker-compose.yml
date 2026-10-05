@@ -1,17 +1,19 @@
 services:
   open-clo:
+    image: ghcr.io/aghyksa/open-clo:latest
     build:
       context: .
       dockerfile: Dockerfile
     container_name: open-clo-studio
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8480:80"
+      - "127.0.0.1:8480:3001"
     environment:
       - NODE_ENV=production
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/healthz"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
+      # Required: the server refuses to start without the public HTTPS origin (set it in .env).
+      - PUBLIC_ORIGIN=${PUBLIC_ORIGIN:?Set PUBLIC_ORIGIN in .env, e.g. https://design.example.com}
+    volumes:
+      - openclo-data:/data
+
+volumes:
+  openclo-data:

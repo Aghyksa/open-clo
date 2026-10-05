@@ -128,3 +128,34 @@ jobs:
           while IFS= read -r image; do
             docker push "$image"
           done <<< "$IMAGE_TAGS"
+
+  deploy:
+    name: Deploy to production
+    needs: docker-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      DEPLOY_TARGET: ${{ secrets.DEPLOY_TARGET }}
+    steps:
+      - name: Skip when deploy secrets are missing
+        if: env.DEPLOY_TARGET == ''
+        run: echo "::warning::Set DEPLOY_TARGET, DEPLOY_PATH, DEPLOY_SSH_KEY and DEPLOY_KNOWN_HOSTS secrets to enable auto-deploy."
+
+      - name: Pull and restart on the server
+        if: env.DEPLOY_TARGET != ''
+        env:
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy && chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_deploy -o StrictHostKeyChecking=yes "$DEPLOY_TARGET" \
+            "set -e; cd '$DEPLOY_PATH'; git pull --ff-only; docker compose pull; docker compose up -d --wait --wait-timeout 120; docker image prune -f"
